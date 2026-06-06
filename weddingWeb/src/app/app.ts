@@ -3,7 +3,7 @@ import { AdminToolsComponent } from './components/admin-tools/admin-tools.compon
 import { AnnouncementsPanelComponent } from './components/announcements-panel.component';
 import { EventsListComponent } from './components/events-list.component';
 import { LanguageSelectorComponent } from './components/language-selector.component';
-import { I18nService } from './services/i18n.service';
+import { I18nService, Locale, SUPPORTED_LOCALES } from './services/i18n.service';
 import { AnnouncementInfo, EventInfo, LoginResponse, PersonInfo, UserInfo, WeddingApiService } from './services/wedding-api.service';
 
 @Component({
@@ -42,8 +42,20 @@ export class App implements OnInit {
   protected readonly people = signal<PersonInfo[]>([]);
 
   ngOnInit() {
+    this.applyLocaleFromUrl();
     if (this.shouldAutoLogin()) {
       void this.attemptLogin(true);
+    }
+  }
+
+  private applyLocaleFromUrl() {
+    const raw = new URLSearchParams(window.location.search).get('lang');
+    if (!raw) {
+      return;
+    }
+    const match = SUPPORTED_LOCALES.find(l => l.code.toLowerCase() === raw.toLowerCase());
+    if (match) {
+      this.i18n.setLocale(match.code as Locale);
     }
   }
 

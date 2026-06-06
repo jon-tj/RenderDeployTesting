@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { InviteRow, WeddingApiService } from '../services/wedding-api.service';
+import { SUPPORTED_LOCALES } from '../services/i18n.service';
 
 interface InviteRowState extends InviteRow {
   draftFullName: string;
   draftDisplayName: string;
   draftEmail: string;
+  draftLocale: string;
   saving: boolean;
 }
 
@@ -35,6 +37,7 @@ interface InviteRowState extends InviteRow {
                 <th>Full name</th>
                 <th>Display name</th>
                 <th>Email</th>
+                <th>Lang</th>
                 <th class="actions-col">Actions</th>
               </tr>
             </thead>
@@ -64,6 +67,18 @@ interface InviteRowState extends InviteRow {
                       (input)="row.draftEmail = $any($event.target).value"
                       placeholder="email@example.com"
                     />
+                  </td>
+                  <td>
+                    <select
+                      [value]="row.draftLocale"
+                      (change)="row.draftLocale = $any($event.target).value"
+                      title="Email + login language"
+                    >
+                      <option value="">Auto</option>
+                      @for (l of locales; track l.code) {
+                        <option [value]="l.code">{{ l.flag }} {{ l.code }}</option>
+                      }
+                    </select>
                   </td>
                   <td class="actions-col">
                     <button
@@ -215,6 +230,7 @@ export class AdminInviteToolComponent implements OnInit {
 
   private readonly api = inject(WeddingApiService);
 
+  protected readonly locales = SUPPORTED_LOCALES;
   protected readonly rows = signal<InviteRowState[]>([]);
   protected readonly patLoginEnabled = signal(false);
   protected readonly loading = signal(false);
@@ -228,7 +244,8 @@ export class AdminInviteToolComponent implements OnInit {
   protected isDirty(row: InviteRowState): boolean {
     return row.draftFullName !== row.fullName
       || row.draftDisplayName !== row.displayName
-      || row.draftEmail !== row.email;
+      || row.draftEmail !== row.email
+      || row.draftLocale !== row.locale;
   }
 
   protected async refresh() {
@@ -278,7 +295,8 @@ export class AdminInviteToolComponent implements OnInit {
         adminFullName: this.adminFullName,
         fullName: row.draftFullName.trim(),
         displayName: row.draftDisplayName.trim(),
-        email: row.draftEmail.trim()
+        email: row.draftEmail.trim(),
+        locale: row.draftLocale
       });
       if (!updated) {
         this.statusMessage.emit('Could not save invite.');
@@ -356,9 +374,11 @@ export class AdminInviteToolComponent implements OnInit {
   private toState(row: InviteRow): InviteRowState {
     return {
       ...row,
+      locale: row.locale ?? '',
       draftFullName: row.fullName,
       draftDisplayName: row.displayName,
       draftEmail: row.email,
+      draftLocale: row.locale ?? '',
       saving: false
     };
   }
@@ -371,7 +391,9 @@ export class AdminInviteToolComponent implements OnInit {
       .filter(Boolean)
       .map(encodeURIComponent)
       .join('+');
-    return `${baseUrl}?name=${encodedName}&pat=${encodeURIComponent(row.pat)}`;
+    const locale = (row.locale || row.draftLocale || '').trim();
+    const langPart = locale ? `&lang=${encodeURIComponent(locale)}` : '';
+    return `${baseUrl}?name=${encodedName}&pat=${encodeURIComponent(row.pat)}${langPart}`;
   }
 
   private inviteBaseUrl(): string {

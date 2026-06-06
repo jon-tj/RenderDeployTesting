@@ -141,7 +141,7 @@ public sealed class AuthController : ControllerBase
             database.Commit();
         }
 
-        var patLoginLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
+        var patLoginLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, user.Locale, configuration);
         await emailService.SendInviteAsync(user, patLoginLink);
 
         return Ok(BuildAuthorizedLoginResponse(user, database));
@@ -212,6 +212,7 @@ public sealed class AuthController : ControllerBase
                 ? string.Empty
                 : request.DisplayName.Trim(),
             Email = request.Email?.Trim() ?? string.Empty,
+            Locale = NormalizeLocale(request.Locale),
             Pat = twoFactorService.GeneratePersonalAccessToken(),
             AddedToCalendar = false,
             LastVersionSeen = -1,
@@ -266,6 +267,7 @@ public sealed class AuthController : ControllerBase
             ? string.Empty
             : request.DisplayName.Trim();
         user.Email = request.Email?.Trim() ?? string.Empty;
+        user.Locale = NormalizeLocale(request.Locale);
 
         database.Commit();
         return Ok(ToInviteRow(user));
@@ -320,7 +322,7 @@ public sealed class AuthController : ControllerBase
                 continue;
             }
 
-            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
+            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, user.Locale, configuration);
             await emailService.SendInviteAsync(user, inviteLink);
             emailsSent++;
         }
@@ -351,7 +353,7 @@ public sealed class AuthController : ControllerBase
                 continue;
             }
 
-            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
+            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, user.Locale, configuration);
             await emailService.SendInviteAsync(user, inviteLink);
             emailsSent++;
         }
@@ -381,7 +383,8 @@ public sealed class AuthController : ControllerBase
             user.Email,
             user.Admin,
             user.LastAnnouncementSeen,
-            user.LastVersionSeen);
+            user.LastVersionSeen,
+            user.Locale ?? string.Empty);
     }
 
     private static LoginResponse BuildAuthorizedLoginResponse(User user, JsonDatabase database)
@@ -457,6 +460,11 @@ public sealed class AuthController : ControllerBase
 
     private static string BuildInviteLink(string? _, string fullName, string pat, IConfiguration configuration)
     {
+        return BuildInviteLink(_, fullName, pat, locale: null, configuration);
+    }
+
+    private static string BuildInviteLink(string? _, string fullName, string pat, string? locale, IConfiguration configuration)
+    {
         // Always build invite links off WEBSITE_URL so they keep working even if
         // the call originated from localhost / a staging frontend. The first
         // parameter (frontend-supplied base URL) is intentionally ignored.
@@ -473,7 +481,30 @@ public sealed class AuthController : ControllerBase
             $"pat={Uri.EscapeDataString(pat)}"
         };
 
+        var normalizedLocale = NormalizeLocale(locale);
+        if (!string.IsNullOrEmpty(normalizedLocale))
+        {
+            queryParts.Add($"lang={Uri.EscapeDataString(normalizedLocale)}");
+        }
+
         return $"{baseUrl}?{string.Join("&", queryParts)}";
+    }
+
+    // Keep the set of accepted locales in sync with weddingWeb/src/app/services/i18n.service.ts.
+    private static readonly HashSet<string> SupportedLocales = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "en", "nb", "pt-BR"
+    };
+
+    private static string NormalizeLocale(string? locale)
+    {
+        if (string.IsNullOrWhiteSpace(locale))
+        {
+            return string.Empty;
+        }
+        var trimmed = locale.Trim();
+        var match = SupportedLocales.FirstOrDefault(l => string.Equals(l, trimmed, StringComparison.OrdinalIgnoreCase));
+        return match ?? string.Empty;
     }
 
     private static List<AuthEventResponse> ToEventResponses(List<WeddingEvent> weddingEvents, List<User> users)
@@ -503,8 +534,8 @@ public sealed class AuthController : ControllerBase
 public sealed record LoginRequest(string? Name, string? Email, string? Pat = null);
 public sealed record RegisterEmailRequest(string Pat, string Name, string Email, string? InviteBaseUrl);
 public sealed record AdminTwoFactorVerifyRequest(string Name, string Email, string Code);
-public sealed record CreateInviteRequest(string AdminFullName, string? FullName, string? DisplayName, string? Email);
-public sealed record UpdateInviteRequest(string AdminFullName, string? FullName, string? DisplayName, string? Email);
+public sealed record CreateInviteRequest(string AdminFullName, string? FullName, string? DisplayName, string? Email, string? Locale);
+public sealed record UpdateInviteRequest(string AdminFullName, string? FullName, string? DisplayName, string? Email, string? Locale);
 public sealed record GoLiveRequest(string AdminFullName, string? InviteBaseUrl);
 
 public sealed record LoginResponse(
@@ -541,7 +572,7 @@ public sealed record AuthEventResponse(
     List<MealOption> MealOptions,
     Dictionary<string, string> Rsvp);
 public sealed record AuthAnnouncementResponse(int Id, string Title, string Message, DateTimeOffset CreatedAt, string CreatedBy);
-public sealed record InviteRowResponse(string Pat, string FullName, string DisplayName, string Email, bool Admin, int LastAnnouncementSeen, int LastVersionSeen);
+public sealed record InviteRowResponse(string Pat, string FullName, string DisplayName, string Email, bool Admin, int LastAnnouncementSeen, int LastVersionSeen, string Locale);
 public sealed record InviteListResponse(List<InviteRowResponse> Invites, bool PatLoginEnabled);
 public sealed record GoLiveResponse(bool PatLoginEnabled, int EmailsSent, int SkippedWithoutEmail);
 public sealed record PeopleResponse(string FullName, int LastAnnouncementSeen);

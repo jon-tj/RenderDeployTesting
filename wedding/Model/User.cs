@@ -28,6 +28,9 @@ public sealed class User
     [JsonPropertyName("admin")]
     public bool Admin { get; set; }
 
+    [JsonPropertyName("locale")]
+    public string Locale { get; set; } = string.Empty;
+
     [JsonPropertyName("allergies")]
     public List<string> Allergies { get; set; } = new();
 

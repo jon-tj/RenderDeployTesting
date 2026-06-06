@@ -66,6 +66,7 @@ export interface InviteRow {
   admin: boolean;
   lastAnnouncementSeen: number;
   lastVersionSeen: number;
+  locale: string;
 }
 
 export interface InviteListResponse {
@@ -200,7 +201,7 @@ export class WeddingApiService {
     return (await response.json()) as InviteListResponse;
   }
 
-  async createInvite(payload: { adminFullName: string; fullName?: string; displayName?: string; email?: string }): Promise<InviteRow | null> {
+  async createInvite(payload: { adminFullName: string; fullName?: string; displayName?: string; email?: string; locale?: string }): Promise<InviteRow | null> {
     const response = await fetch(`${this.backendBaseUrl}/admin/invites`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -212,7 +213,7 @@ export class WeddingApiService {
     return (await response.json()) as InviteRow;
   }
 
-  async updateInvite(pat: string, payload: { adminFullName: string; fullName: string; displayName: string; email: string }): Promise<InviteRow | null> {
+  async updateInvite(pat: string, payload: { adminFullName: string; fullName: string; displayName: string; email: string; locale: string }): Promise<InviteRow | null> {
     const response = await fetch(`${this.backendBaseUrl}/admin/invites/${encodeURIComponent(pat)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

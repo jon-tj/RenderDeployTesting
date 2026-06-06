@@ -14,6 +14,9 @@ public sealed class EmailService
     private readonly string _announcementTemplate;
     private readonly string _adminTwoFactorTemplate;
     private readonly string _inviteTemplate;
+    // Localized invite templates keyed by locale code (e.g. "pt-BR", "nb").
+    // Falls back to _inviteTemplate when a locale has no matching file.
+    private readonly Dictionary<string, string> _inviteTemplatesByLocale;
 
     public EmailService(
         ILogger<EmailService> logger,
@@ -37,6 +40,19 @@ public sealed class EmailService
         _announcementTemplate = LoadTemplate(templateFolder, "announcement.html", websiteUrl);
         _adminTwoFactorTemplate = LoadTemplate(templateFolder, "admin-2fa.html", websiteUrl);
         _inviteTemplate = LoadTemplate(templateFolder, "invite.html", websiteUrl);
+
+        _inviteTemplatesByLocale = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in Directory.EnumerateFiles(templateFolder, "invite.*.html"))
+        {
+            // invite.<locale>.html  ->  locale token between the dots
+            var fileName = Path.GetFileName(file);
+            var parts = fileName.Split('.');
+            if (parts.Length == 3)
+            {
+                var locale = parts[1];
+                _inviteTemplatesByLocale[locale] = LoadTemplate(templateFolder, fileName, websiteUrl);
+            }
+        }
     }
 
     public Task SendAnnouncementAsync(Announcement announcement, IEnumerable<User> recipients)
@@ -73,13 +89,25 @@ public sealed class EmailService
             ? invitedUser.DisplayName
             : invitedUser.FullName ?? string.Empty;
 
-        var htmlBody = string.Format(
-            _inviteTemplate,
-            greetingName,
-            inviteLink);
+        var template = _inviteTemplate;
+        if (!string.IsNullOrWhiteSpace(invitedUser.Locale)
+            && _inviteTemplatesByLocale.TryGetValue(invitedUser.Locale, out var localized))
+        {
+            template = localized;
+        }
 
-        return SendAsync(new[] { invitedUser.Email ?? string.Empty }, "You're invited — Majori Wedding", htmlBody);
+        var htmlBody = string.Format(template, greetingName, inviteLink);
+        var subject = LocalizedInviteSubject(invitedUser.Locale);
+
+        return SendAsync(new[] { invitedUser.Email ?? string.Empty }, subject, htmlBody);
     }
+
+    private static string LocalizedInviteSubject(string? locale) => locale switch
+    {
+        "pt-BR" => "Você está convidado — Jon Henrik & Mariana",
+        "nb" => "Du er invitert — Jon Henrik & Mariana",
+        _ => "You're invited — Jon Henrik & Mariana",
+    };
 
     private async Task SendAsync(string[] to, string subject, string htmlBody)
     {

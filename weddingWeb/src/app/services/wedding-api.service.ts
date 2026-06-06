@@ -193,9 +193,8 @@ export class WeddingApiService {
   }
 
   async listInvites(adminFullName: string): Promise<InviteListResponse | null> {
-    const url = new URL(`${this.backendBaseUrl}/admin/invites`);
-    url.searchParams.set('adminFullName', adminFullName);
-    const response = await fetch(url.toString());
+    const params = new URLSearchParams({ adminFullName });
+    const response = await fetch(`${this.backendBaseUrl}/admin/invites?${params.toString()}`);
     if (!response.ok) {
       return null;
     }
@@ -227,9 +226,11 @@ export class WeddingApiService {
   }
 
   async deleteInvite(pat: string, adminFullName: string): Promise<boolean> {
-    const url = new URL(`${this.backendBaseUrl}/admin/invites/${encodeURIComponent(pat)}`);
-    url.searchParams.set('adminFullName', adminFullName);
-    const response = await fetch(url.toString(), { method: 'DELETE' });
+    const params = new URLSearchParams({ adminFullName });
+    const response = await fetch(
+      `${this.backendBaseUrl}/admin/invites/${encodeURIComponent(pat)}?${params.toString()}`,
+      { method: 'DELETE' }
+    );
     return response.ok;
   }
 

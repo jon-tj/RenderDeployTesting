@@ -83,7 +83,12 @@ export interface GoLiveResponse {
   providedIn: 'root'
 })
 export class WeddingApiService {
-  readonly backendBaseUrl = 'http://localhost:5022/api';
+  // In dev (ng serve on :4200) talk to the ASP.NET dev server; in prod the
+  // Angular app is served by the same ASP.NET process, so use a relative path.
+  readonly backendBaseUrl =
+    typeof window !== 'undefined' && window.location.hostname === 'localhost' && window.location.port === '4200'
+      ? 'http://localhost:5022/api'
+      : '/api';
 
   async login(payload: { name?: string; email?: string; pat?: string }): Promise<LoginResponse | null> {
     const response = await fetch(`${this.backendBaseUrl}/login`, {

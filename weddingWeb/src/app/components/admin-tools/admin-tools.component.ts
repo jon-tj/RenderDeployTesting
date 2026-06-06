@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, inject, signal } from '@angular/core';
-import { I18nService } from '../../services/i18n.service';
+import { I18nService, SUPPORTED_LOCALES } from '../../services/i18n.service';
 import {
   AnnouncementInfo,
   EventInfo,
@@ -15,6 +15,7 @@ interface InviteRowState extends InviteRow {
   draftFullName: string;
   draftDisplayName: string;
   draftEmail: string;
+  draftLocale: string;
   saving: boolean;
 }
 
@@ -41,6 +42,7 @@ export class AdminToolsComponent implements OnInit, OnChanges {
   private readonly api = inject(WeddingApiService);
   private readonly i18n = inject(I18nService);
 
+  protected readonly locales = SUPPORTED_LOCALES;
   protected readonly adminTab = signal<AdminTab>('people');
   protected readonly invites = signal<InviteRowState[]>([]);
   protected readonly patLoginEnabled = signal(false);
@@ -216,7 +218,8 @@ export class AdminToolsComponent implements OnInit, OnChanges {
   protected isInviteDirty(row: InviteRowState): boolean {
     return row.draftFullName !== row.fullName
       || row.draftDisplayName !== row.displayName
-      || row.draftEmail !== row.email;
+      || row.draftEmail !== row.email
+      || row.draftLocale !== (row.locale ?? '');
   }
 
   protected async refreshInvites() {
@@ -263,7 +266,8 @@ export class AdminToolsComponent implements OnInit, OnChanges {
         adminFullName: this.user.fullName,
         fullName: row.draftFullName.trim(),
         displayName: row.draftDisplayName.trim(),
-        email: row.draftEmail.trim()
+        email: row.draftEmail.trim(),
+        locale: row.draftLocale
       });
       if (!updated) {
         this.statusMessage.emit('Could not save invite.');
@@ -303,7 +307,9 @@ export class AdminToolsComponent implements OnInit, OnChanges {
     const baseUrl = this.inviteBaseUrl().replace(/\/$/, '');
     const name = (row.fullName || row.draftFullName).trim();
     const encodedName = name.split(/\s+/).filter(Boolean).map(encodeURIComponent).join('+');
-    const link = `${baseUrl}?name=${encodedName}&pat=${encodeURIComponent(row.pat)}`;
+    const locale = (row.locale || row.draftLocale || '').trim();
+    const langPart = locale ? `&lang=${encodeURIComponent(locale)}` : '';
+    const link = `${baseUrl}?name=${encodedName}&pat=${encodeURIComponent(row.pat)}${langPart}`;
     try {
       await navigator.clipboard.writeText(link);
       this.statusMessage.emit('Invite link copied.');
@@ -370,9 +376,11 @@ export class AdminToolsComponent implements OnInit, OnChanges {
   private toInviteState(row: InviteRow): InviteRowState {
     return {
       ...row,
+      locale: row.locale ?? '',
       draftFullName: row.fullName,
       draftDisplayName: row.displayName,
       draftEmail: row.email,
+      draftLocale: row.locale ?? '',
       saving: false
     };
   }

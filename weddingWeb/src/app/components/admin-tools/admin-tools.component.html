@@ -110,6 +110,7 @@
 								<th>Full name</th>
 								<th>Display name</th>
 								<th>Email</th>
+								<th>Lang</th>
 								<th>RSVP</th>
 								<th>Updated</th>
 								<th class="actions-col">Actions</th>
@@ -144,6 +145,18 @@
 											(input)="entry.row.draftEmail = $any($event.target).value"
 											placeholder="email@example.com"
 										/>
+									</td>
+									<td>
+										<select
+											[value]="entry.row.draftLocale"
+											(change)="entry.row.draftLocale = $any($event.target).value"
+											title="Email + login language"
+										>
+											<option value="">Auto</option>
+											@for (l of locales; track l.code) {
+												<option [value]="l.code">{{ l.flag }} {{ l.code }}</option>
+											}
+										</select>
 									</td>
 									<td>
 										<span class="rsvp-status rsvp-status-{{ entry.rsvp || 'none' }}">{{ entry.rsvp || '-' }}</span>

@@ -15,8 +15,26 @@ public sealed class AuthController : ControllerBase
         [FromServices] JsonDatabase database,
         [FromServices] EmailService emailService,
         [FromServices] AdminTwoFactorService twoFactorService,
+        [FromServices] AdminSessionService adminSessionService,
         [FromServices] ILogger<AuthController> logger)
     {
+        var normalizedAdminSession = request.AdminSessionToken?.Trim() ?? string.Empty;
+        if (!string.IsNullOrEmpty(normalizedAdminSession)
+            && adminSessionService.TryResolve(normalizedAdminSession, out var sessionFullName, out var sessionEmail))
+        {
+            var sessionUser = database.Users.FirstOrDefault(u =>
+                u.Admin
+                && string.Equals(u.FullName, sessionFullName, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(u.Email?.Trim(), sessionEmail, StringComparison.OrdinalIgnoreCase));
+
+            if (sessionUser is not null)
+            {
+                return Ok(BuildAuthorizedLoginResponse(sessionUser, database, normalizedAdminSession));
+            }
+
+            adminSessionService.Revoke(normalizedAdminSession);
+        }
+
         var normalizedPat = request.Pat?.Trim() ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(normalizedPat) && database.PatLoginEnabled)
         {
@@ -151,7 +169,8 @@ public sealed class AuthController : ControllerBase
     public ActionResult<LoginResponse> VerifyTwoFactor(
         [FromBody] AdminTwoFactorVerifyRequest request,
         [FromServices] JsonDatabase database,
-        [FromServices] AdminTwoFactorService twoFactorService)
+        [FromServices] AdminTwoFactorService twoFactorService,
+        [FromServices] AdminSessionService adminSessionService)
     {
         if (string.IsNullOrWhiteSpace(request.Name)
             || string.IsNullOrWhiteSpace(request.Email)
@@ -190,7 +209,8 @@ public sealed class AuthController : ControllerBase
             return Ok(new LoginResponse(false, null, null, null, database.CurrentVersion, false, false, null));
         }
 
-        return Ok(BuildAuthorizedLoginResponse(user, database));
+        var adminSessionToken = adminSessionService.IssueToken(user.FullName, user.Email);
+        return Ok(BuildAuthorizedLoginResponse(user, database, adminSessionToken));
     }
 
     [HttpPost("admin/invites")]
@@ -387,7 +407,7 @@ public sealed class AuthController : ControllerBase
             user.Locale ?? string.Empty);
     }
 
-    private static LoginResponse BuildAuthorizedLoginResponse(User user, JsonDatabase database)
+    private static LoginResponse BuildAuthorizedLoginResponse(User user, JsonDatabase database, string? adminSessionToken = null)
     {
         var hasChanges = false;
         var responseLastAnnouncementSeen = user.LastAnnouncementSeen;
@@ -442,7 +462,8 @@ public sealed class AuthController : ControllerBase
             false,
             false,
             null,
-            peopleResponse);
+            peopleResponse,
+            user.Admin ? adminSessionToken : null);
     }
 
     private static bool NameMatchesSubwords(string[] requestSubwords, string userFullName)
@@ -531,7 +552,7 @@ public sealed class AuthController : ControllerBase
     }
 }
 
-public sealed record LoginRequest(string? Name, string? Email, string? Pat = null);
+public sealed record LoginRequest(string? Name, string? Email, string? Pat = null, string? AdminSessionToken = null);
 public sealed record RegisterEmailRequest(string Pat, string Name, string Email, string? InviteBaseUrl);
 public sealed record AdminTwoFactorVerifyRequest(string Name, string Email, string Code);
 public sealed record CreateInviteRequest(string AdminFullName, string? FullName, string? DisplayName, string? Email, string? Locale);
@@ -547,7 +568,8 @@ public sealed record LoginResponse(
     bool RequiresTwoFactor,
     bool RequiresEmailRegistration,
     string? PendingName,
-    List<PeopleResponse>? People = null);
+    List<PeopleResponse>? People = null,
+    string? AdminSessionToken = null);
 
 public sealed record UserResponse(
     string FullName,

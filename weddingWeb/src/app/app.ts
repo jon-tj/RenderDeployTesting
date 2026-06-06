@@ -18,6 +18,8 @@ import { AnnouncementInfo, EventInfo, LoginResponse, PersonInfo, UserInfo, Weddi
   styleUrl: './app.css'
 })
 export class App implements OnInit {
+  private static readonly ADMIN_SESSION_KEY = 'majori.adminSession';
+
   private readonly api = inject(WeddingApiService);
   protected readonly i18n = inject(I18nService);
 
@@ -43,8 +45,34 @@ export class App implements OnInit {
 
   ngOnInit() {
     this.applyLocaleFromUrl();
+
     if (this.shouldAutoLogin()) {
       void this.attemptLogin(true);
+      return;
+    }
+
+    const adminToken = this.readAdminSessionToken();
+    if (adminToken) {
+      void this.resumeAdminSession(adminToken);
+    }
+  }
+
+  private async resumeAdminSession(token: string) {
+    this.isWorking.set(true);
+    try {
+      const payload = await this.api.login({ adminSessionToken: token });
+      if (!payload) {
+        return;
+      }
+      if (this.isAuthorizedPayload(payload)) {
+        this.applyAuthorizedPayload(payload);
+      } else {
+        this.clearAdminSessionToken();
+      }
+    } catch {
+      // Network errors leave the token in place so a later retry works.
+    } finally {
+      this.isWorking.set(false);
     }
   }
 
@@ -289,6 +317,11 @@ export class App implements OnInit {
     this.people.set(people);
     this.viewAsAdmin.set(user.admin);
     this.invitePat.set('');
+    if (user.admin && payload.adminSessionToken) {
+      this.storeAdminSessionToken(payload.adminSessionToken);
+    } else if (!user.admin) {
+      this.clearAdminSessionToken();
+    }
     this.statusMessage.set(`Welcome ${user.displayName}!`);
   }
 
@@ -331,6 +364,30 @@ export class App implements OnInit {
   private readInvitePatFromUrl() {
     const pat = new URLSearchParams(window.location.search).get('pat');
     return pat ?? '';
+  }
+
+  private readAdminSessionToken(): string {
+    try {
+      return window.localStorage?.getItem(App.ADMIN_SESSION_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  private storeAdminSessionToken(token: string) {
+    try {
+      window.localStorage?.setItem(App.ADMIN_SESSION_KEY, token);
+    } catch {
+      // localStorage may be unavailable (private mode); silently skip.
+    }
+  }
+
+  private clearAdminSessionToken() {
+    try {
+      window.localStorage?.removeItem(App.ADMIN_SESSION_KEY);
+    } catch {
+      // ignore
+    }
   }
 
   private shouldAutoLogin() {

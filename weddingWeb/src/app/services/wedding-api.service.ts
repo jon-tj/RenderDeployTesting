@@ -56,6 +56,7 @@ export interface LoginResponse {
   requiresEmailRegistration: boolean;
   pendingName: string | null;
   people: PersonInfo[] | null;
+  adminSessionToken: string | null;
 }
 
 export interface InviteRow {
@@ -91,7 +92,7 @@ export class WeddingApiService {
       ? 'http://localhost:5022/api'
       : '/api';
 
-  async login(payload: { name?: string; email?: string; pat?: string }): Promise<LoginResponse | null> {
+  async login(payload: { name?: string; email?: string; pat?: string; adminSessionToken?: string }): Promise<LoginResponse | null> {
     const response = await fetch(`${this.backendBaseUrl}/login`, {
       method: 'POST',
       headers: {

@@ -18,6 +18,7 @@ builder.Services.AddTransient<Resend.IResend, Resend.ResendClient>();
 
 builder.Services.AddScoped<wedding.Services.EmailService>();
 builder.Services.AddSingleton<wedding.Services.AdminTwoFactorService>();
+builder.Services.AddSingleton<wedding.Services.AdminSessionService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WeddingWebDev", policy =>

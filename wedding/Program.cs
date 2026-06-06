@@ -5,7 +5,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<wedding.Data.JsonDatabase>();
-builder.Services.AddSingleton<wedding.Services.EmailService>();
+
+// Resend email client. Reads RESEND_API_KEY from env / config; if missing,
+// EmailService falls back to logging instead of sending.
+builder.Services.AddOptions();
+builder.Services.AddHttpClient<Resend.ResendClient>();
+builder.Services.Configure<Resend.ResendClientOptions>(o =>
+{
+    o.ApiToken = builder.Configuration["RESEND_API_KEY"] ?? string.Empty;
+});
+builder.Services.AddTransient<Resend.IResend, Resend.ResendClient>();
+
+builder.Services.AddScoped<wedding.Services.EmailService>();
 builder.Services.AddSingleton<wedding.Services.AdminTwoFactorService>();
 builder.Services.AddCors(options =>
 {

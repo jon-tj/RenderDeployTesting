@@ -1,3 +1,4 @@
+using Resend;
 using wedding.Model;
 
 namespace wedding.Services;
@@ -5,13 +6,29 @@ namespace wedding.Services;
 public sealed class EmailService
 {
     private readonly ILogger<EmailService> _logger;
+    private readonly IResend _resend;
+    private readonly bool _resendConfigured;
+    private readonly string _fromAddress;
     private readonly string _announcementTemplate;
     private readonly string _adminTwoFactorTemplate;
     private readonly string _inviteTemplate;
 
-    public EmailService(ILogger<EmailService> logger, IWebHostEnvironment environment)
+    public EmailService(
+        ILogger<EmailService> logger,
+        IWebHostEnvironment environment,
+        IConfiguration configuration,
+        IResend resend)
     {
         _logger = logger;
+        _resend = resend;
+
+        _resendConfigured = !string.IsNullOrWhiteSpace(configuration["RESEND_API_KEY"]);
+        _fromAddress = configuration["EMAIL_FROM"] ?? "Majori Wedding <onboarding@resend.dev>";
+
+        if (!_resendConfigured)
+        {
+            _logger.LogWarning("RESEND_API_KEY not set — EmailService will log instead of sending.");
+        }
 
         var templateFolder = Path.Combine(environment.ContentRootPath, "Emails");
         _announcementTemplate = LoadTemplate(templateFolder, "announcement.html");
@@ -21,7 +38,6 @@ public sealed class EmailService
 
     public Task SendAnnouncementAsync(Announcement announcement, IEnumerable<User> recipients)
     {
-        var recipientCount = recipients.Count();
         var htmlBody = string.Format(
             _announcementTemplate,
             announcement.Title,
@@ -29,14 +45,12 @@ public sealed class EmailService
             announcement.CreatedBy,
             announcement.CreatedAt.ToString("f"));
 
-        _logger.LogInformation(
-            "[MockEmailService] Announcement '{Title}' would be emailed to {RecipientCount} users. HTML body:{NewLine}{HtmlBody}",
-            announcement.Title,
-            recipientCount,
-            Environment.NewLine,
-            htmlBody);
+        var addresses = recipients
+            .Where(u => !string.IsNullOrWhiteSpace(u.Email))
+            .Select(u => u.Email!)
+            .ToArray();
 
-        return Task.CompletedTask;
+        return SendAsync(addresses, $"Majori Wedding — {announcement.Title}", htmlBody);
     }
 
     public Task SendAdminTwoFactorCodeAsync(User adminUser, string code, TimeSpan validFor)
@@ -47,15 +61,7 @@ public sealed class EmailService
             code,
             Math.Ceiling(validFor.TotalMinutes));
 
-        _logger.LogInformation(
-            "[MockEmailService] Admin 2FA email for {Email} ({DisplayName}) with code {Code}. HTML body:{NewLine}{HtmlBody}",
-            adminUser.Email,
-            adminUser.DisplayName,
-            code,
-            Environment.NewLine,
-            htmlBody);
-
-        return Task.CompletedTask;
+        return SendAsync(new[] { adminUser.Email ?? string.Empty }, "Majori Wedding — admin 2FA code", htmlBody);
     }
 
     public Task SendInviteAsync(User invitedUser, string inviteLink)
@@ -65,15 +71,53 @@ public sealed class EmailService
             invitedUser.DisplayName,
             inviteLink);
 
-        _logger.LogInformation(
-            "[MockEmailService] Invite for {DisplayName} <{Email}> with PAT link: {InviteLink}. HTML body:{NewLine}{HtmlBody}",
-            invitedUser.DisplayName,
-            invitedUser.Email,
-            inviteLink,
-            Environment.NewLine,
-            htmlBody);
+        return SendAsync(new[] { invitedUser.Email ?? string.Empty }, "You're invited — Majori Wedding", htmlBody);
+    }
 
-        return Task.CompletedTask;
+    private async Task SendAsync(string[] to, string subject, string htmlBody)
+    {
+        to = to.Where(addr => !string.IsNullOrWhiteSpace(addr)).ToArray();
+        if (to.Length == 0)
+        {
+            _logger.LogInformation("Skipping email '{Subject}' — no valid recipients.", subject);
+            return;
+        }
+
+        if (!_resendConfigured)
+        {
+            _logger.LogInformation(
+                "[MockEmail] To={Recipients} Subject={Subject}{NewLine}{Body}",
+                string.Join(", ", to),
+                subject,
+                Environment.NewLine,
+                htmlBody);
+            return;
+        }
+
+        var message = new EmailMessage
+        {
+            From = _fromAddress,
+            Subject = subject,
+            HtmlBody = htmlBody,
+        };
+        foreach (var addr in to)
+        {
+            message.To.Add(addr);
+        }
+
+        try
+        {
+            var result = await _resend.EmailSendAsync(message);
+            _logger.LogInformation(
+                "Resend: sent '{Subject}' to {Recipients} (id={Id}).",
+                subject,
+                string.Join(", ", to),
+                result?.Content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Resend send failed for '{Subject}'.", subject);
+        }
     }
 
     private static string LoadTemplate(string folderPath, string fileName)
@@ -82,3 +126,4 @@ public sealed class EmailService
         return File.ReadAllText(path);
     }
 }
+

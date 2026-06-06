@@ -5,6 +5,8 @@ namespace wedding.Services;
 
 public sealed class EmailService
 {
+    private const string DefaultWebsiteUrl = "https://jonandmari.uk";
+
     private readonly ILogger<EmailService> _logger;
     private readonly IResend _resend;
     private readonly bool _resendConfigured;
@@ -24,6 +26,7 @@ public sealed class EmailService
 
         _resendConfigured = !string.IsNullOrWhiteSpace(configuration["RESEND_API_KEY"]);
         _fromAddress = configuration["EMAIL_FROM"] ?? "Majori Wedding <onboarding@resend.dev>";
+        var websiteUrl = configuration["WEBSITE_URL"] ?? DefaultWebsiteUrl;
 
         if (!_resendConfigured)
         {
@@ -31,9 +34,9 @@ public sealed class EmailService
         }
 
         var templateFolder = Path.Combine(environment.ContentRootPath, "Emails");
-        _announcementTemplate = LoadTemplate(templateFolder, "announcement.html");
-        _adminTwoFactorTemplate = LoadTemplate(templateFolder, "admin-2fa.html");
-        _inviteTemplate = LoadTemplate(templateFolder, "invite.html");
+        _announcementTemplate = LoadTemplate(templateFolder, "announcement.html", websiteUrl);
+        _adminTwoFactorTemplate = LoadTemplate(templateFolder, "admin-2fa.html", websiteUrl);
+        _inviteTemplate = LoadTemplate(templateFolder, "invite.html", websiteUrl);
     }
 
     public Task SendAnnouncementAsync(Announcement announcement, IEnumerable<User> recipients)
@@ -120,10 +123,16 @@ public sealed class EmailService
         }
     }
 
-    private static string LoadTemplate(string folderPath, string fileName)
+    private static string LoadTemplate(string folderPath, string fileName, string websiteUrl)
     {
         var path = Path.Combine(folderPath, fileName);
-        return File.ReadAllText(path);
+        var raw = File.ReadAllText(path);
+        // {{WEBSITE_URL}} is replaced once at load time so it doesn't collide with
+        // the numeric {0}, {1}... placeholders used by string.Format at send time.
+        var host = new Uri(websiteUrl).Host;
+        return raw
+            .Replace("{{WEBSITE_URL}}", websiteUrl)
+            .Replace("{{WEBSITE_HOST}}", host);
     }
 }
 

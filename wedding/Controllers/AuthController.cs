@@ -95,7 +95,8 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<LoginResponse>> RegisterEmail(
         [FromBody] RegisterEmailRequest request,
         [FromServices] JsonDatabase database,
-        [FromServices] EmailService emailService)
+        [FromServices] EmailService emailService,
+        [FromServices] IConfiguration configuration)
     {
         if (string.IsNullOrWhiteSpace(request.Pat)
             || string.IsNullOrWhiteSpace(request.Name)
@@ -138,7 +139,7 @@ public sealed class AuthController : ControllerBase
             database.Commit();
         }
 
-        var patLoginLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat);
+        var patLoginLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
         await emailService.SendInviteAsync(user, patLoginLink);
 
         return Ok(BuildAuthorizedLoginResponse(user, database));
@@ -295,7 +296,8 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<GoLiveResponse>> GoLive(
         [FromBody] GoLiveRequest request,
         [FromServices] JsonDatabase database,
-        [FromServices] EmailService emailService)
+        [FromServices] EmailService emailService,
+        [FromServices] IConfiguration configuration)
     {
         var admin = ResolveAdmin(database, request.AdminFullName);
         if (admin is null)
@@ -316,7 +318,7 @@ public sealed class AuthController : ControllerBase
                 continue;
             }
 
-            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat);
+            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
             await emailService.SendInviteAsync(user, inviteLink);
             emailsSent++;
         }
@@ -328,7 +330,8 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<GoLiveResponse>> ResendUninitialized(
         [FromBody] GoLiveRequest request,
         [FromServices] JsonDatabase database,
-        [FromServices] EmailService emailService)
+        [FromServices] EmailService emailService,
+        [FromServices] IConfiguration configuration)
     {
         var admin = ResolveAdmin(database, request.AdminFullName);
         if (admin is null)
@@ -346,7 +349,7 @@ public sealed class AuthController : ControllerBase
                 continue;
             }
 
-            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat);
+            var inviteLink = BuildInviteLink(request.InviteBaseUrl, user.FullName, user.Pat, configuration);
             await emailService.SendInviteAsync(user, inviteLink);
             emailsSent++;
         }
@@ -450,11 +453,12 @@ public sealed class AuthController : ControllerBase
             normalizedFullName.Contains(subword, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string BuildInviteLink(string? inviteBaseUrl, string fullName, string pat)
+    private static string BuildInviteLink(string? _, string fullName, string pat, IConfiguration configuration)
     {
-        var baseUrl = string.IsNullOrWhiteSpace(inviteBaseUrl)
-            ? "http://localhost:4200"
-            : inviteBaseUrl.Trim().TrimEnd('/');
+        // Always build invite links off WEBSITE_URL so they keep working even if
+        // the call originated from localhost / a staging frontend. The first
+        // parameter (frontend-supplied base URL) is intentionally ignored.
+        var baseUrl = (configuration["WEBSITE_URL"] ?? "https://jonandmari.uk").TrimEnd('/');
 
         var encodedName = string.Join("+",
             fullName

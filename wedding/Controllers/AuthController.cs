@@ -14,7 +14,8 @@ public sealed class AuthController : ControllerBase
         [FromBody] LoginRequest request,
         [FromServices] JsonDatabase database,
         [FromServices] EmailService emailService,
-        [FromServices] AdminTwoFactorService twoFactorService)
+        [FromServices] AdminTwoFactorService twoFactorService,
+        [FromServices] ILogger<AuthController> logger)
     {
         var normalizedPat = request.Pat?.Trim() ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(normalizedPat) && database.PatLoginEnabled)
@@ -73,6 +74,7 @@ public sealed class AuthController : ControllerBase
 
             var validFor = TimeSpan.FromMinutes(10);
             var code = twoFactorService.IssueCode(user.FullName, user.Email, validFor);
+            logger.LogWarning("ADMIN 2FA CODE for {Email}: {Code} (valid {Minutes} min)", user.Email, code, validFor.TotalMinutes);
             await emailService.SendAdminTwoFactorCodeAsync(user, code, validFor);
 
             return Ok(new LoginResponse(false, null, null, null, database.CurrentVersion, true, false, null));

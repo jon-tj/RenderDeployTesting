@@ -69,9 +69,13 @@ public sealed class EmailService
 
     public Task SendInviteAsync(User invitedUser, string inviteLink)
     {
+        var greetingName = !string.IsNullOrWhiteSpace(invitedUser.DisplayName)
+            ? invitedUser.DisplayName
+            : invitedUser.FullName ?? string.Empty;
+
         var htmlBody = string.Format(
             _inviteTemplate,
-            invitedUser.DisplayName,
+            greetingName,
             inviteLink);
 
         return SendAsync(new[] { invitedUser.Email ?? string.Empty }, "You're invited — Majori Wedding", htmlBody);

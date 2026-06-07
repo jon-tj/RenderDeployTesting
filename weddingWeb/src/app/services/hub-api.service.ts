@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { EventDetail, EventSummary, EventType, Invite, OnboardingStatus, UserSummary } from '../models';
+import { EventDetail, EventSummary, EventType, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -24,7 +24,10 @@ export class HubApi {
     return firstValueFrom(this.http.post<EventDetail>(this.api.url('/api/events'), payload));
   }
 
-  updateEvent(id: number, payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc'>>): Promise<EventDetail> {
+  updateEvent(
+    id: number,
+    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions'>>,
+  ): Promise<EventDetail> {
     return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
   }
 
@@ -41,6 +44,15 @@ export class HubApi {
   removeInvite(eventId: number, inviteId: number): Promise<void> {
     return firstValueFrom(
       this.http.delete<void>(this.api.url(`/api/events/${eventId}/invites/${inviteId}`))
+    );
+  }
+
+  rsvp(
+    eventId: number,
+    payload: { status?: InviteStatus; mealChoice?: string | null; drinkChoice?: string | null },
+  ): Promise<Invite> {
+    return firstValueFrom(
+      this.http.put<Invite>(this.api.url(`/api/events/${eventId}/rsvp`), payload)
     );
   }
 

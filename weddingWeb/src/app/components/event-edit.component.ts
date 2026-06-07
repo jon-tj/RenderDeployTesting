@@ -60,6 +60,21 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
         </section>
 
         <section class="card">
+          <h2>Food &amp; drink options</h2>
+          <p class="muted">One option per line. Invitees pick from these when they RSVP.</p>
+          <div class="grid">
+            <label class="block">Meal options
+              <textarea name="mealOptions" rows="5" placeholder="e.g. Chicken&#10;Beef&#10;Vegetarian"
+                [(ngModel)]="mealOptionsText" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
+            </label>
+            <label class="block">Drink options
+              <textarea name="drinkOptions" rows="5" placeholder="e.g. Red wine&#10;White wine&#10;Soft drink"
+                [(ngModel)]="drinkOptionsText" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
           <h2>Invites</h2>
           @if (ev.isOwner) {
             <app-invite-picker [nextPath]="'/event/' + ev.id" (picked)="addInvite($event)" />
@@ -128,6 +143,8 @@ export class EventEditComponent implements OnInit {
   protected description = '';
   protected startLocal = '';
   protected endLocal = '';
+  protected mealOptionsText = '';
+  protected drinkOptionsText = '';
 
   async ngOnInit(): Promise<void> {
     const id = Number(this.route.snapshot.paramMap.get('eventId'));
@@ -163,6 +180,8 @@ export class EventEditComponent implements OnInit {
     this.description = ev.description;
     this.startLocal = toLocalInput(ev.startUtc);
     this.endLocal = toLocalInput(ev.endUtc);
+    this.mealOptionsText = ev.mealOptions.join('\n');
+    this.drinkOptionsText = ev.drinkOptions.join('\n');
   }
 
   async save(): Promise<void> {
@@ -176,6 +195,8 @@ export class EventEditComponent implements OnInit {
         description: this.description,
         startUtc: fromLocalInput(this.startLocal),
         endUtc: fromLocalInput(this.endLocal),
+        mealOptions: parseOptionsText(this.mealOptionsText),
+        drinkOptions: parseOptionsText(this.drinkOptionsText),
       });
       this.apply(updated);
       this.savedAt.set(Date.now());
@@ -227,6 +248,13 @@ function toLocalInput(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function parseOptionsText(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
 }
 
 function fromLocalInput(value: string): string {

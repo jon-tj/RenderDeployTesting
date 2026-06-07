@@ -117,6 +117,18 @@ public class EventsController : ControllerBase
         if (dto.Location is not null) ev.Location = dto.Location;
         if (dto.StartUtc.HasValue) ev.StartUtc = dto.StartUtc.Value;
         if (dto.EndUtc.HasValue) ev.EndUtc = dto.EndUtc.Value;
+        if (dto.MealOptions is not null) ev.MealOptions = NormalizeOptions(dto.MealOptions);
+        if (dto.DrinkOptions is not null) ev.DrinkOptions = NormalizeOptions(dto.DrinkOptions);
+
+        // Drop choices that no longer match the option list so the data stays
+        // consistent when an option is renamed or removed.
+        foreach (var inv in ev.Invites)
+        {
+            if (inv.MealChoice is not null && !ev.MealOptions.Contains(inv.MealChoice))
+                inv.MealChoice = null;
+            if (inv.DrinkChoice is not null && !ev.DrinkOptions.Contains(inv.DrinkChoice))
+                inv.DrinkChoice = null;
+        }
 
         await _db.SaveChangesAsync();
         return EventDetailDto.From(ev, uid);
@@ -183,6 +195,52 @@ public class EventsController : ControllerBase
         return NoContent();
     }
 
+    // Lets an invitee set their own RSVP / meal / drink. The creator can't
+    // use this endpoint to set someone else's response unless they also
+    // invited themselves.
+    [HttpPut("{id:int}/rsvp")]
+    public async Task<ActionResult<InviteDto>> Rsvp(int id, [FromBody] RsvpDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+
+        var invite = ev.Invites.FirstOrDefault(i => i.InviteeId == uid);
+        if (invite is null) return Forbid();
+
+        if (dto.Status.HasValue) invite.Status = dto.Status.Value;
+
+        // null = "keep current"; empty string = "clear". Any non-empty value
+        // must match an option offered by the event.
+        if (dto.MealChoice is not null)
+        {
+            var choice = dto.MealChoice.Trim();
+            if (choice.Length == 0) invite.MealChoice = null;
+            else if (ev.MealOptions.Contains(choice)) invite.MealChoice = choice;
+            else return BadRequest("Meal choice is not one of the available options.");
+        }
+        if (dto.DrinkChoice is not null)
+        {
+            var choice = dto.DrinkChoice.Trim();
+            if (choice.Length == 0) invite.DrinkChoice = null;
+            else if (ev.DrinkOptions.Contains(choice)) invite.DrinkChoice = choice;
+            else return BadRequest("Drink choice is not one of the available options.");
+        }
+
+        await _db.SaveChangesAsync();
+        return InviteDto.From(invite, invite.Invitee);
+    }
+
+    private static List<string> NormalizeOptions(IEnumerable<string> raw) =>
+        raw.Select(s => s?.Trim() ?? string.Empty)
+           .Where(s => s.Length > 0)
+           .Distinct(StringComparer.Ordinal)
+           .ToList();
+
     private static bool CanCreateType(AppUser user, EventType type) => type switch
     {
         EventType.Wedding => user.CanCreateWeddingEvent,
@@ -211,14 +269,25 @@ public sealed record EventDetailDto(
     string CreatedById,
     string CreatedByDisplayName,
     bool IsOwner,
-    List<InviteDto> Invites)
+    List<string> MealOptions,
+    List<string> DrinkOptions,
+    List<InviteDto> Invites,
+    InviteDto? MyInvite)
 {
-    public static EventDetailDto From(CalendarEvent e, string currentUserId) => new(
-        e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
-        e.CreatedById,
-        e.CreatedBy?.DisplayName ?? string.Empty,
-        e.CreatedById == currentUserId,
-        e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList());
+    public static EventDetailDto From(CalendarEvent e, string currentUserId)
+    {
+        var invites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
+        var mine = invites.FirstOrDefault(i => i.InviteeId == currentUserId);
+        return new(
+            e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
+            e.CreatedById,
+            e.CreatedBy?.DisplayName ?? string.Empty,
+            e.CreatedById == currentUserId,
+            e.MealOptions.ToList(),
+            e.DrinkOptions.ToList(),
+            invites,
+            mine);
+    }
 }
 
 public sealed record InviteDto(
@@ -226,14 +295,18 @@ public sealed record InviteDto(
     string InviteeId,
     string InviteeDisplayName,
     string InviteeEmail,
-    InviteStatus Status)
+    InviteStatus Status,
+    string? MealChoice,
+    string? DrinkChoice)
 {
     public static InviteDto From(EventInvite i, AppUser? invitee) => new(
         i.Id,
         i.InviteeId,
         invitee?.DisplayName ?? string.Empty,
         invitee?.Email ?? string.Empty,
-        i.Status);
+        i.Status,
+        i.MealChoice,
+        i.DrinkChoice);
 }
 
 public sealed class CreateEventDto
@@ -252,9 +325,19 @@ public sealed class UpdateEventDto
     [MaxLength(300)] public string? Location { get; set; }
     public DateTime? StartUtc { get; set; }
     public DateTime? EndUtc { get; set; }
+    public List<string>? MealOptions { get; set; }
+    public List<string>? DrinkOptions { get; set; }
 }
 
 public sealed class AddInviteDto
 {
     [Required] public string UserId { get; set; } = string.Empty;
+}
+
+public sealed class RsvpDto
+{
+    public InviteStatus? Status { get; set; }
+    // null = leave unchanged; "" = clear; non-empty = set (must match an option).
+    public string? MealChoice { get; set; }
+    public string? DrinkChoice { get; set; }
 }

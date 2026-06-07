@@ -59,6 +59,8 @@ export interface Invite {
   inviteeDisplayName: string;
   inviteeEmail: string;
   status: InviteStatus;
+  mealChoice: string | null;
+  drinkChoice: string | null;
 }
 
 export interface EventDetail {
@@ -72,7 +74,10 @@ export interface EventDetail {
   createdById: string;
   createdByDisplayName: string;
   isOwner: boolean;
+  mealOptions: string[];
+  drinkOptions: string[];
   invites: Invite[];
+  myInvite: Invite | null;
 }
 
 export interface UserSummary {

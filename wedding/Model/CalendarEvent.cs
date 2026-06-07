@@ -29,6 +29,11 @@ public class CalendarEvent
     public string CreatedById { get; set; } = string.Empty;
     public AppUser? CreatedBy { get; set; }
 
+    // Predefined meal and drink choices an invitee can pick from when RSVPing.
+    // Empty lists mean "no choices offered" — the UI then just shows the RSVP.
+    public List<string> MealOptions { get; set; } = new();
+    public List<string> DrinkOptions { get; set; } = new();
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();

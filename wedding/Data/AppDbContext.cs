@@ -44,6 +44,28 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(e => e.CreatedById)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Persist the option lists as newline-separated strings. Newline is
+        // safe because option labels are single-line, and it avoids needing
+        // a separate child table for what's effectively a config blob.
+        var stringListConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<string>, string>(
+            v => string.Join('\n', v),
+            v => string.IsNullOrEmpty(v)
+                ? new List<string>()
+                : v.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList());
+
+        var stringListComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<string>>(
+            (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+            v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v.ToList());
+
+        b.Entity<CalendarEvent>()
+            .Property(e => e.MealOptions)
+            .HasConversion(stringListConverter, stringListComparer);
+
+        b.Entity<CalendarEvent>()
+            .Property(e => e.DrinkOptions)
+            .HasConversion(stringListConverter, stringListComparer);
+
         b.Entity<EventInvite>()
             .HasOne(i => i.Event)
             .WithMany(e => e.Invites)

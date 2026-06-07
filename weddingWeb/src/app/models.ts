@@ -115,6 +115,7 @@ export interface EventDetail {
   allowGuestAlbumUploads: boolean;
   showInviteesToGuests: boolean;
   visibility: EventVisibility;
+  coOwners: EventOwner[];
   children: ChildEvent[];
   invites: Invite[];
   myInvite: Invite | null;
@@ -123,6 +124,12 @@ export interface EventDetail {
 
 export interface UserSummary {
   id: string;
+  displayName: string;
+  email: string;
+}
+
+export interface EventOwner {
+  userId: string;
   displayName: string;
   email: string;
 }

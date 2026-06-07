@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { EventDetail, EventImage, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
+import { EventDetail, EventImage, EventOwner, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -44,6 +44,18 @@ export class HubApi {
   removeInvite(eventId: number, inviteId: number): Promise<void> {
     return firstValueFrom(
       this.http.delete<void>(this.api.url(`/api/events/${eventId}/invites/${inviteId}`))
+    );
+  }
+
+  addCoOwner(eventId: number, userId: string): Promise<EventOwner> {
+    return firstValueFrom(
+      this.http.post<EventOwner>(this.api.url(`/api/events/${eventId}/co-owners`), { userId })
+    );
+  }
+
+  removeCoOwner(eventId: number, userId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(this.api.url(`/api/events/${eventId}/co-owners/${encodeURIComponent(userId)}`))
     );
   }
 

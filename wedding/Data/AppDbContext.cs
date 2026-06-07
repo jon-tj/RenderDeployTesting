@@ -12,6 +12,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<CalendarEvent> Events => Set<CalendarEvent>();
     public DbSet<EventInvite> Invites => Set<EventInvite>();
     public DbSet<EventImage> Images => Set<EventImage>();
+    public DbSet<EventOwner> EventOwners => Set<EventOwner>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -100,5 +101,20 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .WithMany()
             .HasForeignKey(i => i.UploadedById)
             .OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<EventOwner>()
+            .HasKey(o => new { o.EventId, o.UserId });
+
+        b.Entity<EventOwner>()
+            .HasOne(o => o.Event)
+            .WithMany(e => e.CoOwners)
+            .HasForeignKey(o => o.EventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<EventOwner>()
+            .HasOne(o => o.User)
+            .WithMany()
+            .HasForeignKey(o => o.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

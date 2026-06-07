@@ -51,6 +51,7 @@ using (var scope = app.Services.CreateScope())
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!");
+    await SeedAdminAsync(userManager, "mariana.slvapereira@gmail.com", "Passw0rd!");
 }
 
 if (app.Environment.IsDevelopment())

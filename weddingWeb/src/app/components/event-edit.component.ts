@@ -7,7 +7,7 @@ import { ChildPickerComponent } from './child-picker.component';
 import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, EventSummary, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, EventOwner, EventSummary, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
@@ -124,6 +124,35 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
                 </li>
               }
             </ul>
+          }
+        </section>
+
+        <section class="card">
+          <h2>Owners</h2>
+          <ul class="invites">
+            <li>
+              <div>
+                <strong>{{ ev.createdByDisplayName || ev.createdById }}</strong>
+                <span class="muted"> · creator</span>
+              </div>
+              <span class="badge">Owner</span>
+            </li>
+            @for (o of ev.coOwners; track o.userId) {
+              <li>
+                <div>
+                  <strong>{{ o.displayName || o.email }}</strong>
+                  <span class="muted"> · {{ o.email }}</span>
+                </div>
+                <span class="badge">Co-owner</span>
+                @if (ev.isOwner) {
+                  <button type="button" class="ghost small" (click)="removeCoOwner(o)">Remove</button>
+                }
+              </li>
+            }
+          </ul>
+          @if (ev.isOwner) {
+            <p class="muted small">Co-owners can edit, delete, and manage this event the same as you.</p>
+            <app-invite-picker [nextPath]="'/event/' + ev.id" (picked)="addCoOwner($event)" />
           }
         </section>
 
@@ -429,6 +458,36 @@ export class EventEditComponent implements OnInit {
       this.event.set({ ...ev, invites: ev.invites.filter(i => i.id !== invite.id) });
     } catch (e: any) {
       this.error.set('Could not remove invite.');
+    }
+  }
+
+  async addCoOwner(user: UserSummary): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    // The creator is implicitly an owner, so adding them is a no-op.
+    if (user.id === ev.createdById) return;
+    try {
+      const owner = await this.api.addCoOwner(ev.id, user.id);
+      const next: EventDetail = {
+        ...ev,
+        coOwners: ev.coOwners.some(o => o.userId === owner.userId)
+          ? ev.coOwners
+          : [...ev.coOwners, owner],
+      };
+      this.event.set(next);
+    } catch (e: any) {
+      this.error.set('Could not add co-owner.');
+    }
+  }
+
+  async removeCoOwner(owner: EventOwner): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    try {
+      await this.api.removeCoOwner(ev.id, owner.userId);
+      this.event.set({ ...ev, coOwners: ev.coOwners.filter(o => o.userId !== owner.userId) });
+    } catch (e: any) {
+      this.error.set('Could not remove co-owner.');
     }
   }
 

@@ -79,4 +79,8 @@ public class CalendarEvent
     public List<EventInvite> Invites { get; set; } = new();
 
     public List<EventImage> Images { get; set; } = new();
+
+    // Additional owners on top of the creator (CreatedById). Anyone in this
+    // list has the same edit/visibility rights as the creator.
+    public List<EventOwner> CoOwners { get; set; } = new();
 }

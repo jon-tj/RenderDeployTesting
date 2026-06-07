@@ -37,6 +37,7 @@ public class EventsController : ControllerBase
         var all = await _db.Events
             .Include(e => e.Invites)
             .Include(e => e.Images)
+            .Include(e => e.CoOwners)
             .ToListAsync();
         var byId = all.ToDictionary(e => e.Id);
 
@@ -46,7 +47,7 @@ public class EventsController : ControllerBase
             .Where(e => IsEffectivelyVisible(e, uid, byId, new HashSet<int>()))
             .OrderBy(e => e.StartUtc)
             .Select(e => new EventSummaryDto(
-                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, e.CreatedById == uid,
+                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, IsOwner(e, uid),
                 e.Images.FirstOrDefault(i => i.Role == ImageRole.Icon)?.Id))
             .ToList();
     }
@@ -60,8 +61,10 @@ public class EventsController : ControllerBase
         var ev = await _db.Events
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .Include(e => e.CreatedBy)
+            .Include(e => e.CoOwners).ThenInclude(o => o.User)
             .Include(e => e.ParentEvent)
             .Include(e => e.Children).ThenInclude(c => c.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.Children).ThenInclude(c => c.CoOwners)
             .Include(e => e.Images)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
@@ -81,14 +84,14 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var parent = await _db.Events.FindAsync(id);
+        var parent = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
         if (parent is null) return NotFound();
-        if (parent.CreatedById != uid) return Forbid();
+        if (!IsOwner(parent, uid)) return Forbid();
         if (parent.ParentEventId is not null) return new List<EventSummaryDto>();
 
         var query = _db.Events
             .Where(e => e.Id != id
-                && e.CreatedById == uid
+                && (e.CreatedById == uid || e.CoOwners.Any(o => o.UserId == uid))
                 && e.ParentEventId == null
                 && !e.Children.Any());
 
@@ -160,12 +163,14 @@ public class EventsController : ControllerBase
         var ev = await _db.Events
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .Include(e => e.CreatedBy)
+            .Include(e => e.CoOwners).ThenInclude(o => o.User)
             .Include(e => e.ParentEvent)
-            .Include(e => e.Children)
+            .Include(e => e.Children).ThenInclude(c => c.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.Children).ThenInclude(c => c.CoOwners)
             .Include(e => e.Images)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
-        if (ev.CreatedById != uid) return Forbid();
+        if (!IsOwner(ev, uid)) return Forbid();
 
         if (dto.Type.HasValue)
         {
@@ -227,9 +232,9 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var ev = await _db.Events.FindAsync(id);
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
-        if (ev.CreatedById != uid) return Forbid();
+        if (!IsOwner(ev, uid)) return Forbid();
 
         _db.Events.Remove(ev);
         await _db.SaveChangesAsync();
@@ -242,9 +247,9 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var ev = await _db.Events.FindAsync(id);
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
-        if (ev.CreatedById != uid) return Forbid();
+        if (!IsOwner(ev, uid)) return Forbid();
 
         var invitee = await _users.FindByIdAsync(dto.UserId);
         if (invitee is null) return BadRequest("User not found.");
@@ -270,9 +275,9 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var ev = await _db.Events.FindAsync(id);
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
-        if (ev.CreatedById != uid) return Forbid();
+        if (!IsOwner(ev, uid)) return Forbid();
 
         var invite = await _db.Invites.FirstOrDefaultAsync(i => i.Id == inviteId && i.EventId == id);
         if (invite is null) return NotFound();
@@ -312,6 +317,54 @@ public class EventsController : ControllerBase
                 .ToListAsync();
             _db.Invites.RemoveRange(descendantInvites);
         }
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // Add a co-owner. Any current owner (creator or existing co-owner) can
+    // promote another user. The creator's row is implicit so we never store
+    // them in EventOwners — adding the creator is a no-op.
+    [HttpPost("{id:int}/co-owners")]
+    public async Task<ActionResult<EventOwnerDto>> AddCoOwner(int id, [FromBody] AddCoOwnerDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+
+        var newOwner = await _users.FindByIdAsync(dto.UserId);
+        if (newOwner is null) return BadRequest("User not found.");
+
+        if (ev.CreatedById == newOwner.Id)
+            return new EventOwnerDto(newOwner.Id, newOwner.DisplayName, newOwner.Email ?? string.Empty);
+
+        if (!ev.CoOwners.Any(o => o.UserId == newOwner.Id))
+        {
+            _db.EventOwners.Add(new EventOwner { EventId = ev.Id, UserId = newOwner.Id });
+            await _db.SaveChangesAsync();
+        }
+
+        return new EventOwnerDto(newOwner.Id, newOwner.DisplayName, newOwner.Email ?? string.Empty);
+    }
+
+    // Remove a co-owner. The creator can't be removed this way (they are
+    // not stored in the table). Any owner can remove any co-owner.
+    [HttpDelete("{id:int}/co-owners/{userId}")]
+    public async Task<IActionResult> RemoveCoOwner(int id, string userId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+
+        var row = ev.CoOwners.FirstOrDefault(o => o.UserId == userId);
+        if (row is null) return NotFound();
+
+        _db.EventOwners.Remove(row);
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -434,12 +487,13 @@ public class EventsController : ControllerBase
         var ev = await _db.Events
             .Include(e => e.Invites)
             .Include(e => e.ParentEvent)
+            .Include(e => e.CoOwners)
             .Include(e => e.Images)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
         if (!await IsVisibleViaInheritanceAsync(ev, uid)) return Forbid();
 
-        var isOwner = ev.CreatedById == uid;
+        var isOwner = IsOwner(ev, uid);
         if (!isOwner && (dto.Role != ImageRole.Album || !ev.AllowGuestAlbumUploads))
             return Forbid();
 
@@ -471,7 +525,7 @@ public class EventsController : ControllerBase
         _db.Images.Add(img);
         await _db.SaveChangesAsync();
 
-        return EventImageDto.From(img, uid, ev.CreatedById);
+        return EventImageDto.From(img, uid, isOwner);
     }
 
     // Update description (anyone with edit rights). Only the event owner can
@@ -487,13 +541,14 @@ public class EventsController : ControllerBase
 
         var ev = await _db.Events
             .Include(e => e.Images)
+            .Include(e => e.CoOwners)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
         var img = ev.Images.FirstOrDefault(i => i.Id == imageId);
         if (img is null) return NotFound();
 
-        var isOwner = ev.CreatedById == uid;
+        var isOwner = IsOwner(ev, uid);
         if (!isOwner && img.UploadedById != uid) return Forbid();
 
         if (dto.Description is not null) img.Description = dto.Description.Trim();
@@ -508,7 +563,7 @@ public class EventsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return EventImageDto.From(img, uid, ev.CreatedById);
+        return EventImageDto.From(img, uid, isOwner);
     }
 
     [HttpDelete("{id:int}/images/{imageId:int}")]
@@ -517,13 +572,13 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var ev = await _db.Events.FirstOrDefaultAsync(e => e.Id == id);
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
         var img = await _db.Images.FirstOrDefaultAsync(i => i.Id == imageId && i.EventId == id);
         if (img is null) return NotFound();
 
-        if (ev.CreatedById != uid && img.UploadedById != uid) return Forbid();
+        if (!IsOwner(ev, uid) && img.UploadedById != uid) return Forbid();
 
         _db.Images.Remove(img);
         await _db.SaveChangesAsync();
@@ -536,6 +591,10 @@ public class EventsController : ControllerBase
            .Distinct(StringComparer.Ordinal)
            .ToList();
 
+    private static bool IsOwner(CalendarEvent ev, string uid)
+        => ev.CreatedById == uid
+        || (ev.CoOwners?.Any(o => o.UserId == uid) ?? false);
+
     // Recursive visibility for an already-loaded-from-DB graph. Walks up via
     // ParentEventId for any ancestor that the current event opts to inherit
     // invites from. Cycle-safe via the `seen` set so it's depth-agnostic.
@@ -546,7 +605,7 @@ public class EventsController : ControllerBase
         HashSet<int> seen)
     {
         if (!seen.Add(ev.Id)) return false;
-        if (ev.CreatedById == uid) return true;
+        if (IsOwner(ev, uid)) return true;
         // Private hides the event from everyone except the owner. Open lets
         // any authenticated user see it. Closed falls through to the
         // invite/inheritance logic below.
@@ -567,7 +626,10 @@ public class EventsController : ControllerBase
         var seen = new HashSet<int>();
         while (current is not null && seen.Add(current.Id))
         {
-            if (current.CreatedById == uid) return true;
+            // Load CoOwners on the fly for ancestors that came in without it.
+            if (current.CoOwners is null || (current.CoOwners.Count == 0 && current.Id != ev.Id))
+                current.CoOwners = await _db.EventOwners.Where(o => o.EventId == current.Id).ToListAsync();
+            if (IsOwner(current, uid)) return true;
             // Private/Open short-circuit on the current node only — ancestor
             // visibility flags don't override descendant ones.
             if (current.Visibility == EventVisibility.Private && current.Id == ev.Id) return false;
@@ -580,6 +642,7 @@ public class EventsController : ControllerBase
             current = current.ParentEvent
                 ?? await _db.Events
                     .Include(e => e.Invites)
+                    .Include(e => e.CoOwners)
                     .FirstOrDefaultAsync(e => e.Id == current.ParentEventId!.Value);
         }
         return false;
@@ -593,9 +656,9 @@ public class EventsController : ControllerBase
         if (attachingEventId == parentId)
             return BadRequest("An event cannot be its own parent.");
 
-        var parent = await _db.Events.FindAsync(parentId);
+        var parent = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == parentId);
         if (parent is null) return BadRequest("Parent event not found.");
-        if (parent.CreatedById != uid) return Forbid();
+        if (!IsOwner(parent, uid)) return Forbid();
         if (parent.ParentEventId is not null)
             return BadRequest("Recursive event depth can not exceed 1.");
         return null;
@@ -639,6 +702,7 @@ public sealed record EventDetailDto(
     bool AllowGuestAlbumUploads,
     bool ShowInviteesToGuests,
     EventVisibility Visibility,
+    List<EventOwnerDto> CoOwners,
     List<ChildEventDto> Children,
     List<InviteDto> Invites,
     InviteDto? MyInvite,
@@ -646,7 +710,8 @@ public sealed record EventDetailDto(
 {
     public static EventDetailDto From(CalendarEvent e, string currentUserId)
     {
-        var isOwner = e.CreatedById == currentUserId;
+        var isOwner = e.CreatedById == currentUserId
+            || (e.CoOwners?.Any(o => o.UserId == currentUserId) ?? false);
         var allInvites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
         var mine = allInvites.FirstOrDefault(i => i.InviteeId == currentUserId);
         // Non-owners only see the invitee list when the event is configured
@@ -661,7 +726,13 @@ public sealed record EventDetailDto(
         var images = (e.Images ?? new())
             .OrderBy(i => i.Role)
             .ThenBy(i => i.UploadedAtUtc)
-            .Select(i => EventImageDto.From(i, currentUserId, e.CreatedById))
+            .Select(i => EventImageDto.From(i, currentUserId, isOwner))
+            .ToList();
+        var coOwners = (e.CoOwners ?? new())
+            .Select(o => new EventOwnerDto(
+                o.UserId,
+                o.User?.DisplayName ?? string.Empty,
+                o.User?.Email ?? string.Empty))
             .ToList();
         return new(
             e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
@@ -677,12 +748,18 @@ public sealed record EventDetailDto(
             e.AllowGuestAlbumUploads,
             e.ShowInviteesToGuests,
             e.Visibility,
+            coOwners,
             children,
             invites,
             mine,
             images);
     }
 }
+
+public sealed record EventOwnerDto(
+    string UserId,
+    string DisplayName,
+    string Email);
 
 public sealed record EventImageDto(
     int Id,
@@ -694,7 +771,7 @@ public sealed record EventImageDto(
     DateTime UploadedAtUtc,
     bool CanEdit)
 {
-    public static EventImageDto From(EventImage i, string currentUserId, string eventOwnerId) => new(
+    public static EventImageDto From(EventImage i, string currentUserId, bool isOwner) => new(
         i.Id,
         i.Role,
         i.Description,
@@ -702,7 +779,7 @@ public sealed record EventImageDto(
         i.ContentType,
         i.UploadedById,
         i.UploadedAtUtc,
-        i.UploadedById == currentUserId || eventOwnerId == currentUserId);
+        i.UploadedById == currentUserId || isOwner);
 }
 
 // A child event surfaced on the parent detail. Carries enough to render the
@@ -726,9 +803,11 @@ public sealed record ChildEventDto(
             .Where(i => i.InviteeId == currentUserId)
             .Select(i => InviteDto.From(i, i.Invitee))
             .FirstOrDefault();
+        var isOwner = c.CreatedById == currentUserId
+            || (c.CoOwners?.Any(o => o.UserId == currentUserId) ?? false);
         return new(
             c.Id, c.Type, c.Title, c.Description, c.Location, c.StartUtc, c.EndUtc,
-            c.CreatedById == currentUserId,
+            isOwner,
             c.MealOptions.ToList(),
             c.DrinkOptions.ToList(),
             mine);
@@ -784,6 +863,11 @@ public sealed class UpdateEventDto
 }
 
 public sealed class AddInviteDto
+{
+    [Required] public string UserId { get; set; } = string.Empty;
+}
+
+public sealed class AddCoOwnerDto
 {
     [Required] public string UserId { get; set; } = string.Empty;
 }

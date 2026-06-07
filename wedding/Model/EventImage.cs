@@ -10,6 +10,10 @@ public enum ImageRole
     Album = 1,
     // Small thumbnail shown beside the event title on the calendar.
     Icon = 2,
+    // Decorative accent images anchored to the page edges.
+    MarginLeft = 3,
+    MarginRight = 4,
+    MarginBottom = 5,
 }
 
 public class EventImage

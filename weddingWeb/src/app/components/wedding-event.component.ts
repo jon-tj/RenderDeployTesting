@@ -2,6 +2,7 @@ import { Component, OnChanges, computed, inject, input, output, signal } from '@
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { EventImageComponent } from './event-image.component';
+import { EventMarginsComponent } from './event-margins.component';
 import { ImageCarouselComponent } from './image-carousel.component';
 import { MapViewComponent } from './map-view.component';
 import { SaveTheDateComponent } from './save-the-date.component';
@@ -21,9 +22,10 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-wedding-event',
-  imports: [FormsModule, RouterLink, EventImageComponent, ImageCarouselComponent, MapViewComponent, SaveTheDateComponent],
+  imports: [FormsModule, RouterLink, EventImageComponent, EventMarginsComponent, ImageCarouselComponent, MapViewComponent, SaveTheDateComponent],
   template: `
     @if (event(); as ev) {
+      <app-event-margins [event]="ev" />
       <div class="wedding">
         @if (ev.isOwner) {
           <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" title="Edit">Edit</a>

@@ -26,8 +26,8 @@ export const EVENT_VISIBILITIES: EventVisibility[] = ['Closed', 'Open', 'Private
 
 export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Maybe';
 
-export type ImageRole = 'Banner' | 'Album' | 'Icon';
-export const IMAGE_ROLES: ImageRole[] = ['Banner', 'Album', 'Icon'];
+export type ImageRole = 'Banner' | 'Album' | 'Icon' | 'MarginLeft' | 'MarginRight' | 'MarginBottom';
+export const IMAGE_ROLES: ImageRole[] = ['Banner', 'Album', 'Icon', 'MarginLeft', 'MarginRight', 'MarginBottom'];
 
 export interface EventImage {
   id: number;

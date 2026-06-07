@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { EventImageComponent } from './event-image.component';
+import { EventMarginsComponent } from './event-margins.component';
 import { ImageCarouselComponent } from './image-carousel.component';
 import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
@@ -21,7 +22,7 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-event-detail',
-  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, ImageCarouselComponent, WeddingEventComponent],
+  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, EventMarginsComponent, ImageCarouselComponent, WeddingEventComponent],
   template: `
     @if (loading()) {
       <app-navbar />
@@ -34,6 +35,7 @@ interface ChildRsvpState {
         <app-wedding-event [event]="ev" (refresh)="reload()" />
       } @else {
         <app-navbar />
+        <app-event-margins [event]="ev" />
         <main class="shell">
           @if (bannerImage(); as banner) {
             <div class="banner">

@@ -529,8 +529,8 @@ public class EventsController : ControllerBase
         if (!dto.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             return BadRequest("File must be an image.");
 
-        // Banner and Icon are unique — replace the existing one.
-        if (dto.Role == ImageRole.Banner || dto.Role == ImageRole.Icon)
+        // Banner, Icon and the three margin slots are unique — replace the existing one.
+        if (IsUniqueRole(dto.Role))
         {
             var existing = ev.Images.Where(i => i.Role == dto.Role).ToList();
             foreach (var e in existing) _db.Images.Remove(e);
@@ -582,7 +582,7 @@ public class EventsController : ControllerBase
         if (dto.Description is not null) img.Description = dto.Description.Trim();
         if (dto.Role.HasValue && isOwner && dto.Role.Value != img.Role)
         {
-            if (dto.Role.Value == ImageRole.Banner || dto.Role.Value == ImageRole.Icon)
+            if (IsUniqueRole(dto.Role.Value))
             {
                 var existing = ev.Images.Where(i => i.Role == dto.Role.Value && i.Id != img.Id).ToList();
                 foreach (var e in existing) _db.Images.Remove(e);
@@ -622,6 +622,14 @@ public class EventsController : ControllerBase
     private static bool IsOwner(CalendarEvent ev, string uid)
         => ev.CreatedById == uid
         || (ev.CoOwners?.Any(o => o.UserId == uid) ?? false);
+
+    // Roles where only one image per event makes sense; uploading replaces.
+    private static bool IsUniqueRole(ImageRole role)
+        => role is ImageRole.Banner
+            or ImageRole.Icon
+            or ImageRole.MarginLeft
+            or ImageRole.MarginRight
+            or ImageRole.MarginBottom;
 
     // Recursive visibility for an already-loaded-from-DB graph. Walks up via
     // ParentEventId for any ancestor that the current event opts to inherit

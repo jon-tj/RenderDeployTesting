@@ -10,7 +10,7 @@ import { SaveTheDateComponent } from './save-the-date.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
 import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LANGUAGES, LanguageCode } from '../models';
-import { localizedDescription, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
+import { localizedDescription, localizedDressCode, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -114,6 +114,9 @@ interface ChildRsvpState {
                       <h3>{{ tr(c) }}</h3>
                       @if (dr(c)) {
                         <p class="t-desc">{{ dr(c) }}</p>
+                      }
+                      @if (c.dressCode) {
+                        <p class="t-dress"><strong>{{ s('dressCode') }}:</strong> {{ dc(c) }}</p>
                       }
                       <app-save-the-date
                         [title]="tr(c)"
@@ -324,6 +327,9 @@ export class WeddingEventComponent implements OnChanges {
   }
   protected dr(ev: EventDetail | ChildEvent): string {
     return localizedDescription(ev, this.lang());
+  }
+  protected dc(ev: EventDetail | ChildEvent): string {
+    return localizedDressCode(ev, this.lang());
   }
   protected s(key: Parameters<typeof t>[0]): string {
     return t(key, this.lang());

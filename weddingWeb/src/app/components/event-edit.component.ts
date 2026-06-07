@@ -70,6 +70,19 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             <label>Location
               <input name="location" [(ngModel)]="location" [disabled]="!ev.isOwner" (blur)="save()" />
             </label>
+            <label>Dress code
+              <div class="with-lang">
+                <input name="dressCode" [ngModel]="dressCodeText()" (ngModelChange)="setDressCodeText($event)"
+                  [disabled]="!ev.isOwner" (blur)="save()" placeholder="Optional" />
+                @if (enableTranslations) {
+                  <select class="lang-pill" [(ngModel)]="dressLang" name="dressLang" title="Editing language">
+                    @for (l of languages; track l.code) {
+                      <option [value]="l.code">{{ l.short }}</option>
+                    }
+                  </select>
+                }
+              </div>
+            </label>
             <label>Start
               <input type="datetime-local" name="start" [(ngModel)]="startLocal" [disabled]="!ev.isOwner" (change)="save()" />
             </label>
@@ -459,6 +472,7 @@ export class EventEditComponent implements OnInit {
   protected type: EventType = 'FamilyGathering';
   protected title = '';
   protected location = '';
+  protected dressCode = '';
   protected description = '';
   protected startLocal = '';
   protected endLocal = '';
@@ -475,6 +489,7 @@ export class EventEditComponent implements OnInit {
   protected translations: Record<string, EventTranslation> = {};
   protected titleLang: LanguageCode = DEFAULT_LANGUAGE;
   protected descLang: LanguageCode = DEFAULT_LANGUAGE;
+  protected dressLang: LanguageCode = DEFAULT_LANGUAGE;
   protected optionLang: LanguageCode = 'nb';
   protected planLang: LanguageCode = 'nb';
   protected readonly languages = LANGUAGES;
@@ -531,6 +546,7 @@ export class EventEditComponent implements OnInit {
     this.type = ev.type;
     this.title = ev.title;
     this.location = ev.location;
+    this.dressCode = ev.dressCode;
     this.description = ev.description;
     this.startLocal = toLocalInput(ev.startUtc);
     this.endLocal = toLocalInput(ev.endUtc);
@@ -576,6 +592,23 @@ export class EventEditComponent implements OnInit {
     this.translations = {
       ...this.translations,
       [this.descLang]: { ...cur, description: value },
+    };
+  }
+
+  protected dressCodeText(): string {
+    if (this.dressLang === DEFAULT_LANGUAGE) return this.dressCode;
+    return this.translations[this.dressLang]?.dressCode ?? '';
+  }
+
+  protected setDressCodeText(value: string): void {
+    if (this.dressLang === DEFAULT_LANGUAGE) {
+      this.dressCode = value;
+      return;
+    }
+    const cur = this.translations[this.dressLang] ?? { title: '', description: '' };
+    this.translations = {
+      ...this.translations,
+      [this.dressLang]: { ...cur, dressCode: value },
     };
   }
 
@@ -706,6 +739,7 @@ export class EventEditComponent implements OnInit {
         type: this.type,
         title: this.title,
         location: this.location,
+        dressCode: this.dressCode,
         description: this.description,
         startUtc: fromLocalInput(this.startLocal),
         endUtc: fromLocalInput(this.endLocal),
@@ -820,6 +854,7 @@ export class EventEditComponent implements OnInit {
       title: child.title,
       description: '',
       location: child.location,
+      dressCode: '',
       startUtc: child.startUtc,
       endUtc: child.endUtc,
       isOwner: child.isOwner,

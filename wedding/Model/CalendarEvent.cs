@@ -31,6 +31,9 @@ public class CalendarEvent
     [MaxLength(2000)]
     public string Description { get; set; } = string.Empty;
 
+    [MaxLength(200)]
+    public string DressCode { get; set; } = string.Empty;
+
     // When true, the event owner has authored title/description overrides
     // for languages other than the default (English, stored in Title /
     // Description). When false, translations are ignored at render time.

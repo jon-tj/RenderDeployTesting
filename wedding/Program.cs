@@ -71,6 +71,7 @@ using (var scope = app.Services.CreateScope())
     // Additive schema patch: EnsureCreated doesn't ALTER existing tables, so
     // add new columns by hand. Safe to run repeatedly (PRAGMA-checked).
     await EnsureColumnAsync(db, "Invites", "InviteEmailSentUtc", "TEXT NULL");
+    await EnsureColumnAsync(db, "Events", "DressCode", "TEXT NOT NULL DEFAULT ''");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");

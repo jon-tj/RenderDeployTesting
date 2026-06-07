@@ -215,6 +215,7 @@ public class EventsController : ControllerBase
         if (dto.Title is not null) ev.Title = dto.Title.Trim();
         if (dto.Description is not null) ev.Description = dto.Description;
         if (dto.Location is not null) ev.Location = dto.Location;
+        if (dto.DressCode is not null) ev.DressCode = dto.DressCode.Trim();
         if (dto.StartUtc.HasValue) ev.StartUtc = dto.StartUtc.Value;
         if (dto.EndUtc.HasValue) ev.EndUtc = dto.EndUtc.Value;
         if (dto.MealOptions is not null) ev.MealOptions = NormalizeOptions(dto.MealOptions);
@@ -235,12 +236,13 @@ public class EventsController : ControllerBase
                 var t = kv.Value ?? new EventTranslation();
                 var meals = CleanOptionMap(t.MealOptions);
                 var drinks = CleanOptionMap(t.DrinkOptions);
-                var hasText = !string.IsNullOrWhiteSpace(t.Title) || !string.IsNullOrWhiteSpace(t.Description);
+                var hasText = !string.IsNullOrWhiteSpace(t.Title) || !string.IsNullOrWhiteSpace(t.Description) || !string.IsNullOrWhiteSpace(t.DressCode);
                 if (!hasText && meals.Count == 0 && drinks.Count == 0) continue;
                 clean[lang] = new EventTranslation
                 {
                     Title = (t.Title ?? string.Empty).Trim(),
                     Description = t.Description ?? string.Empty,
+                    DressCode = (t.DressCode ?? string.Empty).Trim(),
                     MealOptions = meals,
                     DrinkOptions = drinks,
                 };
@@ -823,6 +825,7 @@ public sealed record EventDetailDto(
     string Title,
     string Description,
     string Location,
+    string DressCode,
     DateTime StartUtc,
     DateTime EndUtc,
     string CreatedById,
@@ -872,7 +875,7 @@ public sealed record EventDetailDto(
                 o.User?.Email ?? string.Empty))
             .ToList();
         return new(
-            e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
+            e.Id, e.Type, e.Title, e.Description, e.Location, e.DressCode, e.StartUtc, e.EndUtc,
             e.CreatedById,
             e.CreatedBy?.DisplayName ?? string.Empty,
             isOwner,
@@ -929,6 +932,7 @@ public sealed record ChildEventDto(
     string Title,
     string Description,
     string Location,
+    string DressCode,
     DateTime StartUtc,
     DateTime EndUtc,
     bool IsOwner,
@@ -947,7 +951,7 @@ public sealed record ChildEventDto(
         var isOwner = c.CreatedById == currentUserId
             || (c.CoOwners?.Any(o => o.UserId == currentUserId) ?? false);
         return new(
-            c.Id, c.Type, c.Title, c.Description, c.Location, c.StartUtc, c.EndUtc,
+            c.Id, c.Type, c.Title, c.Description, c.Location, c.DressCode, c.StartUtc, c.EndUtc,
             isOwner,
             c.MealOptions.ToList(),
             c.DrinkOptions.ToList(),
@@ -995,6 +999,7 @@ public sealed class UpdateEventDto
     [MaxLength(200)] public string? Title { get; set; }
     [MaxLength(2000)] public string? Description { get; set; }
     [MaxLength(300)] public string? Location { get; set; }
+    [MaxLength(200)] public string? DressCode { get; set; }
     public DateTime? StartUtc { get; set; }
     public DateTime? EndUtc { get; set; }
     public List<string>? MealOptions { get; set; }

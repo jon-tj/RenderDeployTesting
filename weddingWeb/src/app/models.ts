@@ -37,6 +37,7 @@ export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 export interface EventTranslation {
   title: string;
   description: string;
+  dressCode?: string;
   mealOptions?: Record<string, string>;
   drinkOptions?: Record<string, string>;
 }
@@ -105,6 +106,7 @@ export interface ChildEvent {
   title: string;
   description: string;
   location: string;
+  dressCode: string;
   startUtc: string;
   endUtc: string;
   isOwner: boolean;
@@ -121,6 +123,7 @@ export interface EventDetail {
   title: string;
   description: string;
   location: string;
+  dressCode: string;
   startUtc: string;
   endUtc: string;
   createdById: string;

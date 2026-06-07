@@ -3,6 +3,7 @@ import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventTranslation, InviteStat
 interface Translatable {
   title: string;
   description: string;
+  dressCode?: string;
   enableTranslations: boolean;
   translations: Record<string, EventTranslation>;
 }
@@ -25,6 +26,12 @@ export function localizedDescription(ev: Translatable, lang: LanguageCode): stri
   const t = pick(ev, lang);
   const candidate = t?.description?.trim();
   return candidate ? candidate : ev.description;
+}
+
+export function localizedDressCode(ev: Translatable, lang: LanguageCode): string {
+  const t = pick(ev, lang);
+  const candidate = t?.dressCode?.trim();
+  return candidate ? candidate : (ev.dressCode ?? '');
 }
 
 export function localizedOption(
@@ -54,7 +61,7 @@ type StringKey =
   | 'saving' | 'sendReply' | 'saveReply' | 'willYouBeThere'
   | 'withLove'
   | 'loading' | 'eventNotFound' | 'back' | 'edit'
-  | 'whenAndWhere' | 'start' | 'end' | 'location' | 'hostedBy'
+  | 'whenAndWhere' | 'start' | 'end' | 'location' | 'dressCode' | 'hostedBy'
   | 'album' | 'noAlbumImages' | 'descriptionOptional' | 'uploading' | 'addToAlbum'
   | 'yourRsvp' | 'attending' | 'saveRsvp' | 'saved' | 'responseAppliesToAll'
   | 'invitees' | 'noInvitees' | 'mealLabel' | 'drinkLabel'
@@ -92,6 +99,7 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   start:                { 'en': 'Start',                   'nb': 'Start',                    'pt-BR': 'Início' },
   end:                  { 'en': 'End',                     'nb': 'Slutt',                    'pt-BR': 'Fim' },
   location:             { 'en': 'Location',                'nb': 'Sted',                     'pt-BR': 'Local' },
+  dressCode:            { 'en': 'Dress code',              'nb': 'Kleskode',                 'pt-BR': 'Traje' },
   hostedBy:             { 'en': 'Hosted by',               'nb': 'Vert',                     'pt-BR': 'Organizado por' },
   album:                { 'en': 'Album',                   'nb': 'Album',                    'pt-BR': 'Álbum' },
   noAlbumImages:        { 'en': 'No album images yet.',    'nb': 'Ingen albumbilder ennå.',  'pt-BR': 'Ainda não há fotos no álbum.' },

@@ -10,7 +10,7 @@ import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
 import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LANGUAGES, LanguageCode } from '../models';
-import { localizedDescription, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
+import { localizedDescription, localizedDressCode, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -73,6 +73,9 @@ interface ChildRsvpState {
           <p><strong>{{ s('end') }}:</strong> {{ formatDate(ev.endUtc) }}</p>
           @if (ev.location) {
             <p><strong>{{ s('location') }}:</strong> <a [href]="mapsUrl(ev.location)" target="_blank" rel="noopener">{{ ev.location }}</a></p>
+          }
+          @if (ev.dressCode) {
+            <p><strong>{{ s('dressCode') }}:</strong> {{ dc(ev) }}</p>
           }
           @if (ev.description || (ev.enableTranslations && dr(ev))) {
             <p class="desc">{{ dr(ev) }}</p>
@@ -156,6 +159,7 @@ interface ChildRsvpState {
               <p><strong>Start:</strong> {{ formatDate(c.startUtc) }}</p>
               <p><strong>End:</strong> {{ formatDate(c.endUtc) }}</p>
               @if (c.location) { <p><strong>Location:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a></p> }
+              @if (c.dressCode) { <p><strong>{{ s('dressCode') }}:</strong> {{ dc(c) }}</p> }
               @if (dr(c)) { <p class="desc">{{ dr(c) }}</p> }
 
               @if (childState(c.id); as st) {
@@ -291,6 +295,9 @@ export class EventDetailComponent implements OnInit {
   }
   protected dr(ev: EventDetail | ChildEvent): string {
     return localizedDescription(ev, this.lang());
+  }
+  protected dc(ev: EventDetail | ChildEvent): string {
+    return localizedDressCode(ev, this.lang());
   }
   protected s(key: Parameters<typeof t>[0]): string {
     return t(key, this.lang());

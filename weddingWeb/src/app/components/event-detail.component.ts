@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { EventImageComponent } from './event-image.component';
-import { EventMarginsComponent } from './event-margins.component';
+import { EventMarginsComponent, EventMarginBottomComponent } from './event-margins.component';
 import { ImageCarouselComponent } from './image-carousel.component';
 import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
@@ -22,7 +22,7 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-event-detail',
-  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, EventMarginsComponent, ImageCarouselComponent, WeddingEventComponent],
+  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, EventMarginsComponent, EventMarginBottomComponent, ImageCarouselComponent, WeddingEventComponent],
   template: `
     @if (loading()) {
       <app-navbar />
@@ -211,6 +211,7 @@ interface ChildRsvpState {
             }
           </section>
         }
+        <app-event-margin-bottom [event]="ev" />
         </main>
       }
     }

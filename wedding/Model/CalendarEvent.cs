@@ -34,6 +34,17 @@ public class CalendarEvent
     public List<string> MealOptions { get; set; } = new();
     public List<string> DrinkOptions { get; set; } = new();
 
+    // Optional parent event for grouping (e.g. a wedding with reception and
+    // ceremony as children). Depth is capped at 1 by the controller.
+    public int? ParentEventId { get; set; }
+    public CalendarEvent? ParentEvent { get; set; }
+    public List<CalendarEvent> Children { get; set; } = new();
+
+    // When true, anyone invited to the parent chain is also considered
+    // invited to this event for visibility purposes. Only meaningful when
+    // ParentEventId is set; ignored otherwise.
+    public bool InheritParentInvites { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();

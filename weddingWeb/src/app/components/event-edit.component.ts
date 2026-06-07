@@ -3,13 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { InvitePickerComponent } from './invite-picker.component';
+import { ChildPickerComponent } from './child-picker.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
-  imports: [FormsModule, NavbarComponent, InvitePickerComponent, RouterLink],
+  imports: [FormsModule, NavbarComponent, InvitePickerComponent, ChildPickerComponent, RouterLink],
   template: `
     <app-navbar />
     <main class="shell">
@@ -98,6 +99,47 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
             </ul>
           }
         </section>
+
+        <section class="card">
+          <h2>Child events</h2>
+          @if (ev.parentEventId !== null) {
+            <p class="warn">Recursive event depth can not exceed 1.</p>
+            @if (ev.parentEventTitle) {
+              <p class="muted">This event is a child of
+                <a [routerLink]="['/event', ev.parentEventId, 'edit']">{{ ev.parentEventTitle }}</a>.
+              </p>
+            }
+            <label class="check">
+              <input type="checkbox" name="inherit"
+                [(ngModel)]="inheritParentInvites"
+                [disabled]="!ev.isOwner"
+                (change)="saveInheritance()" />
+              Inherit invites from parent event
+            </label>
+            <p class="muted small">When on, anyone invited to the parent (and its ancestors that opt in) can see this event too.</p>
+          } @else {
+            @if (ev.isOwner) {
+              <app-child-picker [parentId]="ev.id" (added)="onChildAdded($event)" />
+            }
+            @if (!ev.children.length) {
+              <p class="muted">No child events yet.</p>
+            } @else {
+              <ul class="children">
+                @for (c of ev.children; track c.id) {
+                  <li>
+                    <a [routerLink]="['/event', c.id, 'edit']" class="child-link">
+                      <strong>{{ c.title }}</strong>
+                      <span class="muted"> · {{ formatDate(c.startUtc) }}</span>
+                    </a>
+                    @if (ev.isOwner) {
+                      <button type="button" class="ghost small" (click)="detachChild(c)">Detach</button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </section>
       }
     </main>
   `,
@@ -122,6 +164,14 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
     ul.invites { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
     ul.invites li { display:flex; align-items:center; gap:.75rem; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
     ul.invites li > div { flex:1; }
+    ul.children { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem; }
+    ul.children li { display:flex; align-items:center; gap:.75rem; padding:.4rem .65rem; background:#faf7f0; border-radius:.4rem; }
+    a.child-link { flex:1; color:#2d2a24; text-decoration:none; }
+    a.child-link:hover { text-decoration:underline; }
+    .warn { color:#a23; margin:0; font-weight:600; }
+    .check { flex-direction:row; align-items:center; gap:.5rem; font-size:.9rem; color:#2d2a24; }
+    .check input { width:auto; }
+    .small { font-size:.8rem; }
     .badge { background:#dfe6cf; padding:.15rem .5rem; border-radius:.25rem; font-size:.75rem; }
   `],
 })
@@ -145,14 +195,27 @@ export class EventEditComponent implements OnInit {
   protected endLocal = '';
   protected mealOptionsText = '';
   protected drinkOptionsText = '';
+  protected inheritParentInvites = false;
 
   async ngOnInit(): Promise<void> {
-    const id = Number(this.route.snapshot.paramMap.get('eventId'));
+    // Subscribe so navigating between two /event/:id/edit URLs (e.g. via the
+    // parent/child links) reloads the page instead of leaving stale state.
+    this.route.paramMap.subscribe(params => {
+      const id = Number(params.get('eventId'));
+      void this.load(id);
+    });
+  }
+
+  private async load(id: number): Promise<void> {
     if (!id) {
       this.notFound.set(true);
       this.loading.set(false);
       return;
     }
+    this.loading.set(true);
+    this.notFound.set(false);
+    this.error.set('');
+    this.savedAt.set(0);
     try {
       const ev = await this.api.getEvent(id);
       this.apply(ev);
@@ -182,6 +245,7 @@ export class EventEditComponent implements OnInit {
     this.endLocal = toLocalInput(ev.endUtc);
     this.mealOptionsText = ev.mealOptions.join('\n');
     this.drinkOptionsText = ev.drinkOptions.join('\n');
+    this.inheritParentInvites = ev.inheritParentInvites;
   }
 
   async save(): Promise<void> {
@@ -229,6 +293,44 @@ export class EventEditComponent implements OnInit {
     } catch (e: any) {
       this.error.set('Could not remove invite.');
     }
+  }
+
+  onChildAdded(child: EventSummary): void {
+    const ev = this.event();
+    if (!ev) return;
+    const next: EventDetail = {
+      ...ev,
+      children: [...ev.children.filter(c => c.id !== child.id), child]
+        .sort((a, b) => a.startUtc.localeCompare(b.startUtc)),
+    };
+    this.event.set(next);
+  }
+
+  async detachChild(child: EventSummary): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    try {
+      await this.api.updateEvent(child.id, { parentEventId: null });
+      this.event.set({ ...ev, children: ev.children.filter(c => c.id !== child.id) });
+    } catch (e: any) {
+      this.error.set('Could not detach child event.');
+    }
+  }
+
+  async saveInheritance(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    try {
+      const updated = await this.api.updateEvent(ev.id, { inheritParentInvites: this.inheritParentInvites });
+      this.apply(updated);
+      this.savedAt.set(Date.now());
+    } catch (e: any) {
+      this.error.set('Could not update inheritance.');
+    }
+  }
+
+  protected formatDate(iso: string): string {
+    return new Date(iso).toLocaleString();
   }
 
   async remove(): Promise<void> {

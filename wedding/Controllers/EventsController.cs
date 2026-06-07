@@ -22,7 +22,10 @@ public class EventsController : ControllerBase
         _users = users;
     }
 
-    // Events visible to the current user: created by them OR they're invited.
+    // Events visible to the current user: created by them, directly invited,
+    // or invited to an ancestor whose child opted into invite inheritance.
+    // We fetch in two passes so the recursive visibility walk works for any
+    // depth without N+1 round-trips.
     [HttpGet]
     public async Task<ActionResult<List<EventSummaryDto>>> List(
         [FromQuery] DateTime? from,
@@ -31,18 +34,19 @@ public class EventsController : ControllerBase
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
 
-        var q = _db.Events
+        var all = await _db.Events
             .Include(e => e.Invites)
-            .Where(e => e.CreatedById == uid || e.Invites.Any(i => i.InviteeId == uid));
+            .ToListAsync();
+        var byId = all.ToDictionary(e => e.Id);
 
-        if (from.HasValue) q = q.Where(e => e.EndUtc >= from.Value);
-        if (to.HasValue) q = q.Where(e => e.StartUtc <= to.Value);
-
-        return await q
+        return all
+            .Where(e => (!from.HasValue || e.EndUtc >= from.Value)
+                     && (!to.HasValue || e.StartUtc <= to.Value))
+            .Where(e => IsEffectivelyVisible(e, uid, byId, new HashSet<int>()))
             .OrderBy(e => e.StartUtc)
             .Select(e => new EventSummaryDto(
                 e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, e.CreatedById == uid))
-            .ToListAsync();
+            .ToList();
     }
 
     [HttpGet("{id:int}")]
@@ -54,13 +58,49 @@ public class EventsController : ControllerBase
         var ev = await _db.Events
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .Include(e => e.CreatedBy)
+            .Include(e => e.ParentEvent)
+            .Include(e => e.Children)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
-        if (ev.CreatedById != uid && !ev.Invites.Any(i => i.InviteeId == uid))
+        if (!await IsVisibleViaInheritanceAsync(ev, uid))
             return Forbid();
 
         return EventDetailDto.From(ev, uid);
+    }
+
+    // Candidates the current user can attach as children of `id`: events they
+    // own, not already children of anything, with no children of their own,
+    // and obviously not the parent itself.
+    [HttpGet("{id:int}/child-candidates")]
+    public async Task<ActionResult<List<EventSummaryDto>>> ChildCandidates(int id, [FromQuery] string? q)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var parent = await _db.Events.FindAsync(id);
+        if (parent is null) return NotFound();
+        if (parent.CreatedById != uid) return Forbid();
+        if (parent.ParentEventId is not null) return new List<EventSummaryDto>();
+
+        var query = _db.Events
+            .Where(e => e.Id != id
+                && e.CreatedById == uid
+                && e.ParentEventId == null
+                && !e.Children.Any());
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var needle = q.Trim();
+            query = query.Where(e => EF.Functions.Like(e.Title, $"%{needle}%"));
+        }
+
+        return await query
+            .OrderBy(e => e.StartUtc)
+            .Take(10)
+            .Select(e => new EventSummaryDto(
+                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, true))
+            .ToListAsync();
     }
 
     // Create a blank event for the calendar-click flow. The detail page then
@@ -73,7 +113,17 @@ public class EventsController : ControllerBase
         var user = await _users.FindByIdAsync(uid);
         if (user is null) return Unauthorized();
 
-        var start = dto.StartUtc ?? DateTime.UtcNow.Date.AddHours(12);
+        // If we're being created under a parent, default the start to the
+        // parent's start so child events land on the same day by default.
+        CalendarEvent? parent = null;
+        if (dto.ParentEventId.HasValue)
+        {
+            var parentCheck = await ValidateParentAsync(dto.ParentEventId.Value, uid, attachingEventId: null);
+            if (parentCheck is not null) return parentCheck;
+            parent = await _db.Events.FindAsync(dto.ParentEventId.Value);
+        }
+
+        var start = dto.StartUtc ?? parent?.StartUtc ?? DateTime.UtcNow.Date.AddHours(12);
         var ev = new CalendarEvent
         {
             Type = dto.Type ?? EventType.FamilyGathering,
@@ -81,6 +131,10 @@ public class EventsController : ControllerBase
             StartUtc = start,
             EndUtc = dto.EndUtc ?? start.AddHours(1),
             CreatedById = uid,
+            ParentEventId = parent?.Id,
+            // Default child events to inherit so invitees of the parent
+            // automatically see them; owners can toggle this off in the editor.
+            InheritParentInvites = parent is not null,
         };
 
         if (!CanCreateType(user, ev.Type))
@@ -102,6 +156,8 @@ public class EventsController : ControllerBase
         var ev = await _db.Events
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .Include(e => e.CreatedBy)
+            .Include(e => e.ParentEvent)
+            .Include(e => e.Children)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
         if (ev.CreatedById != uid) return Forbid();
@@ -119,6 +175,28 @@ public class EventsController : ControllerBase
         if (dto.EndUtc.HasValue) ev.EndUtc = dto.EndUtc.Value;
         if (dto.MealOptions is not null) ev.MealOptions = NormalizeOptions(dto.MealOptions);
         if (dto.DrinkOptions is not null) ev.DrinkOptions = NormalizeOptions(dto.DrinkOptions);
+        if (dto.InheritParentInvites.HasValue) ev.InheritParentInvites = dto.InheritParentInvites.Value;
+
+        if (dto.ParentEventId.HasValue)
+        {
+            // Treat 0 / negative as "detach". Anything else is a real parent.
+            var newParentId = dto.ParentEventId.Value <= 0 ? (int?)null : dto.ParentEventId.Value;
+            if (newParentId != ev.ParentEventId)
+            {
+                if (newParentId is null)
+                {
+                    ev.ParentEventId = null;
+                }
+                else
+                {
+                    if (ev.Children.Any())
+                        return BadRequest("Recursive event depth can not exceed 1.");
+                    var parentCheck = await ValidateParentAsync(newParentId.Value, uid, attachingEventId: ev.Id);
+                    if (parentCheck is not null) return parentCheck;
+                    ev.ParentEventId = newParentId;
+                }
+            }
+        }
 
         // Drop choices that no longer match the option list so the data stays
         // consistent when an option is renamed or removed.
@@ -241,6 +319,62 @@ public class EventsController : ControllerBase
            .Distinct(StringComparer.Ordinal)
            .ToList();
 
+    // Recursive visibility for an already-loaded-from-DB graph. Walks up via
+    // ParentEventId for any ancestor that the current event opts to inherit
+    // invites from. Cycle-safe via the `seen` set so it's depth-agnostic.
+    private static bool IsEffectivelyVisible(
+        CalendarEvent ev,
+        string uid,
+        IReadOnlyDictionary<int, CalendarEvent> byId,
+        HashSet<int> seen)
+    {
+        if (!seen.Add(ev.Id)) return false;
+        if (ev.CreatedById == uid) return true;
+        if (ev.Invites.Any(i => i.InviteeId == uid)) return true;
+        if (ev.InheritParentInvites && ev.ParentEventId.HasValue
+            && byId.TryGetValue(ev.ParentEventId.Value, out var parent))
+            return IsEffectivelyVisible(parent, uid, byId, seen);
+        return false;
+    }
+
+    // Same logic but lazy-loads ancestors via the DB when the in-memory
+    // graph isn't pre-built (used by the single-event Get endpoint).
+    private async Task<bool> IsVisibleViaInheritanceAsync(CalendarEvent ev, string uid)
+    {
+        var current = ev;
+        var seen = new HashSet<int>();
+        while (current is not null && seen.Add(current.Id))
+        {
+            if (current.CreatedById == uid) return true;
+            var invites = current.Invites?.Count > 0
+                ? current.Invites
+                : await _db.Invites.Where(i => i.EventId == current.Id).ToListAsync();
+            if (invites.Any(i => i.InviteeId == uid)) return true;
+            if (!current.InheritParentInvites || current.ParentEventId is null) return false;
+            current = current.ParentEvent
+                ?? await _db.Events
+                    .Include(e => e.Invites)
+                    .FirstOrDefaultAsync(e => e.Id == current.ParentEventId!.Value);
+        }
+        return false;
+    }
+
+    // Returns null if `parentId` is a valid parent for the current user, or
+    // an ActionResult describing the failure otherwise. `attachingEventId`
+    // is the event being re-parented (null on create).
+    private async Task<ActionResult?> ValidateParentAsync(int parentId, string uid, int? attachingEventId)
+    {
+        if (attachingEventId == parentId)
+            return BadRequest("An event cannot be its own parent.");
+
+        var parent = await _db.Events.FindAsync(parentId);
+        if (parent is null) return BadRequest("Parent event not found.");
+        if (parent.CreatedById != uid) return Forbid();
+        if (parent.ParentEventId is not null)
+            return BadRequest("Recursive event depth can not exceed 1.");
+        return null;
+    }
+
     private static bool CanCreateType(AppUser user, EventType type) => type switch
     {
         EventType.Wedding => user.CanCreateWeddingEvent,
@@ -271,6 +405,10 @@ public sealed record EventDetailDto(
     bool IsOwner,
     List<string> MealOptions,
     List<string> DrinkOptions,
+    int? ParentEventId,
+    string? ParentEventTitle,
+    bool InheritParentInvites,
+    List<EventSummaryDto> Children,
     List<InviteDto> Invites,
     InviteDto? MyInvite)
 {
@@ -278,6 +416,11 @@ public sealed record EventDetailDto(
     {
         var invites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
         var mine = invites.FirstOrDefault(i => i.InviteeId == currentUserId);
+        var children = e.Children
+            .OrderBy(c => c.StartUtc)
+            .Select(c => new EventSummaryDto(
+                c.Id, c.Type, c.Title, c.StartUtc, c.EndUtc, c.Location, c.CreatedById == currentUserId))
+            .ToList();
         return new(
             e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
             e.CreatedById,
@@ -285,6 +428,10 @@ public sealed record EventDetailDto(
             e.CreatedById == currentUserId,
             e.MealOptions.ToList(),
             e.DrinkOptions.ToList(),
+            e.ParentEventId,
+            e.ParentEvent?.Title,
+            e.InheritParentInvites,
+            children,
             invites,
             mine);
     }
@@ -315,6 +462,7 @@ public sealed class CreateEventDto
     [MaxLength(200)] public string? Title { get; set; }
     public DateTime? StartUtc { get; set; }
     public DateTime? EndUtc { get; set; }
+    public int? ParentEventId { get; set; }
 }
 
 public sealed class UpdateEventDto
@@ -327,6 +475,10 @@ public sealed class UpdateEventDto
     public DateTime? EndUtc { get; set; }
     public List<string>? MealOptions { get; set; }
     public List<string>? DrinkOptions { get; set; }
+    // null = leave unchanged. 0 or negative = detach (set to root).
+    // positive id = attach as child of that event.
+    public int? ParentEventId { get; set; }
+    public bool? InheritParentInvites { get; set; }
 }
 
 public sealed class AddInviteDto

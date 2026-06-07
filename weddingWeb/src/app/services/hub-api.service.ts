@@ -20,13 +20,13 @@ export class HubApi {
     return firstValueFrom(this.http.get<EventDetail>(this.api.url(`/api/events/${id}`)));
   }
 
-  createEvent(payload: { type?: EventType; title?: string; startUtc?: string; endUtc?: string }): Promise<EventDetail> {
+  createEvent(payload: { type?: EventType; title?: string; startUtc?: string; endUtc?: string; parentEventId?: number }): Promise<EventDetail> {
     return firstValueFrom(this.http.post<EventDetail>(this.api.url('/api/events'), payload));
   }
 
   updateEvent(
     id: number,
-    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions'>>,
+    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites'>> & { parentEventId?: number | null },
   ): Promise<EventDetail> {
     return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
   }
@@ -53,6 +53,13 @@ export class HubApi {
   ): Promise<Invite> {
     return firstValueFrom(
       this.http.put<Invite>(this.api.url(`/api/events/${eventId}/rsvp`), payload)
+    );
+  }
+
+  searchChildCandidates(parentId: number, q: string): Promise<EventSummary[]> {
+    const params = q.trim().length ? new HttpParams().set('q', q.trim()) : undefined;
+    return firstValueFrom(
+      this.http.get<EventSummary[]>(this.api.url(`/api/events/${parentId}/child-candidates`), { params })
     );
   }
 

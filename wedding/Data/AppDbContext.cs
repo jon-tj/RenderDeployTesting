@@ -44,6 +44,12 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(e => e.CreatedById)
             .OnDelete(DeleteBehavior.Restrict);
 
+        b.Entity<CalendarEvent>()
+            .HasOne(e => e.ParentEvent)
+            .WithMany(e => e.Children)
+            .HasForeignKey(e => e.ParentEventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Persist the option lists as newline-separated strings. Newline is
         // safe because option labels are single-line, and it avoids needing
         // a separate child table for what's effectively a config blob.

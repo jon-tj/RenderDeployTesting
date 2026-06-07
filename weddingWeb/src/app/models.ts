@@ -76,6 +76,10 @@ export interface EventDetail {
   isOwner: boolean;
   mealOptions: string[];
   drinkOptions: string[];
+  parentEventId: number | null;
+  parentEventTitle: string | null;
+  inheritParentInvites: boolean;
+  children: EventSummary[];
   invites: Invite[];
   myInvite: Invite | null;
 }

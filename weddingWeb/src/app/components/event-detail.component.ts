@@ -154,12 +154,22 @@ export class EventDetailComponent implements OnInit {
   protected readonly rsvpSavedAt = signal(0);
 
   async ngOnInit(): Promise<void> {
-    const id = Number(this.route.snapshot.paramMap.get('eventId'));
+    this.route.paramMap.subscribe(params => {
+      const id = Number(params.get('eventId'));
+      void this.load(id);
+    });
+  }
+
+  private async load(id: number): Promise<void> {
     if (!id) {
       this.notFound.set(true);
       this.loading.set(false);
       return;
     }
+    this.loading.set(true);
+    this.notFound.set(false);
+    this.rsvpError.set('');
+    this.rsvpSavedAt.set(0);
     try {
       const ev = await this.api.getEvent(id);
       this.applyEvent(ev);

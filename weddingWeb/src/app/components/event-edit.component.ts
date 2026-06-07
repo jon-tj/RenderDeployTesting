@@ -1,4 +1,5 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
@@ -12,7 +13,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
 
 @Component({
   selector: 'app-event-edit',
-  imports: [FormsModule, NavbarComponent, InvitePickerComponent, ChildPickerComponent, EventImageComponent, RouterLink],
+  imports: [FormsModule, NavbarComponent, InvitePickerComponent, ChildPickerComponent, EventImageComponent, RouterLink, DatePipe],
   template: `
     <app-navbar />
     <main class="shell">
@@ -197,14 +198,34 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
                   <div>
                     <strong>{{ i.inviteeDisplayName || i.inviteeEmail }}</strong>
                     <span class="muted"> · {{ i.inviteeEmail }}</span>
+                    @if (i.emailSentUtc) {
+                      <span class="muted small"> · emailed {{ i.emailSentUtc | date:'short' }}</span>
+                    }
                   </div>
                   <span class="badge" [class.warn]="!i.isOnboarded">{{ !i.isOnboarded ? 'Not onboarded' : i.status }}</span>
                   @if (ev.isOwner) {
+                    <button type="button" class="ghost small"
+                      [disabled]="sendingInviteId() === i.id"
+                      (click)="sendInviteEmail(i)">
+                      {{ sendingInviteId() === i.id ? 'Sending…' : (i.emailSentUtc ? 'Resend email' : 'Send email') }}
+                    </button>
                     <button type="button" class="ghost small" (click)="removeInvite(i)">Remove</button>
                   }
                 </li>
               }
             </ul>
+            @if (ev.isOwner && pendingEmailCount() > 0) {
+              <div class="invites-actions">
+                <button type="button" class="ghost small"
+                  [disabled]="sendingPending()"
+                  (click)="sendPendingInviteEmails()">
+                  {{ sendingPending() ? 'Sending…' : 'Email ' + pendingEmailCount() + ' new invitee(s)' }}
+                </button>
+              </div>
+            }
+            @if (inviteEmailError()) {
+              <p class="error small">{{ inviteEmailError() }}</p>
+            }
           }
         </section>
 
@@ -386,6 +407,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
     ul.invites { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
     ul.invites li { display:flex; align-items:center; gap:.75rem; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
     ul.invites li > div { flex:1; }
+    .invites-actions { margin-top:.6rem; display:flex; justify-content:flex-end; }
     ul.children { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem; }
     ul.children li { display:flex; align-items:center; gap:.75rem; padding:.4rem .65rem; background:#faf7f0; border-radius:.4rem; }
     a.child-link { flex:1; color:#2d2a24; text-decoration:none; }
@@ -426,6 +448,11 @@ export class EventEditComponent implements OnInit {
   protected readonly notFound = signal(false);
   protected readonly error = signal('');
   protected readonly savedAt = signal(0);
+  protected readonly sendingInviteId = signal<number | null>(null);
+  protected readonly sendingPending = signal(false);
+  protected readonly inviteEmailError = signal('');
+  protected readonly pendingEmailCount = computed(() =>
+    this.event()?.invites.filter(i => !i.emailSentUtc).length ?? 0);
 
   protected type: EventType = 'FamilyGathering';
   protected title = '';
@@ -715,6 +742,40 @@ export class EventEditComponent implements OnInit {
       this.event.set({ ...ev, invites: ev.invites.filter(i => i.id !== invite.id) });
     } catch (e: any) {
       this.error.set('Could not remove invite.');
+    }
+  }
+
+  async sendInviteEmail(invite: Invite): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    this.inviteEmailError.set('');
+    this.sendingInviteId.set(invite.id);
+    try {
+      const updated = await this.api.sendInviteEmail(ev.id, invite.id);
+      this.event.set({
+        ...ev,
+        invites: ev.invites.map(i => i.id === updated.id ? updated : i),
+      });
+    } catch {
+      this.inviteEmailError.set('Could not send invitation email.');
+    } finally {
+      this.sendingInviteId.set(null);
+    }
+  }
+
+  async sendPendingInviteEmails(): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    this.inviteEmailError.set('');
+    this.sendingPending.set(true);
+    try {
+      await this.api.sendPendingInviteEmails(ev.id);
+      const fresh = await this.api.getEvent(ev.id);
+      this.event.set(fresh);
+    } catch {
+      this.inviteEmailError.set('Could not send pending invitation emails.');
+    } finally {
+      this.sendingPending.set(false);
     }
   }
 

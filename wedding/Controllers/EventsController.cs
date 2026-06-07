@@ -1,5 +1,6 @@
 using FamilyHub.Data;
 using FamilyHub.Model;
+using FamilyHub.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -15,11 +16,13 @@ public class EventsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<AppUser> _users;
+    private readonly IEmailService _email;
 
-    public EventsController(AppDbContext db, UserManager<AppUser> users)
+    public EventsController(AppDbContext db, UserManager<AppUser> users, IEmailService email)
     {
         _db = db;
         _users = users;
+        _email = email;
     }
 
     // Events visible to the current user: created by them, directly invited,
@@ -373,6 +376,61 @@ public class EventsController : ControllerBase
         }
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // Send (or resend) the invitation email for a single invite. Used by the
+    // owner's "send" / "resend" buttons in the invites list.
+    [HttpPost("{id:int}/invites/{inviteId:int}/send-email")]
+    public async Task<IActionResult> SendInviteEmail(int id, int inviteId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+
+        var invite = await _db.Invites.FirstOrDefaultAsync(i => i.Id == inviteId && i.EventId == id);
+        if (invite is null) return NotFound();
+
+        var invitee = await _users.FindByIdAsync(invite.InviteeId);
+        if (invitee is null) return NotFound();
+        var inviter = await _users.FindByIdAsync(uid);
+        if (inviter is null) return Unauthorized();
+
+        var isOnboarded = await _users.HasPasswordAsync(invitee);
+        await _email.SendInviteAsync(invitee, isOnboarded, ev, inviter, HttpContext.RequestAborted);
+        invite.InviteEmailSentUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(InviteDto.From(invite, invitee));
+    }
+
+    // Send the invitation email to every invite that hasn't been emailed yet.
+    [HttpPost("{id:int}/invites/send-pending-emails")]
+    public async Task<ActionResult<int>> SendPendingInviteEmails(int id)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.CoOwners)
+            .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+
+        var inviter = await _users.FindByIdAsync(uid);
+        if (inviter is null) return Unauthorized();
+
+        var pending = ev.Invites.Where(i => i.InviteEmailSentUtc is null && i.Invitee is not null).ToList();
+        foreach (var invite in pending)
+        {
+            var isOnboarded = !string.IsNullOrEmpty(invite.Invitee!.PasswordHash);
+            await _email.SendInviteAsync(invite.Invitee, isOnboarded, ev, inviter, HttpContext.RequestAborted);
+            invite.InviteEmailSentUtc = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync();
+        return pending.Count;
     }
 
     // Add a co-owner. Any current owner (creator or existing co-owner) can
@@ -907,7 +965,8 @@ public sealed record InviteDto(
     InviteStatus Status,
     string? MealChoice,
     string? DrinkChoice,
-    bool IsOnboarded)
+    bool IsOnboarded,
+    DateTime? EmailSentUtc)
 {
     public static InviteDto From(EventInvite i, AppUser? invitee) => new(
         i.Id,
@@ -917,7 +976,8 @@ public sealed record InviteDto(
         i.Status,
         i.MealChoice,
         i.DrinkChoice,
-        !string.IsNullOrEmpty(invitee?.PasswordHash));
+        !string.IsNullOrEmpty(invitee?.PasswordHash),
+        i.InviteEmailSentUtc);
 }
 
 public sealed class CreateEventDto

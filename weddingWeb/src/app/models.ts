@@ -96,6 +96,7 @@ export interface Invite {
   mealChoice: string | null;
   drinkChoice: string | null;
   isOnboarded: boolean;
+  emailSentUtc: string | null;
 }
 
 export interface ChildEvent {

@@ -1,7 +1,9 @@
 using FamilyHub.Data;
 using FamilyHub.Model;
+using FamilyHub.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Resend;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,12 +44,33 @@ builder.Services.AddCors(opt =>
         .AllowAnyMethod());
 });
 
+builder.Services.Configure<EmailOptions>(opt =>
+{
+    builder.Configuration.GetSection("Email").Bind(opt);
+    var envFrom = Environment.GetEnvironmentVariable("EMAIL_FROM");
+    if (!string.IsNullOrWhiteSpace(envFrom)) opt.From = envFrom;
+    var envBase = Environment.GetEnvironmentVariable("EMAIL_BASE_URL");
+    if (!string.IsNullOrWhiteSpace(envBase)) opt.BaseUrl = envBase;
+});
+builder.Services.AddResend(o =>
+{
+    o.ApiToken = Environment.GetEnvironmentVariable("RESEND_API_KEY")
+        ?? builder.Configuration["Resend:ApiToken"]
+        ?? Environment.GetEnvironmentVariable("RESEND_APITOKEN")
+        ?? string.Empty;
+});
+builder.Services.AddScoped<IEmailService, ResendEmailService>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    // Additive schema patch: EnsureCreated doesn't ALTER existing tables, so
+    // add new columns by hand. Safe to run repeatedly (PRAGMA-checked).
+    await EnsureColumnAsync(db, "Invites", "InviteEmailSentUtc", "TEXT NULL");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");
@@ -108,4 +131,20 @@ static async Task SeedAdminAsync(UserManager<AppUser> users, string email, strin
     {
         await users.AddPasswordAsync(user, password);
     }
+}
+
+// Adds a column to a SQLite table if it doesn't already exist.
+static async Task EnsureColumnAsync(AppDbContext db, string table, string column, string columnDef)
+{
+    var conn = db.Database.GetDbConnection();
+    if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+    await using var pragma = conn.CreateCommand();
+    pragma.CommandText = $"PRAGMA table_info({table});";
+    await using var reader = await pragma.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return;
+    }
+    await reader.CloseAsync();
+    await db.Database.ExecuteSqlRawAsync($"ALTER TABLE {table} ADD COLUMN {column} {columnDef};");
 }

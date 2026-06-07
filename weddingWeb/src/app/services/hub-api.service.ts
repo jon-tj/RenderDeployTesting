@@ -47,6 +47,18 @@ export class HubApi {
     );
   }
 
+  sendInviteEmail(eventId: number, inviteId: number): Promise<Invite> {
+    return firstValueFrom(
+      this.http.post<Invite>(this.api.url(`/api/events/${eventId}/invites/${inviteId}/send-email`), {})
+    );
+  }
+
+  sendPendingInviteEmails(eventId: number): Promise<number> {
+    return firstValueFrom(
+      this.http.post<number>(this.api.url(`/api/events/${eventId}/invites/send-pending-emails`), {})
+    );
+  }
+
   addCoOwner(eventId: number, userId: string): Promise<EventOwner> {
     return firstValueFrom(
       this.http.post<EventOwner>(this.api.url(`/api/events/${eventId}/co-owners`), { userId })

@@ -32,4 +32,8 @@ public class EventInvite
     public string? DrinkChoice { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    // When the invitation email was last sent to the invitee. Null means
+    // they've been added but no email has gone out yet.
+    public DateTime? InviteEmailSentUtc { get; set; }
 }

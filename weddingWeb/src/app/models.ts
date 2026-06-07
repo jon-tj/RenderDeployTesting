@@ -106,6 +106,7 @@ export interface ChildEvent {
   title: string;
   description: string;
   location: string;
+  locationLabel: string;
   dressCode: string;
   startUtc: string;
   endUtc: string;
@@ -123,6 +124,7 @@ export interface EventDetail {
   title: string;
   description: string;
   location: string;
+  locationLabel: string;
   dressCode: string;
   startUtc: string;
   endUtc: string;

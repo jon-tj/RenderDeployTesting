@@ -215,6 +215,7 @@ public class EventsController : ControllerBase
         if (dto.Title is not null) ev.Title = dto.Title.Trim();
         if (dto.Description is not null) ev.Description = dto.Description;
         if (dto.Location is not null) ev.Location = dto.Location;
+        if (dto.LocationLabel is not null) ev.LocationLabel = dto.LocationLabel.Trim();
         if (dto.DressCode is not null) ev.DressCode = dto.DressCode.Trim();
         if (dto.StartUtc.HasValue) ev.StartUtc = dto.StartUtc.Value;
         if (dto.EndUtc.HasValue) ev.EndUtc = dto.EndUtc.Value;
@@ -825,6 +826,7 @@ public sealed record EventDetailDto(
     string Title,
     string Description,
     string Location,
+    string LocationLabel,
     string DressCode,
     DateTime StartUtc,
     DateTime EndUtc,
@@ -875,7 +877,7 @@ public sealed record EventDetailDto(
                 o.User?.Email ?? string.Empty))
             .ToList();
         return new(
-            e.Id, e.Type, e.Title, e.Description, e.Location, e.DressCode, e.StartUtc, e.EndUtc,
+            e.Id, e.Type, e.Title, e.Description, e.Location, e.LocationLabel, e.DressCode, e.StartUtc, e.EndUtc,
             e.CreatedById,
             e.CreatedBy?.DisplayName ?? string.Empty,
             isOwner,
@@ -932,6 +934,7 @@ public sealed record ChildEventDto(
     string Title,
     string Description,
     string Location,
+    string LocationLabel,
     string DressCode,
     DateTime StartUtc,
     DateTime EndUtc,
@@ -951,7 +954,7 @@ public sealed record ChildEventDto(
         var isOwner = c.CreatedById == currentUserId
             || (c.CoOwners?.Any(o => o.UserId == currentUserId) ?? false);
         return new(
-            c.Id, c.Type, c.Title, c.Description, c.Location, c.DressCode, c.StartUtc, c.EndUtc,
+            c.Id, c.Type, c.Title, c.Description, c.Location, c.LocationLabel, c.DressCode, c.StartUtc, c.EndUtc,
             isOwner,
             c.MealOptions.ToList(),
             c.DrinkOptions.ToList(),
@@ -999,6 +1002,7 @@ public sealed class UpdateEventDto
     [MaxLength(200)] public string? Title { get; set; }
     [MaxLength(2000)] public string? Description { get; set; }
     [MaxLength(300)] public string? Location { get; set; }
+    [MaxLength(200)] public string? LocationLabel { get; set; }
     [MaxLength(200)] public string? DressCode { get; set; }
     public DateTime? StartUtc { get; set; }
     public DateTime? EndUtc { get; set; }

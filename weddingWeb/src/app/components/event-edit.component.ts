@@ -70,6 +70,9 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             <label>Location
               <input name="location" [(ngModel)]="location" [disabled]="!ev.isOwner" (blur)="save()" />
             </label>
+            <label>Location label
+              <input name="locationLabel" [(ngModel)]="locationLabel" [disabled]="!ev.isOwner" (blur)="save()" placeholder="Optional readable name" />
+            </label>
             <label>Dress code
               <div class="with-lang">
                 <input name="dressCode" [ngModel]="dressCodeText()" (ngModelChange)="setDressCodeText($event)"
@@ -472,6 +475,7 @@ export class EventEditComponent implements OnInit {
   protected type: EventType = 'FamilyGathering';
   protected title = '';
   protected location = '';
+  protected locationLabel = '';
   protected dressCode = '';
   protected description = '';
   protected startLocal = '';
@@ -546,6 +550,7 @@ export class EventEditComponent implements OnInit {
     this.type = ev.type;
     this.title = ev.title;
     this.location = ev.location;
+    this.locationLabel = ev.locationLabel;
     this.dressCode = ev.dressCode;
     this.description = ev.description;
     this.startLocal = toLocalInput(ev.startUtc);
@@ -739,6 +744,7 @@ export class EventEditComponent implements OnInit {
         type: this.type,
         title: this.title,
         location: this.location,
+        locationLabel: this.locationLabel,
         dressCode: this.dressCode,
         description: this.description,
         startUtc: fromLocalInput(this.startLocal),
@@ -854,6 +860,7 @@ export class EventEditComponent implements OnInit {
       title: child.title,
       description: '',
       location: child.location,
+      locationLabel: '',
       dressCode: '',
       startUtc: child.startUtc,
       endUtc: child.endUtc,

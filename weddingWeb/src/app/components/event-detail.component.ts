@@ -72,7 +72,7 @@ interface ChildRsvpState {
           <p><strong>{{ s('start') }}:</strong> {{ formatDate(ev.startUtc) }}</p>
           <p><strong>{{ s('end') }}:</strong> {{ formatDate(ev.endUtc) }}</p>
           @if (ev.location) {
-            <p><strong>{{ s('location') }}:</strong> <a [href]="mapsUrl(ev.location)" target="_blank" rel="noopener">{{ ev.location }}</a></p>
+            <p><strong>{{ s('location') }}:</strong> <a [href]="mapsUrl(ev.location)" target="_blank" rel="noopener">{{ locLabel(ev) }}</a></p>
           }
           @if (ev.dressCode) {
             <p><strong>{{ s('dressCode') }}:</strong> {{ dc(ev) }}</p>
@@ -158,7 +158,7 @@ interface ChildRsvpState {
               </header>
               <p><strong>Start:</strong> {{ formatDate(c.startUtc) }}</p>
               <p><strong>End:</strong> {{ formatDate(c.endUtc) }}</p>
-              @if (c.location) { <p><strong>Location:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a></p> }
+              @if (c.location) { <p><strong>Location:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ locLabel(c) }}</a></p> }
               @if (c.dressCode) { <p><strong>{{ s('dressCode') }}:</strong> {{ dc(c) }}</p> }
               @if (dr(c)) { <p class="desc">{{ dr(c) }}</p> }
 
@@ -298,6 +298,9 @@ export class EventDetailComponent implements OnInit {
   }
   protected dc(ev: EventDetail | ChildEvent): string {
     return localizedDressCode(ev, this.lang());
+  }
+  protected locLabel(ev: EventDetail | ChildEvent): string {
+    return (ev.locationLabel ?? '').trim() || ev.location;
   }
   protected s(key: Parameters<typeof t>[0]): string {
     return t(key, this.lang());

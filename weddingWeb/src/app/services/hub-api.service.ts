@@ -26,7 +26,7 @@ export class HubApi {
 
   updateEvent(
     id: number,
-    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'dressCode' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps' | 'allowGuestAlbumUploads' | 'showInviteesToGuests' | 'visibility' | 'enableTranslations'>> & { parentEventId?: number | null; translations?: Record<string, EventTranslation> },
+    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'locationLabel' | 'dressCode' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps' | 'allowGuestAlbumUploads' | 'showInviteesToGuests' | 'visibility' | 'enableTranslations'>> & { parentEventId?: number | null; translations?: Record<string, EventTranslation> },
   ): Promise<EventDetail> {
     return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
   }

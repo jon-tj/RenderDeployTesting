@@ -46,6 +46,11 @@ public class CalendarEvent
     [MaxLength(300)]
     public string Location { get; set; } = string.Empty;
 
+    // Optional human-friendly label shown instead of Location (e.g. when
+    // Location is a coordinate pair). Empty means "show Location verbatim".
+    [MaxLength(200)]
+    public string LocationLabel { get; set; } = string.Empty;
+
     public DateTime StartUtc { get; set; }
     public DateTime EndUtc { get; set; }
 

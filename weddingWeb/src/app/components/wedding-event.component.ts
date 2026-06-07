@@ -335,7 +335,7 @@ export class WeddingEventComponent implements OnChanges {
     return localizedDressCode(ev, this.lang());
   }
   protected locLabel(ev: EventDetail | ChildEvent): string {
-    return (ev as any).locationLabel?.trim() || ev.location;
+    return (ev.locationLabel ?? '').trim() || ev.location;
   }
   protected s(key: Parameters<typeof t>[0]): string {
     return t(key, this.lang());

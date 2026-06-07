@@ -849,7 +849,8 @@ public sealed record InviteDto(
     string InviteeEmail,
     InviteStatus Status,
     string? MealChoice,
-    string? DrinkChoice)
+    string? DrinkChoice,
+    bool IsOnboarded)
 {
     public static InviteDto From(EventInvite i, AppUser? invitee) => new(
         i.Id,
@@ -858,7 +859,8 @@ public sealed record InviteDto(
         invitee?.Email ?? string.Empty,
         i.Status,
         i.MealChoice,
-        i.DrinkChoice);
+        i.DrinkChoice,
+        !string.IsNullOrEmpty(invitee?.PasswordHash));
 }
 
 public sealed class CreateEventDto

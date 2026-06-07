@@ -79,6 +79,7 @@ export interface Invite {
   status: InviteStatus;
   mealChoice: string | null;
   drinkChoice: string | null;
+  isOnboarded: boolean;
 }
 
 export interface ChildEvent {

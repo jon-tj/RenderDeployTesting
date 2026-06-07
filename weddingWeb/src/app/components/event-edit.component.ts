@@ -117,7 +117,7 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
                     <strong>{{ i.inviteeDisplayName || i.inviteeEmail }}</strong>
                     <span class="muted"> · {{ i.inviteeEmail }}</span>
                   </div>
-                  <span class="badge">{{ i.status }}</span>
+                  <span class="badge" [class.warn]="!i.isOnboarded">{{ !i.isOnboarded ? 'Not onboarded' : i.status }}</span>
                   @if (ev.isOwner) {
                     <button type="button" class="ghost small" (click)="removeInvite(i)">Remove</button>
                   }
@@ -314,6 +314,7 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
     .check input { width:auto; }
     .small { font-size:.8rem; }
     .badge { background:#dfe6cf; padding:.15rem .5rem; border-radius:.25rem; font-size:.75rem; }
+    .badge.warn { background:#f4d8a8; color:#6b4a17; }
     .upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end; }
     .upload .grow { flex:1; min-width:180px; }
     ul.images { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }

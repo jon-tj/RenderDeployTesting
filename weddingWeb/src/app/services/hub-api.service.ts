@@ -105,10 +105,19 @@ export class HubApi {
 
   // Fetch the bytes via HttpClient so the auth interceptor adds the bearer
   // token, then wrap as an object URL so it can be used as <img src>.
+  // Cached per (event, image) so remounting an <app-event-image> for the
+  // same image is instant — important for the carousel transition where the
+  // outgoing slot would otherwise blink while it re-downloads the bytes.
+  private readonly imageUrlCache = new Map<string, string>();
   async imageObjectUrl(eventId: number, imageId: number): Promise<string> {
+    const key = `${eventId}:${imageId}`;
+    const cached = this.imageUrlCache.get(key);
+    if (cached) return cached;
     const blob = await firstValueFrom(
       this.http.get(this.api.url(`/api/events/${eventId}/images/${imageId}`), { responseType: 'blob' })
     );
-    return URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    this.imageUrlCache.set(key, url);
+    return url;
   }
 }

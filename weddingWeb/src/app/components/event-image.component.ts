@@ -1,4 +1,4 @@
-import { Component, OnChanges, OnDestroy, computed, inject, input, signal } from '@angular/core';
+import { Component, OnChanges, computed, inject, input, output, signal } from '@angular/core';
 import { HubApi } from '../services/hub-api.service';
 
 // Loads event image bytes via the auth-aware HttpClient and renders them
@@ -9,7 +9,7 @@ import { HubApi } from '../services/hub-api.service';
   imports: [],
   template: `
     @if (objectUrl(); as url) {
-      <img [src]="url" [alt]="alt()" [title]="alt()" [class]="imgClass()" />
+      <img [src]="url" [alt]="alt()" [title]="alt()" [class]="imgClass()" (load)="loaded.emit()" />
     } @else if (loading()) {
       <span class="placeholder">…</span>
     } @else if (error()) {
@@ -23,13 +23,14 @@ import { HubApi } from '../services/hub-api.service';
     .placeholder.error { color:#a23; }
   `],
 })
-export class EventImageComponent implements OnChanges, OnDestroy {
+export class EventImageComponent implements OnChanges {
   private readonly api = inject(HubApi);
 
   readonly eventId = input.required<number>();
   readonly imageId = input.required<number>();
   readonly alt = input<string>('');
   readonly imgClass = input<string>('');
+  readonly loaded = output<void>();
 
   protected readonly objectUrl = signal<string | null>(null);
   protected readonly loading = signal(false);
@@ -41,12 +42,8 @@ export class EventImageComponent implements OnChanges, OnDestroy {
     const key = `${this.eventId()}:${this.imageId()}`;
     if (key === this.currentKey) return;
     this.currentKey = key;
-    this.revoke();
+    this.objectUrl.set(null);
     void this.load();
-  }
-
-  ngOnDestroy(): void {
-    this.revoke();
   }
 
   private async load(): Promise<void> {
@@ -56,21 +53,12 @@ export class EventImageComponent implements OnChanges, OnDestroy {
     try {
       const url = await this.api.imageObjectUrl(this.eventId(), this.imageId());
       // Bail if a newer load started while we were waiting.
-      if (expected !== this.currentKey) {
-        URL.revokeObjectURL(url);
-        return;
-      }
+      if (expected !== this.currentKey) return;
       this.objectUrl.set(url);
     } catch (e: any) {
       this.error.set('Could not load image.');
     } finally {
       this.loading.set(false);
     }
-  }
-
-  private revoke(): void {
-    const url = this.objectUrl();
-    if (url) URL.revokeObjectURL(url);
-    this.objectUrl.set(null);
   }
 }

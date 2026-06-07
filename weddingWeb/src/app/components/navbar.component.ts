@@ -7,7 +7,7 @@ import { AuthService } from '../services/auth.service';
   imports: [RouterLink],
   template: `
     <nav class="navbar">
-      <a class="brand" routerLink="/">Family Hub</a>
+      <a class="brand" routerLink="/">Jon and Mari</a>
       <div class="spacer"></div>
       @if (auth.me(); as me) {
         <a class="who" routerLink="/settings" title="Account settings">{{ me.displayName || me.email }}</a>

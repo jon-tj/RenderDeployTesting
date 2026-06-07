@@ -19,6 +19,15 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, 
       } @else if (notFound()) {
         <p>Event not found.</p>
       } @else if (event(); as ev) {
+        @if (!ev.isOwner) {
+          <section class="card">
+            <h2>{{ ev.title }}</h2>
+            <p class="error">You do not have rights to edit this event.</p>
+            <div class="head-actions">
+              <a class="primary" [routerLink]="['/event', ev.id]">View event</a>
+            </div>
+          </section>
+        } @else {
         <header class="head">
           <h1>{{ ev.isOwner ? 'Edit event' : ev.title }}</h1>
           <div class="head-actions">
@@ -150,6 +159,7 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, 
             }
           }
         </section>
+        }
       }
     </main>
   `,

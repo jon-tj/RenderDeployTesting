@@ -8,6 +8,7 @@ import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
 import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, LANGUAGES, LanguageCode, UserSummary } from '../models';
+import { localizedOption, localizedTitle, t } from '../utils/i18n';
 
 @Component({
   selector: 'app-event-edit',
@@ -121,6 +122,16 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDet
                 [(ngModel)]="drinkOptionsText" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
             </label>
           </div>
+          @if (ev.isOwner && (mealOptionsList().length || drinkOptionsList().length)) {
+            <div class="dining-plan-actions">
+              <select name="planLang" [(ngModel)]="planLang" [attr.aria-label]="'Language'">
+                @for (l of languages; track l.code) {
+                  <option [value]="l.code">{{ l.label }}</option>
+                }
+              </select>
+              <button type="button" class="ghost small" (click)="printDiningPlan(ev)">{{ tr('printDiningPlan') }}</button>
+            </div>
+          }
           @if (enableTranslations && (mealOptionsList().length || drinkOptionsList().length)) {
             <div class="opt-trans">
               <div class="opt-trans-head">
@@ -401,6 +412,7 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDet
     .opt-trans-block h3 { margin:0 0 .35rem; font-size:.9rem; color:#5a5347; }
     .opt-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:.5rem; align-items:center; margin-bottom:.35rem; }
     .opt-row .opt-src { font-size:.85rem; color:#5a5347; }
+    .dining-plan-actions { display:flex; gap:.5rem; align-items:center; margin-top:.75rem; flex-wrap:wrap; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -435,6 +447,7 @@ export class EventEditComponent implements OnInit {
   protected titleLang: LanguageCode = DEFAULT_LANGUAGE;
   protected descLang: LanguageCode = DEFAULT_LANGUAGE;
   protected optionLang: LanguageCode = 'nb';
+  protected planLang: LanguageCode = 'nb';
   protected readonly languages = LANGUAGES;
   protected readonly nonDefaultLanguages = LANGUAGES.filter(l => l.code !== DEFAULT_LANGUAGE);
 
@@ -564,6 +577,96 @@ export class EventEditComponent implements OnInit {
         ...(kind === 'meal' ? { mealOptions: map } : { drinkOptions: map }),
       },
     };
+  }
+
+  protected tr(key: Parameters<typeof t>[0], ...args: string[]): string {
+    return t(key, this.planLang, ...args);
+  }
+
+  protected printDiningPlan(ev: EventDetail): void {
+    const lang = this.planLang;
+    const accepted = ev.invites.filter(i => i.status === 'Accepted');
+    const acceptedCount = accepted.length;
+    const buildSection = (kind: 'meal' | 'drink', options: string[]): string => {
+      if (!options.length) return '';
+      const counts = new Map<string, number>();
+      options.forEach(o => counts.set(o, 0));
+      let unspecified = 0;
+      for (const inv of accepted) {
+        const raw = (kind === 'meal' ? inv.mealChoice : inv.drinkChoice)?.trim() ?? '';
+        if (raw && counts.has(raw)) counts.set(raw, counts.get(raw)! + 1);
+        else unspecified += 1;
+      }
+      const specifiedTotal = options.reduce((s, o) => s + counts.get(o)!, 0);
+      // Largest-remainder allocation so the "to order" column sums to acceptedCount.
+      const toOrder = new Map<string, number>();
+      const remainders: { opt: string; rem: number }[] = [];
+      let assigned = 0;
+      for (const o of options) {
+        const requested = counts.get(o)!;
+        const share = specifiedTotal > 0
+          ? unspecified * (requested / specifiedTotal)
+          : unspecified / options.length;
+        const raw = requested + share;
+        const floor = Math.floor(raw);
+        toOrder.set(o, floor);
+        remainders.push({ opt: o, rem: raw - floor });
+        assigned += floor;
+      }
+      let leftover = Math.max(0, acceptedCount - assigned);
+      remainders.sort((a, b) => b.rem - a.rem);
+      for (const r of remainders) {
+        if (leftover <= 0) break;
+        toOrder.set(r.opt, toOrder.get(r.opt)! + 1);
+        leftover -= 1;
+      }
+      const heading = this.tr(kind === 'meal' ? 'meal' : 'drink');
+      const rows = options.map(o => {
+        const label = escapeHtml(localizedOption(ev, lang, kind, o));
+        return `<tr><td>${label}</td><td class="num">${counts.get(o)}</td><td class="num">${toOrder.get(o)}</td></tr>`;
+      }).join('');
+      const unspecRow = `<tr class="unspec"><td>${escapeHtml(this.tr('unspecified'))}</td><td class="num">${unspecified}</td><td class="num">0</td></tr>`;
+      const totalOrdered = options.reduce((s, o) => s + toOrder.get(o)!, 0);
+      const totalReq = specifiedTotal + unspecified;
+      const totalRow = `<tr class="total"><td>${escapeHtml(this.tr('total'))}</td><td class="num">${totalReq}</td><td class="num">${totalOrdered}</td></tr>`;
+      return `<section><h2>${escapeHtml(heading)}</h2><table>
+        <thead><tr><th>${escapeHtml(this.tr('option'))}</th><th class="num">${escapeHtml(this.tr('requested'))}</th><th class="num">${escapeHtml(this.tr('toOrder'))}</th></tr></thead>
+        <tbody>${rows}${unspecRow}${totalRow}</tbody></table></section>`;
+    };
+    const evTitle = escapeHtml(localizedTitle(ev, lang));
+    const heading = escapeHtml(this.tr('diningPlan'));
+    const sub = acceptedCount === 0
+      ? escapeHtml(this.tr('noAcceptedInvitees'))
+      : escapeHtml(this.tr('basedOnAccepted', String(acceptedCount)));
+    const meals = buildSection('meal', this.mealOptionsList());
+    const drinks = buildSection('drink', this.drinkOptionsList());
+    const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
+      <title>${heading} — ${evTitle}</title>
+      <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#222; padding:2rem; max-width:720px; margin:0 auto; }
+        h1 { margin:0 0 .25rem; font-size:1.5rem; }
+        h2 { margin:1.5rem 0 .5rem; font-size:1.1rem; }
+        .sub { color:#666; margin:0 0 1rem; font-size:.9rem; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:.45rem .6rem; border-bottom:1px solid #ddd; text-align:left; }
+        th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
+        tr.unspec td { color:#666; font-style:italic; }
+        tr.total td { font-weight:600; border-top:2px solid #222; border-bottom:none; }
+        .toolbar { display:flex; justify-content:flex-end; margin-bottom:1rem; }
+        .toolbar button { font:inherit; padding:.5rem 1rem; border:1px solid #222; background:#222; color:#fff; border-radius:.4rem; cursor:pointer; }
+        .toolbar button:hover { background:#000; }
+        @media print { body { padding:0; } .toolbar { display:none; } }
+      </style></head><body>
+      <div class="toolbar"><button type="button" onclick="window.print()">${escapeHtml(this.tr('printDiningPlan'))}</button></div>
+      <h1>${heading}</h1>
+      <p class="sub">${evTitle} · ${sub}</p>
+      ${meals}${drinks}
+      </body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   }
 
   async save(): Promise<void> {
@@ -885,4 +988,8 @@ function parseOptionsText(text: string): string[] {
 
 function fromLocalInput(value: string): string {
   return new Date(value).toISOString();
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }

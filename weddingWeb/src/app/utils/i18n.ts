@@ -58,7 +58,9 @@ type StringKey =
   | 'album' | 'noAlbumImages' | 'descriptionOptional' | 'uploading' | 'addToAlbum'
   | 'yourRsvp' | 'attending' | 'saveRsvp' | 'saved' | 'responseAppliesToAll'
   | 'invitees' | 'noInvitees' | 'mealLabel' | 'drinkLabel'
-  | 'statusPending' | 'statusAccepted' | 'statusDeclined' | 'statusMaybe';
+  | 'statusPending' | 'statusAccepted' | 'statusDeclined' | 'statusMaybe'
+  | 'diningPlan' | 'printDiningPlan' | 'option' | 'requested' | 'toOrder'
+  | 'unspecified' | 'total' | 'noAcceptedInvitees' | 'basedOnAccepted';
 
 const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   saveTheDate:          { 'en': 'Save the date',           'nb': 'Sett av datoen',           'pt-BR': 'Reserve a data' },
@@ -109,6 +111,15 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   statusAccepted:       { 'en': 'Accepted',                'nb': 'Kommer',                   'pt-BR': 'Confirmado' },
   statusDeclined:       { 'en': 'Declined',                'nb': 'Kommer ikke',              'pt-BR': 'Recusado' },
   statusMaybe:          { 'en': 'Maybe',                   'nb': 'Kanskje',                  'pt-BR': 'Talvez' },
+  diningPlan:           { 'en': 'Dining plan',              'nb': 'Bespisningsplan',          'pt-BR': 'Plano de refeições' },
+  printDiningPlan:      { 'en': 'Print dining plan',        'nb': 'Skriv ut bespisningsplan', 'pt-BR': 'Imprimir plano de refeições' },
+  option:               { 'en': 'Option',                   'nb': 'Valg',                     'pt-BR': 'Opção' },
+  requested:            { 'en': 'Requested',                'nb': 'Ønsket',                   'pt-BR': 'Solicitado' },
+  toOrder:              { 'en': 'To order',                 'nb': 'Bestilling',               'pt-BR': 'A pedir' },
+  unspecified:          { 'en': 'Unspecified',              'nb': 'Uspesifisert',             'pt-BR': 'Não especificado' },
+  total:                { 'en': 'Total',                    'nb': 'Totalt',                   'pt-BR': 'Total' },
+  noAcceptedInvitees:   { 'en': 'No accepted invitees yet.','nb': 'Ingen har takket ja ennå.','pt-BR': 'Nenhum convidado confirmou ainda.' },
+  basedOnAccepted:      { 'en': 'Based on {0} accepted invitee(s).', 'nb': 'Basert på {0} som har takket ja.', 'pt-BR': 'Baseado em {0} confirmado(s).' },
 };
 
 export function t(key: StringKey, lang: LanguageCode, ...args: string[]): string {

@@ -219,7 +219,7 @@ interface ChildRsvpState {
     .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; }
     .edit-link { position:fixed; top:1rem; right:1rem; z-index:10; background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; border:1px solid #ead9b3; }
     .edit-link:hover { background:#fff; }
-    .script { font-family:'Brush Script MT','Snell Roundhand','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }
+    .script { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }
     .hero { position:relative; height:50vh; overflow:hidden; background:#f1e0c2; }
     .hero app-event-image { display:block; width:100%; height:100%; }
     .hero ::ng-deep img { width:100%; height:100%; object-fit:cover; display:block; max-width:none; }
@@ -227,7 +227,7 @@ interface ChildRsvpState {
     .hero-text { position:absolute; left:0; right:0; bottom:1.5rem; text-align:center; padding:0 1rem; }
     .hero.plain { position:relative; height:auto; padding:4rem 1rem 2rem; text-align:center; background:transparent; }
     .hero.plain .hero-text { position:static; }
-    .hero h1 { font-family:'Brush Script MT','Snell Roundhand','Apple Chancery',cursive; font-weight:400; font-size:3.4rem; color:#3a3327; margin:.4rem 0; line-height:1; letter-spacing:.02em; }
+    .hero h1 { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:3.4rem; color:#3a3327; margin:.4rem 0; line-height:1; letter-spacing:.02em; }
     .kicker { font-style:italic; color:#7a6a4a; letter-spacing:.18em; text-transform:lowercase; font-size:.85rem; margin:.2rem 0; }
     .where { font-style:italic; color:#5a4f37; margin:.3rem 0 0; }
 
@@ -241,15 +241,15 @@ interface ChildRsvpState {
     .t-item { display:grid; grid-template-columns:7rem 1fr; gap:1rem; align-items:flex-start; }
     .t-time { text-align:right; padding-top:.25rem; border-right:1px solid #e0d2ad; padding-right:1rem; }
     .t-day { display:block; font-size:.7rem; letter-spacing:.18em; text-transform:uppercase; color:#a08755; }
-    .t-hour { display:block; font-family:'Brush Script MT','Snell Roundhand','Apple Chancery',cursive; font-size:1.8rem; color:#8a6f3a; line-height:1; margin-top:.2rem; }
-    .t-body h3 { font-family:'Brush Script MT','Snell Roundhand','Apple Chancery',cursive; font-weight:400; font-size:1.9rem; color:#3a3327; margin:0 0 .25rem; }
+    .t-hour { display:block; font-family:'Brush Script MT','Apple Chancery',cursive; font-size:1.8rem; color:#8a6f3a; line-height:1; margin-top:.2rem; }
+    .t-body h3 { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:1.9rem; color:#3a3327; margin:0 0 .25rem; }
     .t-where { font-style:italic; color:#7a6a4a; margin:0 0 .35rem; }
     .t-desc { margin:0 0 .75rem; line-height:1.6; color:#4a402d; }
     .t-map { margin:.75rem 0; }
 
     .rsvp, .rsvp-big { background:#fff; border:1px solid #ead9b3; border-radius:.8rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.6rem; margin-top:.75rem; }
     .rsvp-big { margin:1.5rem 1.5rem 0; padding:1.5rem; align-items:center; text-align:center; }
-    .rsvp h4 { margin:0; font-family:'Brush Script MT','Snell Roundhand','Apple Chancery',cursive; font-size:1.3rem; color:#8a6f3a; font-weight:400; }
+    .rsvp h4 { margin:0; font-family:'Brush Script MT','Apple Chancery',cursive; font-size:1.3rem; color:#8a6f3a; font-weight:400; }
     .rsvp-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:.6rem; width:100%; }
     .rsvp-big .rsvp-grid { max-width:520px; }
     label { display:flex; flex-direction:column; gap:.2rem; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:#8a7a55; }

@@ -6,11 +6,12 @@ import { Router } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { AuthService } from '../services/auth.service';
 import { ApiConfig } from '../services/api-config.service';
-import { Me } from '../models';
+import { Dietary, Me } from '../models';
+import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, NavbarComponent],
+  imports: [FormsModule, NavbarComponent, DietaryFormComponent],
   template: `
     <app-navbar />
     <main class="shell">
@@ -32,6 +33,19 @@ import { Me } from '../models';
         <div class="row">
           <button type="button" class="primary" (click)="saveProfile()" [disabled]="savingProfile()">
             {{ savingProfile() ? 'Saving…' : 'Save profile' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Dietary preferences</h2>
+        <p class="muted small">Hosts can use this when planning meals for events you're invited to.</p>
+        <app-dietary-form [value]="dietary()" (valueChange)="dietary.set($event)" />
+        @if (dietaryError()) { <p class="error">{{ dietaryError() }}</p> }
+        @if (dietarySaved()) { <p class="ok">Saved.</p> }
+        <div class="row">
+          <button type="button" class="primary" (click)="saveDietary()" [disabled]="savingDietary()">
+            {{ savingDietary() ? 'Saving…' : 'Save dietary' }}
           </button>
         </div>
       </section>
@@ -73,6 +87,8 @@ import { Me } from '../models';
     .ghost:hover { background:#f1e0c2; }
     .error { color:#a23; margin:0; white-space:pre-wrap; }
     .ok { color:#3a7a3a; margin:0; }
+    .muted { color:#8b8273; margin:0; }
+    .small { font-size:.8rem; }
   `],
 })
 export class SettingsComponent implements OnInit {
@@ -82,6 +98,7 @@ export class SettingsComponent implements OnInit {
   private readonly router = inject(Router);
 
   protected displayName = '';
+  protected readonly dietary = signal<Dietary>({ ...EMPTY_DIETARY, allergens: [] });
 
   protected oldPassword = '';
   protected newPassword = '';
@@ -91,18 +108,32 @@ export class SettingsComponent implements OnInit {
   protected readonly profileError = signal('');
   protected readonly profileSaved = signal(false);
 
+  protected readonly savingDietary = signal(false);
+  protected readonly dietaryError = signal('');
+  protected readonly dietarySaved = signal(false);
+
   protected readonly changingPassword = signal(false);
   protected readonly passwordError = signal('');
   protected readonly passwordSaved = signal(false);
 
   ngOnInit(): void {
-    this.displayName = this.auth.me()?.displayName ?? '';
+    this.hydrateFromMe();
     if (!this.displayName) {
       // /api/me may not have resolved yet on a fresh reload; pull once.
-      void this.auth.refreshMe().then(() => {
-        if (!this.displayName) this.displayName = this.auth.me()?.displayName ?? '';
-      });
+      void this.auth.refreshMe().then(() => this.hydrateFromMe());
     }
+  }
+
+  private hydrateFromMe(): void {
+    const me = this.auth.me();
+    if (!me) return;
+    if (!this.displayName) this.displayName = me.displayName ?? '';
+    this.dietary.set({
+      preference: me.dietary?.preference ?? 'None',
+      allergens: [...(me.dietary?.allergens ?? [])],
+      customAllergens: me.dietary?.customAllergens ?? '',
+      notes: me.dietary?.notes ?? '',
+    });
   }
 
   async saveProfile(): Promise<void> {
@@ -124,6 +155,23 @@ export class SettingsComponent implements OnInit {
       this.profileError.set(extractError(e) ?? 'Could not save profile.');
     } finally {
       this.savingProfile.set(false);
+    }
+  }
+
+  async saveDietary(): Promise<void> {
+    this.dietaryError.set('');
+    this.dietarySaved.set(false);
+    this.savingDietary.set(true);
+    try {
+      const me = await firstValueFrom(
+        this.http.put<Me>(this.api.url('/api/me'), { dietary: this.dietary() })
+      );
+      this.auth.setMe(me);
+      this.dietarySaved.set(true);
+    } catch (e) {
+      this.dietaryError.set(extractError(e) ?? 'Could not save dietary preferences.');
+    } finally {
+      this.savingDietary.set(false);
     }
   }
 

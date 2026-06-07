@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { OnboardingStatus } from '../models';
+import { Dietary, OnboardingStatus } from '../models';
+import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
 
 @Component({
   selector: 'app-onboarding',
-  imports: [FormsModule],
+  imports: [FormsModule, DietaryFormComponent],
   template: `
     <div class="auth-page">
       <div class="card">
@@ -30,6 +31,13 @@ import { OnboardingStatus } from '../models';
             <label>Confirm password
               <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" required autocomplete="new-password" />
             </label>
+
+            <fieldset class="diet-card">
+              <legend>Dietary preferences (optional)</legend>
+              <p class="muted small">Helps hosts plan meals. You can change this any time in settings.</p>
+              <app-dietary-form [value]="dietary()" (valueChange)="dietary.set($event)" />
+            </fieldset>
+
             @if (error()) { <p class="error">{{ error() }}</p> }
             <button type="submit" [disabled]="busy()">{{ busy() ? 'Finishing…' : 'Finish setup' }}</button>
           </form>
@@ -47,7 +55,10 @@ import { OnboardingStatus } from '../models';
     button { padding:.6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font-weight:600; }
     button[disabled] { opacity:.6; cursor:wait; }
     .muted { color:#8b8273; margin:0; }
+    .small { font-size:.8rem; }
     .error { color:#a23; margin:0; white-space:pre-wrap; }
+    .diet-card { border:1px solid #e6e1d4; border-radius:.5rem; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; margin:0; }
+    .diet-card legend { font-size:.8rem; color:#5a5347; padding:0 .35rem; letter-spacing:.04em; text-transform:uppercase; }
   `],
 })
 export class OnboardingComponent implements OnInit {
@@ -65,6 +76,7 @@ export class OnboardingComponent implements OnInit {
   protected displayName = '';
   protected password = '';
   protected confirmPassword = '';
+  protected readonly dietary = signal<Dietary>({ ...EMPTY_DIETARY, allergens: [] });
 
   async ngOnInit(): Promise<void> {
     const userId = this.route.snapshot.paramMap.get('userId') ?? '';
@@ -105,7 +117,7 @@ export class OnboardingComponent implements OnInit {
     }
     this.busy.set(true);
     try {
-      await this.api.onboard(s.id, this.password, this.displayName.trim() || undefined);
+      await this.api.onboard(s.id, this.password, this.displayName.trim() || undefined, this.dietary());
       // Auto-sign-in so the user lands on their destination ready to go.
       await this.auth.login(s.email, this.password);
       this.router.navigateByUrl(this.resolveNext(), { replaceUrl: true });

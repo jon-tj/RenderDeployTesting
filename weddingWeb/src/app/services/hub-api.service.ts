@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { EventDetail, EventImage, EventOwner, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -93,9 +93,9 @@ export class HubApi {
     );
   }
 
-  onboard(userId: string, password: string, displayName?: string): Promise<void> {
+  onboard(userId: string, password: string, displayName?: string, dietary?: Dietary): Promise<void> {
     return firstValueFrom(
-      this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName })
+      this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName, dietary })
     );
   }
 

@@ -97,7 +97,9 @@ public class UsersController : ControllerBase
     [HttpPost("{id}/onboard")]
     public async Task<ActionResult> Onboard(string id, [FromBody] OnboardDto dto)
     {
-        var user = await _users.FindByIdAsync(id);
+        var user = await _db.Users
+            .Include(u => u.DietaryPreferences)
+            .FirstOrDefaultAsync(u => u.Id == id);
         if (user is null) return NotFound();
 
         if (await _users.HasPasswordAsync(user))
@@ -105,6 +107,14 @@ public class UsersController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(dto.DisplayName))
             user.DisplayName = dto.DisplayName.Trim();
+        if (dto.Dietary is not null)
+        {
+            user.DietaryPreferences ??= new DietaryPreferences { UserId = user.Id };
+            user.DietaryPreferences.Preference = dto.Dietary.Preference;
+            user.DietaryPreferences.Allergens = dto.Dietary.Allergens?.Distinct().ToList() ?? new();
+            user.DietaryPreferences.CustomAllergens = dto.Dietary.CustomAllergens ?? string.Empty;
+            user.DietaryPreferences.Notes = dto.Dietary.Notes ?? string.Empty;
+        }
         user.EmailConfirmed = true;
         var updateResult = await _users.UpdateAsync(user);
         if (!updateResult.Succeeded)
@@ -138,4 +148,6 @@ public sealed class OnboardDto
 
     [MaxLength(120)]
     public string? DisplayName { get; set; }
+
+    public DietaryDto? Dietary { get; set; }
 }

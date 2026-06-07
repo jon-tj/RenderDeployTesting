@@ -5,8 +5,10 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Web;
 using FamilyHub.Controllers;
+using FamilyHub.Data;
 using FamilyHub.Model;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Resend;
 
@@ -32,13 +34,15 @@ public sealed class ResendEmailService : IEmailService
     private readonly IResend _resend;
     private readonly EmailOptions _options;
     private readonly UserManager<AppUser> _users;
+    private readonly AppDbContext _db;
     private readonly ILogger<ResendEmailService> _log;
 
-    public ResendEmailService(IResend resend, IOptions<EmailOptions> options, UserManager<AppUser> users, ILogger<ResendEmailService> log)
+    public ResendEmailService(IResend resend, IOptions<EmailOptions> options, UserManager<AppUser> users, AppDbContext db, ILogger<ResendEmailService> log)
     {
         _resend = resend;
         _options = options.Value;
         _users = users;
+        _db = db;
         _log = log;
     }
 
@@ -54,9 +58,10 @@ public sealed class ResendEmailService : IEmailService
             : $"{baseUrl}/onboarding/{Uri.EscapeDataString(invitee.Id)}?next={HttpUtility.UrlEncode(eventPath)}";
 
         var hosts = await ResolveHostsAsync(ev, lang);
+        var hasChildren = await _db.Events.AnyAsync(e => e.ParentEventId == ev.Id, ct);
 
         var values = ev.Type == EventType.Wedding
-            ? BuildWeddingValues(invitee, ev, hosts, link, isOnboarded, lang)
+            ? BuildWeddingValues(invitee, ev, hosts, link, isOnboarded, lang, hasChildren)
             : BuildGenericValues(invitee, ev, hosts, link, isOnboarded, lang);
 
         var template = LoadTemplate(ev.Type == EventType.Wedding ? "invite-wedding.html" : "invite-generic.html");
@@ -85,9 +90,22 @@ public sealed class ResendEmailService : IEmailService
         }
     }
 
-    private Dictionary<string, string> BuildWeddingValues(AppUser invitee, CalendarEvent ev, string hosts, string link, bool isOnboarded, string lang)
+    private Dictionary<string, string> BuildWeddingValues(AppUser invitee, CalendarEvent ev, string hosts, string link, bool isOnboarded, string lang, bool hasChildren)
     {
         var where = Enc(ev.Location);
+        string whenBlock;
+        if (hasChildren)
+        {
+            whenBlock = $"<div style=\"font-style:italic;color:#5a4f37;\">{Enc(T("multiple_celebrations", lang))}</div>";
+        }
+        else
+        {
+            var when = Enc(FormatRange(ev.StartUtc, ev.EndUtc, lang));
+            var whereLine = string.IsNullOrEmpty(where) ? string.Empty
+                : $"<div style=\"font-style:italic;color:#5a4f37;margin-top:8px;\">{where}</div>";
+            whenBlock = $"<div style=\"font-family:'Brush Script MT','Apple Chancery',cursive;font-size:1.6rem;color:#8a6f3a;line-height:1;\">{when}</div>{whereLine}";
+        }
+
         return new Dictionary<string, string>
         {
             ["lang"] = lang,
@@ -95,9 +113,7 @@ public sealed class ResendEmailService : IEmailService
             ["title"] = Enc(LocalizedTitle(ev, lang)),
             ["who"] = Enc(string.IsNullOrWhiteSpace(invitee.DisplayName) ? T("dear_friend", lang) : invitee.DisplayName),
             ["hosts"] = Enc(hosts),
-            ["when"] = Enc(FormatRange(ev.StartUtc, ev.EndUtc, lang)),
-            ["where_block"] = string.IsNullOrEmpty(where) ? string.Empty
-                : $"<div style=\"font-style:italic;color:#5a4f37;margin-top:8px;\">{where}</div>",
+            ["when_block"] = whenBlock,
             ["cta"] = Enc(T(isOnboarded ? "wedding_cta_signed_in" : "wedding_cta_onboard", lang)),
             ["hint"] = Enc(T(isOnboarded ? "wedding_hint_signed_in" : "wedding_hint_onboard", lang)),
             ["with_love_comma"] = Enc(T("with_love_comma", lang)),

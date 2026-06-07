@@ -77,20 +77,6 @@ public class EventsController : ControllerBase
 
         var groups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
 
-        // Group-based gating: non-owners in a group with a future GoPublicAt
-        // can't see the event yet.
-        var isOwner = IsOwner(ev, uid);
-        if (!isOwner)
-        {
-            var myInvite = ev.Invites.FirstOrDefault(i => i.InviteeId == uid);
-            if (myInvite?.InviteGroupId is int gid)
-            {
-                var grp = groups.FirstOrDefault(g => g.Id == gid);
-                if (grp?.GoPublicAtUtc is DateTime go && go > DateTime.UtcNow)
-                    return Forbid();
-            }
-        }
-
         return EventDetailDto.From(ev, uid, groups);
     }
 
@@ -427,9 +413,6 @@ public class EventsController : ControllerBase
     }
 
     // Send the invitation email to every invite that hasn't been emailed yet.
-    // Invites whose InviteGroup has a future GoPublicAtUtc are skipped — they
-    // get picked up later, either by another call after the date or by the
-    // background scheduler (TODO).
     [HttpPost("{id:int}/invites/send-pending-emails")]
     public async Task<ActionResult<int>> SendPendingInviteEmails(int id)
     {
@@ -446,18 +429,8 @@ public class EventsController : ControllerBase
         var inviter = await _users.FindByIdAsync(uid);
         if (inviter is null) return Unauthorized();
 
-        var groups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
-        var groupsById = groups.ToDictionary(g => g.Id);
-        var now = DateTime.UtcNow;
-
         var pending = ev.Invites
             .Where(i => i.InviteEmailSentUtc is null && i.Invitee is not null)
-            .Where(i =>
-            {
-                if (i.InviteGroupId is not int gid) return true;
-                if (!groupsById.TryGetValue(gid, out var g)) return true;
-                return g.GoPublicAtUtc is null || g.GoPublicAtUtc <= now;
-            })
             .ToList();
         foreach (var invite in pending)
         {
@@ -469,9 +442,8 @@ public class EventsController : ControllerBase
         return pending.Count;
     }
 
-    // Send invitations for everyone in a single group, regardless of the
-    // group's GoPublicAtUtc. Useful for "send now" overrides from the editor.
-    // Skips invites that have already been emailed (use single-invite resend).
+    // Send invitations for everyone in a single group. Skips invites that
+    // have already been emailed (use single-invite resend).
     [HttpPost("{id:int}/groups/{groupId:int}/send-emails")]
     public async Task<ActionResult<int>> SendGroupInviteEmails(int id, int groupId)
     {
@@ -532,7 +504,6 @@ public class EventsController : ControllerBase
         {
             EventId = id,
             Name = name,
-            GoPublicAtUtc = dto.GoPublicAtUtc,
             VisibleChildEventIds = (dto.VisibleChildEventIds ?? new()).Distinct().ToList(),
         };
         _db.InviteGroups.Add(grp);
@@ -556,7 +527,6 @@ public class EventsController : ControllerBase
             if (string.IsNullOrEmpty(name)) return BadRequest("Name is required.");
             grp.Name = name;
         }
-        grp.GoPublicAtUtc = dto.GoPublicAtUtc;
         if (dto.VisibleChildEventIds is not null)
             grp.VisibleChildEventIds = dto.VisibleChildEventIds.Distinct().ToList();
         await _db.SaveChangesAsync();
@@ -1174,11 +1144,10 @@ public sealed record InviteGroupDto(
     int Id,
     int EventId,
     string Name,
-    DateTime? GoPublicAtUtc,
     List<int> VisibleChildEventIds)
 {
     public static InviteGroupDto From(InviteGroup g) => new(
-        g.Id, g.EventId, g.Name, g.GoPublicAtUtc, g.VisibleChildEventIds.ToList());
+        g.Id, g.EventId, g.Name, g.VisibleChildEventIds.ToList());
 }
 
 public sealed class CreateEventDto
@@ -1250,7 +1219,6 @@ public sealed class ImageUpdateDto
 public sealed class InviteGroupWriteDto
 {
     [MaxLength(120)] public string? Name { get; set; }
-    public DateTime? GoPublicAtUtc { get; set; }
     public List<int>? VisibleChildEventIds { get; set; }
 }
 

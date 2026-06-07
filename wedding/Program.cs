@@ -77,7 +77,6 @@ using (var scope = app.Services.CreateScope())
         Id INTEGER NOT NULL CONSTRAINT PK_InviteGroups PRIMARY KEY AUTOINCREMENT,
         EventId INTEGER NOT NULL,
         Name TEXT NOT NULL,
-        GoPublicAtUtc TEXT NULL,
         VisibleChildEventIds TEXT NOT NULL,
         CreatedAtUtc TEXT NOT NULL,
         CONSTRAINT FK_InviteGroups_Events_EventId FOREIGN KEY (EventId) REFERENCES Events (Id) ON DELETE CASCADE

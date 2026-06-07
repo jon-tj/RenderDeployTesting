@@ -105,7 +105,6 @@ export interface InviteGroup {
   id: number;
   eventId: number;
   name: string;
-  goPublicAtUtc: string | null;
   visibleChildEventIds: number[];
 }
 

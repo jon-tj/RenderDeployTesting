@@ -63,11 +63,11 @@ export class HubApi {
     return firstValueFrom(this.http.get<InviteGroup[]>(this.api.url(`/api/events/${eventId}/groups`)));
   }
 
-  createInviteGroup(eventId: number, payload: { name: string; goPublicAtUtc?: string | null; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
+  createInviteGroup(eventId: number, payload: { name: string; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
     return firstValueFrom(this.http.post<InviteGroup>(this.api.url(`/api/events/${eventId}/groups`), payload));
   }
 
-  updateInviteGroup(eventId: number, groupId: number, payload: { name?: string; goPublicAtUtc?: string | null; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
+  updateInviteGroup(eventId: number, groupId: number, payload: { name?: string; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
     return firstValueFrom(this.http.put<InviteGroup>(this.api.url(`/api/events/${eventId}/groups/${groupId}`), payload));
   }
 

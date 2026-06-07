@@ -195,7 +195,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
 
         <section class="card">
           <h2>Invite groups</h2>
-          <p class="muted small">Bundle invitees into groups. Each group can be limited to a subset of child events (e.g. evening reception only) and given a "go public" date — invitations stay queued and the event stays hidden until that moment.</p>
+          <p class="muted small">Bundle invitees into groups. Each group can be limited to a subset of child events (e.g. evening reception only). Use the "Send emails" button per group to control when invitations go out.</p>
           @if (!ev.children.length) {
             <p class="muted small">Add child events first to control per-group visibility.</p>
           }
@@ -207,10 +207,6 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
                     <label class="field">
                       <span class="muted small">Name</span>
                       <input type="text" [(ngModel)]="g.name" name="grp-name-{{g.id}}" />
-                    </label>
-                    <label class="field">
-                      <span class="muted small">Go public (UTC)</span>
-                      <input type="datetime-local" [ngModel]="goPublicLocal(g)" (ngModelChange)="setGoPublicLocal(g, $event)" name="grp-go-{{g.id}}" />
                     </label>
                   </div>
                   @if (ev.children.length) {
@@ -900,15 +896,6 @@ export class EventEditComponent implements OnInit {
     }
   }
 
-  goPublicLocal(g: InviteGroup): string {
-    if (!g.goPublicAtUtc) return '';
-    const d = new Date(g.goPublicAtUtc);
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-  setGoPublicLocal(g: InviteGroup, value: string): void {
-    g.goPublicAtUtc = value ? new Date(value).toISOString() : null;
-  }
   toggleGroupChild(g: InviteGroup, childId: number, checked: boolean): void {
     const set = new Set(g.visibleChildEventIds);
     if (checked) set.add(childId); else set.delete(childId);
@@ -939,7 +926,6 @@ export class EventEditComponent implements OnInit {
     try {
       const updated = await this.api.updateInviteGroup(ev.id, g.id, {
         name: g.name,
-        goPublicAtUtc: g.goPublicAtUtc,
         visibleChildEventIds: g.visibleChildEventIds,
       });
       this.event.set({ ...ev, groups: ev.groups.map(x => x.id === updated.id ? updated : x) });

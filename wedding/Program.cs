@@ -50,8 +50,8 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!");
-    await SeedAdminAsync(userManager, "mariana.slvapereira@gmail.com", "Passw0rd!");
+    await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");
+    await SeedAdminAsync(userManager, "mariana.slvapereira@gmail.com", "Passw0rd!", "Mariana");
 }
 
 if (app.Environment.IsDevelopment())
@@ -75,7 +75,7 @@ app.Run();
 
 // Ensures the named account exists and always has the full permission set.
 // Safe to run on every startup: only flips flags / resets the password when needed.
-static async Task SeedAdminAsync(UserManager<AppUser> users, string email, string password)
+static async Task SeedAdminAsync(UserManager<AppUser> users, string email, string password, string displayName)
 {
     var normalized = email.Trim().ToLowerInvariant();
     var user = await users.FindByEmailAsync(normalized);
@@ -86,7 +86,7 @@ static async Task SeedAdminAsync(UserManager<AppUser> users, string email, strin
             UserName = normalized,
             Email = normalized,
             EmailConfirmed = true,
-            DisplayName = normalized,
+            DisplayName = displayName,
             CanCreateWeddingEvent = true,
             CanCreateFamilyGathering = true,
             DietaryPreferences = new DietaryPreferences(),
@@ -99,6 +99,7 @@ static async Task SeedAdminAsync(UserManager<AppUser> users, string email, strin
     if (!user.CanCreateWeddingEvent) { user.CanCreateWeddingEvent = true; changed = true; }
     if (!user.CanCreateFamilyGathering) { user.CanCreateFamilyGathering = true; changed = true; }
     if (!user.EmailConfirmed) { user.EmailConfirmed = true; changed = true; }
+    if (user.DisplayName == normalized && user.DisplayName != displayName) { user.DisplayName = displayName; changed = true; }
     if (changed) await users.UpdateAsync(user);
 
     // If the account was created earlier without a password (e.g. invite stub),

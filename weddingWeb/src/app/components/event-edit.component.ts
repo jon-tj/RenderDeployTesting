@@ -762,7 +762,7 @@ export class EventEditComponent implements OnInit {
     switch (v) {
       case 'Open': return 'Open — everyone can view';
       case 'Closed': return 'Closed — invitees only';
-      case 'Private': return 'Private — only you';
+      case 'Private': return 'Private — owners only';
     }
   }
 
@@ -770,7 +770,7 @@ export class EventEditComponent implements OnInit {
     switch (v) {
       case 'Open': return 'Any signed-in user can view this event without an invite.';
       case 'Closed': return 'Only people you invite (and ancestors that opt to inherit) can view.';
-      case 'Private': return 'Hidden from everyone except you. Existing invitees won’t see it until you change this back.';
+      case 'Private': return 'Hidden from everyone except you and your co-owners. Invitees won’t see it until you change this back.';
     }
   }
 

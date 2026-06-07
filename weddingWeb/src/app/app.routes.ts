@@ -18,6 +18,11 @@ export const routes: Routes = [
     loadComponent: () => import('./components/event-edit.component').then(m => m.EventEditComponent),
   },
   {
+    path: 'settings',
+    canActivate: [authGuard],
+    loadComponent: () => import('./components/settings.component').then(m => m.SettingsComponent),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./components/home.component').then(m => m.HomeComponent),

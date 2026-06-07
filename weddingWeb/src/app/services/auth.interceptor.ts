@@ -6,9 +6,10 @@ import { AuthService } from './auth.service';
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
 
-  // Don't touch the auth endpoints themselves: register/login/refresh must
-  // never carry a stale bearer (the server treats it as authenticated).
-  if (req.url.includes('/api/auth/')) {
+  // Don't touch the *anonymous* auth endpoints (register/login/refresh/etc.):
+  // sending a stale bearer to them confuses the server. The /manage/* and
+  // anything else under /api/auth/ DOES need the token, so let it through.
+  if (isAnonymousAuthEndpoint(req.url)) {
     return next(req);
   }
 
@@ -36,4 +37,18 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 function attach(req: HttpRequest<unknown>, token: string | null): HttpRequest<unknown> {
   if (!token) return req;
   return req.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
+}
+
+const ANONYMOUS_AUTH_PATHS = [
+  '/api/auth/register',
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/api/auth/forgotPassword',
+  '/api/auth/resetPassword',
+  '/api/auth/confirmEmail',
+  '/api/auth/resendConfirmationEmail',
+];
+
+function isAnonymousAuthEndpoint(url: string): boolean {
+  return ANONYMOUS_AUTH_PATHS.some(p => url.includes(p));
 }

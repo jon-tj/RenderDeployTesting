@@ -1,6 +1,8 @@
 import { Component, computed, effect, input, signal } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { inject } from '@angular/core';
+import { DEFAULT_LANGUAGE, LanguageCode } from '../models';
+import { t } from '../utils/i18n';
 
 interface GeocodeResult {
   lat: string;
@@ -17,7 +19,7 @@ const cache = new Map<string, GeocodeResult | null>();
   selector: 'app-map-view',
   template: `
     @if (loading()) {
-      <div class="map-skeleton">Finding the spot…</div>
+      <div class="map-skeleton">{{ t('findingSpot', lang()) }}</div>
     } @else if (embedUrl(); as src) {
       <div class="map-wrap">
         <iframe
@@ -26,10 +28,10 @@ const cache = new Map<string, GeocodeResult | null>();
           referrerpolicy="no-referrer-when-downgrade"
           title="Map of {{ location() }}"></iframe>
         <span class="footer-cover" aria-hidden="true">{{ location() }}</span>
-        <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">Open in Google Maps ↗</a>
+        <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">{{ t('openInMaps', lang()) }}</a>
       </div>
     } @else {
-      <p class="muted small">Could not place &laquo;{{ location() }}&raquo; on the map.</p>
+      <p class="muted small">{{ t('couldNotPlace', lang(), location()) }}</p>
     }
   `,
   styles: [`
@@ -48,6 +50,9 @@ export class MapViewComponent {
   private readonly sanitizer = inject(DomSanitizer);
 
   readonly location = input.required<string>();
+  readonly lang = input<LanguageCode>(DEFAULT_LANGUAGE);
+
+  protected readonly t = t;
 
   protected readonly loading = signal(false);
   protected readonly result = signal<GeocodeResult | null>(null);

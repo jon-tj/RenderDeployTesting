@@ -227,11 +227,16 @@ public class EventsController : ControllerBase
                 var lang = LanguageCodes.Normalize(kv.Key);
                 if (lang == LanguageCodes.Default) continue; // English lives in Title/Description.
                 var t = kv.Value ?? new EventTranslation();
-                if (string.IsNullOrWhiteSpace(t.Title) && string.IsNullOrWhiteSpace(t.Description)) continue;
+                var meals = CleanOptionMap(t.MealOptions);
+                var drinks = CleanOptionMap(t.DrinkOptions);
+                var hasText = !string.IsNullOrWhiteSpace(t.Title) || !string.IsNullOrWhiteSpace(t.Description);
+                if (!hasText && meals.Count == 0 && drinks.Count == 0) continue;
                 clean[lang] = new EventTranslation
                 {
                     Title = (t.Title ?? string.Empty).Trim(),
                     Description = t.Description ?? string.Empty,
+                    MealOptions = meals,
+                    DrinkOptions = drinks,
                 };
             }
             ev.Translations = clean;
@@ -636,6 +641,20 @@ public class EventsController : ControllerBase
            .Where(s => s.Length > 0)
            .Distinct(StringComparer.Ordinal)
            .ToList();
+
+    private static Dictionary<string, string> CleanOptionMap(IDictionary<string, string>? raw)
+    {
+        var clean = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (raw is null) return clean;
+        foreach (var kv in raw)
+        {
+            var key = kv.Key?.Trim();
+            var value = kv.Value?.Trim();
+            if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(value)) continue;
+            clean[key] = value;
+        }
+        return clean;
+    }
 
     private static bool IsOwner(CalendarEvent ev, string uid)
         => ev.CreatedById == uid

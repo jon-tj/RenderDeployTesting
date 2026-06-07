@@ -37,6 +37,8 @@ export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 export interface EventTranslation {
   title: string;
   description: string;
+  mealOptions?: Record<string, string>;
+  drinkOptions?: Record<string, string>;
 }
 
 export type ImageRole = 'Banner' | 'Album' | 'Icon' | 'MarginLeft' | 'MarginRight' | 'MarginBottom' | 'Tile';

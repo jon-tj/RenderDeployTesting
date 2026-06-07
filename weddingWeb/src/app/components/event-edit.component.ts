@@ -121,6 +121,48 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDet
                 [(ngModel)]="drinkOptionsText" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
             </label>
           </div>
+          @if (enableTranslations && (mealOptionsList().length || drinkOptionsList().length)) {
+            <div class="opt-trans">
+              <div class="opt-trans-head">
+                <span class="muted small">Translate options for</span>
+                <select name="optLang" [(ngModel)]="optionLang">
+                  @for (l of nonDefaultLanguages; track l.code) {
+                    <option [value]="l.code">{{ l.label }}</option>
+                  }
+                </select>
+              </div>
+              @if (mealOptionsList().length) {
+                <div class="opt-trans-block">
+                  <h3>Meal</h3>
+                  @for (m of mealOptionsList(); track m) {
+                    <label class="opt-row">
+                      <span class="opt-src">{{ m }}</span>
+                      <input type="text" [name]="'mt-' + m"
+                        [ngModel]="optionTranslation('meal', m)"
+                        (ngModelChange)="setOptionTranslation('meal', m, $event)"
+                        (blur)="save()"
+                        [placeholder]="m" />
+                    </label>
+                  }
+                </div>
+              }
+              @if (drinkOptionsList().length) {
+                <div class="opt-trans-block">
+                  <h3>Drink</h3>
+                  @for (d of drinkOptionsList(); track d) {
+                    <label class="opt-row">
+                      <span class="opt-src">{{ d }}</span>
+                      <input type="text" [name]="'dt-' + d"
+                        [ngModel]="optionTranslation('drink', d)"
+                        (ngModelChange)="setOptionTranslation('drink', d, $event)"
+                        (blur)="save()"
+                        [placeholder]="d" />
+                    </label>
+                  }
+                </div>
+              }
+            </div>
+          }
         </section>
 
         <section class="card">
@@ -354,6 +396,11 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDet
     .with-lang { position:relative; }
     .with-lang input, .with-lang textarea { width:100%; box-sizing:border-box; padding-right:3.5rem; }
     .with-lang .lang-pill { position:absolute; bottom:.25rem; right:.25rem; padding:.1rem .35rem; font-size:.7rem; background:#faf7f0; border:1px solid #d8cfb8; border-radius:.3rem; color:#5a5347; }
+    .opt-trans { margin-top:.5rem; padding-top:.75rem; border-top:1px dashed #e6e1d4; display:flex; flex-direction:column; gap:.75rem; }
+    .opt-trans-head { display:flex; align-items:center; gap:.5rem; }
+    .opt-trans-block h3 { margin:0 0 .35rem; font-size:.9rem; color:#5a5347; }
+    .opt-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:.5rem; align-items:center; margin-bottom:.35rem; }
+    .opt-row .opt-src { font-size:.85rem; color:#5a5347; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -387,7 +434,9 @@ export class EventEditComponent implements OnInit {
   protected translations: Record<string, EventTranslation> = {};
   protected titleLang: LanguageCode = DEFAULT_LANGUAGE;
   protected descLang: LanguageCode = DEFAULT_LANGUAGE;
+  protected optionLang: LanguageCode = 'nb';
   protected readonly languages = LANGUAGES;
+  protected readonly nonDefaultLanguages = LANGUAGES.filter(l => l.code !== DEFAULT_LANGUAGE);
 
   // New-image upload form
   protected newImageRole: ImageRole = 'Album';
@@ -485,6 +534,35 @@ export class EventEditComponent implements OnInit {
     this.translations = {
       ...this.translations,
       [this.descLang]: { ...cur, description: value },
+    };
+  }
+
+  protected mealOptionsList(): string[] {
+    return parseOptionsText(this.mealOptionsText);
+  }
+
+  protected drinkOptionsList(): string[] {
+    return parseOptionsText(this.drinkOptionsText);
+  }
+
+  protected optionTranslation(kind: 'meal' | 'drink', value: string): string {
+    const entry = this.translations[this.optionLang];
+    const map = kind === 'meal' ? entry?.mealOptions : entry?.drinkOptions;
+    return map?.[value] ?? '';
+  }
+
+  protected setOptionTranslation(kind: 'meal' | 'drink', value: string, text: string): void {
+    const cur = this.translations[this.optionLang] ?? { title: '', description: '' };
+    const map = { ...(kind === 'meal' ? cur.mealOptions ?? {} : cur.drinkOptions ?? {}) };
+    const trimmed = text?.trim() ?? '';
+    if (trimmed) map[value] = trimmed;
+    else delete map[value];
+    this.translations = {
+      ...this.translations,
+      [this.optionLang]: {
+        ...cur,
+        ...(kind === 'meal' ? { mealOptions: map } : { drinkOptions: map }),
+      },
     };
   }
 

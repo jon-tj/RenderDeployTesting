@@ -1,4 +1,6 @@
 import { Component, computed, input } from '@angular/core';
+import { DEFAULT_LANGUAGE, LanguageCode } from '../models';
+import { t } from '../utils/i18n';
 
 function toCalDate(iso: string): string {
   // Compact UTC form: 20260612T140000Z
@@ -24,7 +26,7 @@ function toIsoLocal(iso: string): string {
   selector: 'app-save-the-date',
   template: `
     <div class="std" [class.compact]="compact()">
-      <span class="label">Save the date</span>
+      <span class="label">{{ t('saveTheDate', lang()) }}</span>
       <div class="row">
         <a class="btn google" [href]="googleUrl()" target="_blank" rel="noopener">Google</a>
         <a class="btn outlook" [href]="outlookUrl()" target="_blank" rel="noopener">Outlook</a>
@@ -48,6 +50,9 @@ export class SaveTheDateComponent {
   readonly location = input<string>('');
   readonly description = input<string>('');
   readonly compact = input<boolean>(false);
+  readonly lang = input<LanguageCode>(DEFAULT_LANGUAGE);
+
+  protected readonly t = t;
 
   protected readonly googleUrl = computed(() => {
     const params = new URLSearchParams({

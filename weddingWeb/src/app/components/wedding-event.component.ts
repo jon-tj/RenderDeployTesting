@@ -10,7 +10,7 @@ import { SaveTheDateComponent } from './save-the-date.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
 import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LanguageCode } from '../models';
-import { localizedDescription, localizedTitle } from '../utils/i18n';
+import { localizedDescription, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -32,14 +32,14 @@ interface ChildRsvpState {
       <app-event-tile-background [event]="ev" [contentWidth]="780" />
       <div class="wedding">
         @if (ev.isOwner) {
-          <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" title="Edit">Edit</a>
+          <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')">{{ s('edit') }}</a>
         }
         @if (bannerImage(); as banner) {
           <div class="hero">
             <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || tr(ev)" />
             <div class="hero-veil"></div>
             <div class="hero-text">
-              <p class="kicker">together with their families</p>
+              <p class="kicker">{{ s('togetherWithFamilies') }}</p>
               <h1>{{ tr(ev) }}</h1>
               @if (!perChildRsvp()) {
                 <p class="kicker">{{ formatLong(ev.startUtc) }}</p>
@@ -51,7 +51,7 @@ interface ChildRsvpState {
           </div>
         } @else {
           <header class="hero plain">
-            <p class="kicker">together with their families</p>
+            <p class="kicker">{{ s('togetherWithFamilies') }}</p>
             <h1>{{ tr(ev) }}</h1>
             @if (!perChildRsvp()) {
               <p class="kicker">{{ formatLong(ev.startUtc) }}</p>
@@ -67,7 +67,8 @@ interface ChildRsvpState {
               [startUtc]="ev.startUtc"
               [endUtc]="ev.endUtc"
               [location]="ev.location"
-              [description]="dr(ev)" />
+              [description]="dr(ev)"
+              [lang]="lang()" />
           }
         </section>
 
@@ -79,20 +80,20 @@ interface ChildRsvpState {
 
         @if (ev.location) {
           <section class="map">
-            <app-map-view [location]="ev.location" />
+            <app-map-view [location]="ev.location" [lang]="lang()" />
           </section>
         }
 
         @if (albumImages().length) {
           <section class="album">
-            <h2 class="script">Moments</h2>
+            <h2 class="script">{{ s('moments') }}</h2>
             <app-image-carousel [eventId]="ev.id" [images]="albumImages()" (open)="openAlbum($event)" />
           </section>
         }
 
         @if (ev.children.length) {
           <section class="schedule">
-            <h2 class="script">The day</h2>
+            <h2 class="script">{{ s('theDay') }}</h2>
             <ol class="timeline">
               @for (c of ev.children; track c.id) {
                 <li class="t-item">
@@ -111,42 +112,43 @@ interface ChildRsvpState {
                       [endUtc]="c.endUtc"
                       [location]="c.location"
                       [description]="dr(c)"
-                      [compact]="true" />
+                      [compact]="true"
+                      [lang]="lang()" />
                     @if (c.location) {
                       <div class="t-map">
-                        <app-map-view [location]="c.location" />
+                        <app-map-view [location]="c.location" [lang]="lang()" />
                       </div>
                     }
 
                     @if (perChildRsvp() && childState(c.id); as st) {
                       <div class="rsvp">
-                        <h4>Will you be there?</h4>
+                        <h4>{{ s('willYouBeThere') }}</h4>
                         @if (st.error) { <p class="error">{{ st.error }}</p> }
-                        @if (st.savedAt) { <p class="saved">Thank you ♥</p> }
+                        @if (st.savedAt) { <p class="saved">{{ s('thankYou') }}</p> }
                         <div class="rsvp-grid">
-                          <label>Reply
+                          <label>{{ s('reply') }}
                             <select [name]="'cs-' + c.id" [(ngModel)]="st.status">
-                              @for (s of statuses; track s) {
-                                <option [value]="s">{{ s }}</option>
+                              @for (st2 of statuses; track st2) {
+                                <option [value]="st2">{{ statusLabel(st2) }}</option>
                               }
                             </select>
                           </label>
                           @if (c.mealOptions.length) {
-                            <label>Meal
+                            <label>{{ s('meal') }}
                               <select [name]="'cm-' + c.id" [(ngModel)]="st.mealChoice">
-                                <option [ngValue]="''">— No preference —</option>
+                                <option [ngValue]="''">{{ s('noPreference') }}</option>
                                 @for (m of c.mealOptions; track m) {
-                                  <option [ngValue]="m">{{ m }}</option>
+                                  <option [ngValue]="m">{{ optLabel(c, 'meal', m) }}</option>
                                 }
                               </select>
                             </label>
                           }
                           @if (c.drinkOptions.length) {
-                            <label>Drink
+                            <label>{{ s('drink') }}
                               <select [name]="'cd-' + c.id" [(ngModel)]="st.drinkChoice">
-                                <option [ngValue]="''">— No preference —</option>
+                                <option [ngValue]="''">{{ s('noPreference') }}</option>
                                 @for (d of c.drinkOptions; track d) {
-                                  <option [ngValue]="d">{{ d }}</option>
+                                  <option [ngValue]="d">{{ optLabel(c, 'drink', d) }}</option>
                                 }
                               </select>
                             </label>
@@ -154,7 +156,7 @@ interface ChildRsvpState {
                         </div>
                         <div class="rsvp-actions">
                           <button type="button" class="soft" (click)="saveChildRsvp(c, st)" [disabled]="st.saving">
-                            {{ st.saving ? 'Saving…' : 'Save reply' }}
+                            {{ st.saving ? s('saving') : s('saveReply') }}
                           </button>
                         </div>
                       </div>
@@ -168,36 +170,36 @@ interface ChildRsvpState {
 
         @if (!perChildRsvp()) {
           <section class="rsvp-big">
-            <h2 class="script">RSVP</h2>
+            <h2 class="script">{{ s('rsvp') }}</h2>
             @if (ev.collectChildRsvps && ev.children.length) {
-              <p class="note">Your reply will apply to every part of the day.</p>
+              <p class="note">{{ s('replyAppliesToAll') }}</p>
             }
             @if (rsvpError()) { <p class="error">{{ rsvpError() }}</p> }
-            @if (rsvpSavedAt()) { <p class="saved">Thank you ♥</p> }
+            @if (rsvpSavedAt()) { <p class="saved">{{ s('thankYou') }}</p> }
             <div class="rsvp-grid">
-              <label>Reply
+              <label>{{ s('reply') }}
                 <select name="status" [(ngModel)]="status">
-                  @for (s of statuses; track s) {
-                    <option [value]="s">{{ s }}</option>
+                  @for (st of statuses; track st) {
+                    <option [value]="st">{{ statusLabel(st) }}</option>
                   }
                 </select>
               </label>
               @if (ev.mealOptions.length) {
-                <label>Meal
+                <label>{{ s('meal') }}
                   <select name="meal" [(ngModel)]="mealChoice">
-                    <option [ngValue]="''">— No preference —</option>
+                    <option [ngValue]="''">{{ s('noPreference') }}</option>
                     @for (m of ev.mealOptions; track m) {
-                      <option [ngValue]="m">{{ m }}</option>
+                      <option [ngValue]="m">{{ optLabel(ev, 'meal', m) }}</option>
                     }
                   </select>
                 </label>
               }
               @if (ev.drinkOptions.length) {
-                <label>Drink
+                <label>{{ s('drink') }}
                   <select name="drink" [(ngModel)]="drinkChoice">
-                    <option [ngValue]="''">— No preference —</option>
+                    <option [ngValue]="''">{{ s('noPreference') }}</option>
                     @for (d of ev.drinkOptions; track d) {
-                      <option [ngValue]="d">{{ d }}</option>
+                      <option [ngValue]="d">{{ optLabel(ev, 'drink', d) }}</option>
                     }
                   </select>
                 </label>
@@ -205,14 +207,14 @@ interface ChildRsvpState {
             </div>
             <div class="rsvp-actions">
               <button type="button" class="soft big" (click)="saveRsvp()" [disabled]="rsvpSaving()">
-                {{ rsvpSaving() ? 'Saving…' : 'Send reply' }}
+                {{ rsvpSaving() ? s('saving') : s('sendReply') }}
               </button>
             </div>
           </section>
         }
 
         <footer class="foot">
-          <p class="script">with love</p>
+          <p class="script">{{ s('withLove') }}</p>
         </footer>
         <app-event-margin-bottom [event]="ev" />
       </div>
@@ -297,6 +299,15 @@ export class WeddingEventComponent implements OnChanges {
   protected dr(ev: EventDetail | ChildEvent): string {
     return localizedDescription(ev, this.lang());
   }
+  protected s(key: Parameters<typeof t>[0]): string {
+    return t(key, this.lang());
+  }
+  protected statusLabel(status: InviteStatus): string {
+    return translateStatus(status, this.lang());
+  }
+  protected optLabel(ev: EventDetail | ChildEvent, kind: 'meal' | 'drink', value: string): string {
+    return localizedOption(ev, this.lang(), kind, value);
+  }
   protected status: InviteStatus = 'Pending';
   protected mealChoice = '';
   protected drinkChoice = '';
@@ -346,17 +357,17 @@ export class WeddingEventComponent implements OnChanges {
   }
 
   protected formatLong(iso: string): string {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return new Date(iso).toLocaleDateString(localeFor(this.lang()), {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
     });
   }
 
   protected formatDay(iso: string): string {
-    return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    return new Date(iso).toLocaleDateString(localeFor(this.lang()), { weekday: 'short', day: 'numeric', month: 'short' });
   }
 
   protected formatHour(iso: string): string {
-    return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString(localeFor(this.lang()), { hour: '2-digit', minute: '2-digit' });
   }
 
   protected openAlbum(img: EventImage): void {

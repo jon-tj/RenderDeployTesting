@@ -22,26 +22,34 @@ import { LanguagePickerComponent } from './language-picker.component';
           <h1>Welcome{{ s.displayName ? ', ' + s.displayName : '' }}</h1>
           <p class="muted">Setting up the account for <strong>{{ s.email }}</strong>.</p>
 
-          <form (ngSubmit)="submit()">
-            <label>Display name
-              <input name="displayName" [(ngModel)]="displayName" required />
-            </label>
-            <app-language-picker [value]="language()" (valueChange)="language.set($event)" label="Preferred language" />
-            <label>Choose a password
-              <input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
-            </label>
-            <label>Confirm password
-              <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" required autocomplete="new-password" />
-            </label>
+          <form (ngSubmit)="onSubmit()">
+            @if (step() === 1) {
+              <label>Display name
+                <input name="displayName" [(ngModel)]="displayName" required />
+              </label>
+              <app-language-picker [value]="language()" (valueChange)="language.set($event)" label="Preferred language" />
+              <label>Choose a password
+                <input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
+              </label>
+              <label>Confirm password
+                <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" required autocomplete="new-password" />
+              </label>
 
-            <fieldset class="diet-card">
-              <legend>Dietary preferences (optional)</legend>
-              <p class="muted small">Helps hosts plan meals. You can change this any time in settings.</p>
-              <app-dietary-form [value]="dietary()" (valueChange)="dietary.set($event)" />
-            </fieldset>
+              @if (error()) { <p class="error">{{ error() }}</p> }
+              <button type="submit">Next</button>
+            } @else {
+              <fieldset class="diet-card">
+                <legend>Dietary preferences (optional)</legend>
+                <p class="muted small">Helps hosts plan meals. You can change this any time in settings.</p>
+                <app-dietary-form [value]="dietary()" (valueChange)="dietary.set($event)" />
+              </fieldset>
 
-            @if (error()) { <p class="error">{{ error() }}</p> }
-            <button type="submit" [disabled]="busy()">{{ busy() ? 'Finishing…' : 'Finish setup' }}</button>
+              @if (error()) { <p class="error">{{ error() }}</p> }
+              <div class="step-actions">
+                <button type="button" class="ghost" (click)="back()" [disabled]="busy()">Back</button>
+                <button type="submit" [disabled]="busy()">{{ busy() ? 'Finishing…' : 'Finish setup' }}</button>
+              </div>
+            }
           </form>
         }
       </div>
@@ -61,6 +69,9 @@ import { LanguagePickerComponent } from './language-picker.component';
     .error { color:#a23; margin:0; white-space:pre-wrap; }
     .diet-card { border:1px solid #e6e1d4; border-radius:.5rem; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; margin:0; }
     .diet-card legend { font-size:.8rem; color:#5a5347; padding:0 .35rem; letter-spacing:.04em; text-transform:uppercase; }
+    .step-actions { display:flex; gap:.5rem; }
+    .step-actions button { flex:1; }
+    .ghost { background:transparent; color:#5a5347; border:1px solid #d8cfb8; }
   `],
 })
 export class OnboardingComponent implements OnInit {
@@ -74,6 +85,7 @@ export class OnboardingComponent implements OnInit {
   protected readonly status = signal<OnboardingStatus | null>(null);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
+  protected readonly step = signal<1 | 2>(1);
 
   protected displayName = '';
   protected password = '';
@@ -104,6 +116,33 @@ export class OnboardingComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async onSubmit(): Promise<void> {
+    if (this.step() === 1) {
+      this.error.set('');
+      if (!this.displayName.trim()) {
+        this.error.set('Please enter a display name.');
+        return;
+      }
+      if (this.password.length < 8) {
+        this.error.set('Password must be at least 8 characters.');
+        return;
+      }
+      if (this.password !== this.confirmPassword) {
+        this.error.set('Passwords do not match.');
+        return;
+      }
+      this.error.set('');
+      this.step.set(2);
+      return;
+    }
+    await this.submit();
+  }
+
+  back(): void {
+    this.error.set('');
+    this.step.set(1);
   }
 
   async submit(): Promise<void> {

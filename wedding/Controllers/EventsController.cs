@@ -127,7 +127,9 @@ public class EventsController : ControllerBase
         {
             var parentCheck = await ValidateParentAsync(dto.ParentEventId.Value, uid, attachingEventId: null);
             if (parentCheck is not null) return parentCheck;
-            parent = await _db.Events.FindAsync(dto.ParentEventId.Value);
+            parent = await _db.Events
+                .Include(e => e.CoOwners)
+                .FirstOrDefaultAsync(e => e.Id == dto.ParentEventId.Value);
         }
 
         var start = dto.StartUtc ?? parent?.StartUtc ?? DateTime.UtcNow.Date.AddHours(12);
@@ -149,6 +151,32 @@ public class EventsController : ControllerBase
 
         _db.Events.Add(ev);
         await _db.SaveChangesAsync();
+
+        // Ripple co-ownership from the parent: every co-owner of the parent
+        // (and the parent's creator, if different from the new event's creator)
+        // becomes a co-owner of this child. The child's own creator stays the
+        // creator and is not stored as a co-owner.
+        if (parent is not null)
+        {
+            var seeded = new HashSet<string> { uid };
+            if (parent.CreatedById != uid)
+            {
+                _db.EventOwners.Add(new EventOwner { EventId = ev.Id, UserId = parent.CreatedById });
+                seeded.Add(parent.CreatedById);
+            }
+            foreach (var co in parent.CoOwners)
+            {
+                if (seeded.Add(co.UserId))
+                {
+                    _db.EventOwners.Add(new EventOwner { EventId = ev.Id, UserId = co.UserId });
+                }
+            }
+            if (_db.ChangeTracker.HasChanges())
+            {
+                await _db.SaveChangesAsync();
+                await _db.Entry(ev).Collection(e => e.CoOwners).Query().Include(o => o.User).LoadAsync();
+            }
+        }
 
         await _db.Entry(ev).Reference(e => e.CreatedBy).LoadAsync();
         return EventDetailDto.From(ev, uid);

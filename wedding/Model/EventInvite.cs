@@ -36,4 +36,9 @@ public class EventInvite
     // When the invitation email was last sent to the invitee. Null means
     // they've been added but no email has gone out yet.
     public DateTime? InviteEmailSentUtc { get; set; }
+
+    // Optional group bucket attaching this invite to an InviteGroup. The
+    // group controls visibility of child events and the email-send time.
+    public int? InviteGroupId { get; set; }
+    public InviteGroup? InviteGroup { get; set; }
 }

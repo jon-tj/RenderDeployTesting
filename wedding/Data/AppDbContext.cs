@@ -13,6 +13,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<EventInvite> Invites => Set<EventInvite>();
     public DbSet<EventImage> Images => Set<EventImage>();
     public DbSet<EventOwner> EventOwners => Set<EventOwner>();
+    public DbSet<InviteGroup> InviteGroups => Set<InviteGroup>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -133,5 +134,30 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .WithMany()
             .HasForeignKey(o => o.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<InviteGroup>()
+            .HasOne(g => g.Event)
+            .WithMany()
+            .HasForeignKey(g => g.EventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var intListConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<List<int>, string>(
+            v => string.Join(',', v),
+            v => string.IsNullOrEmpty(v)
+                ? new List<int>()
+                : v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse).ToList());
+        var intListComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<int>>(
+            (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+            v => v.Aggregate(0, (h, i) => HashCode.Combine(h, i)),
+            v => v.ToList());
+        b.Entity<InviteGroup>()
+            .Property(g => g.VisibleChildEventIds)
+            .HasConversion(intListConverter, intListComparer);
+
+        b.Entity<EventInvite>()
+            .HasOne(i => i.InviteGroup)
+            .WithMany(g => g.Invites)
+            .HasForeignKey(i => i.InviteGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

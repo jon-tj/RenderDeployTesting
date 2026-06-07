@@ -75,7 +75,23 @@ public class EventsController : ControllerBase
         if (!await IsVisibleViaInheritanceAsync(ev, uid))
             return Forbid();
 
-        return EventDetailDto.From(ev, uid);
+        var groups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
+
+        // Group-based gating: non-owners in a group with a future GoPublicAt
+        // can't see the event yet.
+        var isOwner = IsOwner(ev, uid);
+        if (!isOwner)
+        {
+            var myInvite = ev.Invites.FirstOrDefault(i => i.InviteeId == uid);
+            if (myInvite?.InviteGroupId is int gid)
+            {
+                var grp = groups.FirstOrDefault(g => g.Id == gid);
+                if (grp?.GoPublicAtUtc is DateTime go && go > DateTime.UtcNow)
+                    return Forbid();
+            }
+        }
+
+        return EventDetailDto.From(ev, uid, groups);
     }
 
     // Candidates the current user can attach as children of `id`: events they
@@ -185,7 +201,8 @@ public class EventsController : ControllerBase
         }
 
         await _db.Entry(ev).Reference(e => e.CreatedBy).LoadAsync();
-        return EventDetailDto.From(ev, uid);
+        var createGroups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
+        return EventDetailDto.From(ev, uid, createGroups);
     }
 
     [HttpPut("{id:int}")]
@@ -283,7 +300,8 @@ public class EventsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
-        return EventDetailDto.From(ev, uid);
+        var updateGroups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
+        return EventDetailDto.From(ev, uid, updateGroups);
     }
 
     [HttpDelete("{id:int}")]
@@ -409,6 +427,9 @@ public class EventsController : ControllerBase
     }
 
     // Send the invitation email to every invite that hasn't been emailed yet.
+    // Invites whose InviteGroup has a future GoPublicAtUtc are skipped — they
+    // get picked up later, either by another call after the date or by the
+    // background scheduler (TODO).
     [HttpPost("{id:int}/invites/send-pending-emails")]
     public async Task<ActionResult<int>> SendPendingInviteEmails(int id)
     {
@@ -425,7 +446,19 @@ public class EventsController : ControllerBase
         var inviter = await _users.FindByIdAsync(uid);
         if (inviter is null) return Unauthorized();
 
-        var pending = ev.Invites.Where(i => i.InviteEmailSentUtc is null && i.Invitee is not null).ToList();
+        var groups = await _db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
+        var groupsById = groups.ToDictionary(g => g.Id);
+        var now = DateTime.UtcNow;
+
+        var pending = ev.Invites
+            .Where(i => i.InviteEmailSentUtc is null && i.Invitee is not null)
+            .Where(i =>
+            {
+                if (i.InviteGroupId is not int gid) return true;
+                if (!groupsById.TryGetValue(gid, out var g)) return true;
+                return g.GoPublicAtUtc is null || g.GoPublicAtUtc <= now;
+            })
+            .ToList();
         foreach (var invite in pending)
         {
             var isOnboarded = !string.IsNullOrEmpty(invite.Invitee!.PasswordHash);
@@ -434,6 +467,106 @@ public class EventsController : ControllerBase
         }
         await _db.SaveChangesAsync();
         return pending.Count;
+    }
+
+    // ----- Invite groups -----
+
+    [HttpGet("{id:int}/groups")]
+    public async Task<ActionResult<List<InviteGroupDto>>> ListGroups(int id)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+        var groups = await _db.InviteGroups.Where(g => g.EventId == id).OrderBy(g => g.Name).ToListAsync();
+        return groups.Select(InviteGroupDto.From).ToList();
+    }
+
+    [HttpPost("{id:int}/groups")]
+    public async Task<ActionResult<InviteGroupDto>> CreateGroup(int id, [FromBody] InviteGroupWriteDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+        var name = (dto.Name ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(name)) return BadRequest("Name is required.");
+        var grp = new InviteGroup
+        {
+            EventId = id,
+            Name = name,
+            GoPublicAtUtc = dto.GoPublicAtUtc,
+            VisibleChildEventIds = (dto.VisibleChildEventIds ?? new()).Distinct().ToList(),
+        };
+        _db.InviteGroups.Add(grp);
+        await _db.SaveChangesAsync();
+        return InviteGroupDto.From(grp);
+    }
+
+    [HttpPut("{id:int}/groups/{groupId:int}")]
+    public async Task<ActionResult<InviteGroupDto>> UpdateGroup(int id, int groupId, [FromBody] InviteGroupWriteDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+        var grp = await _db.InviteGroups.FirstOrDefaultAsync(g => g.Id == groupId && g.EventId == id);
+        if (grp is null) return NotFound();
+        if (dto.Name is not null)
+        {
+            var name = dto.Name.Trim();
+            if (string.IsNullOrEmpty(name)) return BadRequest("Name is required.");
+            grp.Name = name;
+        }
+        grp.GoPublicAtUtc = dto.GoPublicAtUtc;
+        if (dto.VisibleChildEventIds is not null)
+            grp.VisibleChildEventIds = dto.VisibleChildEventIds.Distinct().ToList();
+        await _db.SaveChangesAsync();
+        return InviteGroupDto.From(grp);
+    }
+
+    [HttpDelete("{id:int}/groups/{groupId:int}")]
+    public async Task<IActionResult> DeleteGroup(int id, int groupId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+        var grp = await _db.InviteGroups.FirstOrDefaultAsync(g => g.Id == groupId && g.EventId == id);
+        if (grp is null) return NotFound();
+        _db.InviteGroups.Remove(grp);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("{id:int}/invites/{inviteId:int}/group")]
+    public async Task<ActionResult<InviteDto>> SetInviteGroup(int id, int inviteId, [FromBody] SetInviteGroupDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+        var invite = await _db.Invites
+            .Include(i => i.Invitee)
+            .FirstOrDefaultAsync(i => i.Id == inviteId && i.EventId == id);
+        if (invite is null) return NotFound();
+        if (dto.GroupId is int gid)
+        {
+            var grp = await _db.InviteGroups.FirstOrDefaultAsync(g => g.Id == gid && g.EventId == id);
+            if (grp is null) return BadRequest("Group not found.");
+            invite.InviteGroupId = gid;
+        }
+        else
+        {
+            invite.InviteGroupId = null;
+        }
+        await _db.SaveChangesAsync();
+        return InviteDto.From(invite, invite.Invitee);
     }
 
     // Add a co-owner. Any current owner (creator or existing co-owner) can
@@ -847,10 +980,11 @@ public sealed record EventDetailDto(
     List<EventOwnerDto> CoOwners,
     List<ChildEventDto> Children,
     List<InviteDto> Invites,
+    List<InviteGroupDto> Groups,
     InviteDto? MyInvite,
     List<EventImageDto> Images)
 {
-    public static EventDetailDto From(CalendarEvent e, string currentUserId)
+    public static EventDetailDto From(CalendarEvent e, string currentUserId, IReadOnlyList<InviteGroup>? groups = null)
     {
         var isOwner = e.CreatedById == currentUserId
             || (e.CoOwners?.Any(o => o.UserId == currentUserId) ?? false);
@@ -861,7 +995,18 @@ public sealed record EventDetailDto(
         var invites = isOwner || e.ShowInviteesToGuests
             ? allInvites
             : new List<InviteDto>();
+        // Filter child events for non-owners by their invite group's
+        // whitelist. No group = no children visible (apart from when the
+        // owner views as themselves, which short-circuits above).
+        var groupList = (groups ?? new List<InviteGroup>()).ToList();
+        var myGroup = mine?.InviteGroupId is int gid
+            ? groupList.FirstOrDefault(g => g.Id == gid)
+            : null;
+        var visibleChildIds = isOwner
+            ? (HashSet<int>?)null
+            : new HashSet<int>(myGroup?.VisibleChildEventIds ?? new List<int>());
         var children = e.Children
+            .Where(c => visibleChildIds is null || visibleChildIds.Contains(c.Id))
             .OrderBy(c => c.StartUtc)
             .Select(c => ChildEventDto.From(c, currentUserId))
             .ToList();
@@ -895,6 +1040,7 @@ public sealed record EventDetailDto(
             coOwners,
             children,
             invites,
+            groupList.Select(InviteGroupDto.From).ToList(),
             mine,
             images);
     }
@@ -973,7 +1119,8 @@ public sealed record InviteDto(
     string? MealChoice,
     string? DrinkChoice,
     bool IsOnboarded,
-    DateTime? EmailSentUtc)
+    DateTime? EmailSentUtc,
+    int? InviteGroupId)
 {
     public static InviteDto From(EventInvite i, AppUser? invitee) => new(
         i.Id,
@@ -984,7 +1131,19 @@ public sealed record InviteDto(
         i.MealChoice,
         i.DrinkChoice,
         !string.IsNullOrEmpty(invitee?.PasswordHash),
-        i.InviteEmailSentUtc);
+        i.InviteEmailSentUtc,
+        i.InviteGroupId);
+}
+
+public sealed record InviteGroupDto(
+    int Id,
+    int EventId,
+    string Name,
+    DateTime? GoPublicAtUtc,
+    List<int> VisibleChildEventIds)
+{
+    public static InviteGroupDto From(InviteGroup g) => new(
+        g.Id, g.EventId, g.Name, g.GoPublicAtUtc, g.VisibleChildEventIds.ToList());
 }
 
 public sealed class CreateEventDto
@@ -1051,4 +1210,17 @@ public sealed class ImageUpdateDto
 {
     public ImageRole? Role { get; set; }
     [MaxLength(500)] public string? Description { get; set; }
+}
+
+public sealed class InviteGroupWriteDto
+{
+    [MaxLength(120)] public string? Name { get; set; }
+    public DateTime? GoPublicAtUtc { get; set; }
+    public List<int>? VisibleChildEventIds { get; set; }
+}
+
+public sealed class SetInviteGroupDto
+{
+    // null clears the assignment; an int picks a specific group.
+    public int? GroupId { get; set; }
 }

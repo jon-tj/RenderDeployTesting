@@ -73,6 +73,16 @@ using (var scope = app.Services.CreateScope())
     await EnsureColumnAsync(db, "Invites", "InviteEmailSentUtc", "TEXT NULL");
     await EnsureColumnAsync(db, "Events", "DressCode", "TEXT NOT NULL DEFAULT ''");
     await EnsureColumnAsync(db, "Events", "LocationLabel", "TEXT NOT NULL DEFAULT ''");
+    await EnsureTableAsync(db, "InviteGroups", @"CREATE TABLE InviteGroups (
+        Id INTEGER NOT NULL CONSTRAINT PK_InviteGroups PRIMARY KEY AUTOINCREMENT,
+        EventId INTEGER NOT NULL,
+        Name TEXT NOT NULL,
+        GoPublicAtUtc TEXT NULL,
+        VisibleChildEventIds TEXT NOT NULL,
+        CreatedAtUtc TEXT NOT NULL,
+        CONSTRAINT FK_InviteGroups_Events_EventId FOREIGN KEY (EventId) REFERENCES Events (Id) ON DELETE CASCADE
+    );");
+    await EnsureColumnAsync(db, "Invites", "InviteGroupId", "INTEGER NULL REFERENCES InviteGroups(Id) ON DELETE SET NULL");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");
@@ -149,4 +159,20 @@ static async Task EnsureColumnAsync(AppDbContext db, string table, string column
     }
     await reader.CloseAsync();
     await db.Database.ExecuteSqlRawAsync($"ALTER TABLE {table} ADD COLUMN {column} {columnDef};");
+}
+
+// Creates a SQLite table from the given DDL if it doesn't already exist.
+static async Task EnsureTableAsync(AppDbContext db, string table, string createSql)
+{
+    var conn = db.Database.GetDbConnection();
+    if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+    await using var probe = conn.CreateCommand();
+    probe.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name=$n;";
+    var p = probe.CreateParameter();
+    p.ParameterName = "$n";
+    p.Value = table;
+    probe.Parameters.Add(p);
+    var existing = await probe.ExecuteScalarAsync();
+    if (existing is not null) return;
+    await db.Database.ExecuteSqlRawAsync(createSql);
 }

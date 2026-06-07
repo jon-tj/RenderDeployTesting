@@ -14,6 +14,8 @@ public enum ImageRole
     MarginLeft = 3,
     MarginRight = 4,
     MarginBottom = 5,
+    // Repeating texture tiled into the strips to either side of the content.
+    Tile = 6,
 }
 
 public class EventImage

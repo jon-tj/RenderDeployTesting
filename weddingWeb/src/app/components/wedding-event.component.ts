@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { EventImageComponent } from './event-image.component';
 import { EventMarginsComponent, EventMarginBottomComponent } from './event-margins.component';
+import { EventTileBackgroundComponent } from './event-tile-background.component';
 import { ImageCarouselComponent } from './image-carousel.component';
 import { MapViewComponent } from './map-view.component';
 import { SaveTheDateComponent } from './save-the-date.component';
@@ -22,10 +23,11 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-wedding-event',
-  imports: [FormsModule, RouterLink, EventImageComponent, EventMarginsComponent, EventMarginBottomComponent, ImageCarouselComponent, MapViewComponent, SaveTheDateComponent],
+  imports: [FormsModule, RouterLink, EventImageComponent, EventMarginsComponent, EventMarginBottomComponent, EventTileBackgroundComponent, ImageCarouselComponent, MapViewComponent, SaveTheDateComponent],
   template: `
     @if (event(); as ev) {
       <app-event-margins [event]="ev" />
+      <app-event-tile-background [event]="ev" [contentWidth]="780" />
       <div class="wedding">
         @if (ev.isOwner) {
           <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" title="Edit">Edit</a>
@@ -216,7 +218,7 @@ interface ChildRsvpState {
   `,
   styles: [`
     :host { display:block; background:#fbf6ec; color:#3a3327; min-height:100vh; font-family:'Georgia', 'Cormorant Garamond', serif; }
-    .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; }
+    .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; z-index:1; background:#fbf6ec; }
     .edit-link { position:fixed; top:1rem; right:1rem; z-index:10; background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; border:1px solid #ead9b3; }
     .edit-link:hover { background:#fff; }
     .script { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }

@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { EventImageComponent } from './event-image.component';
 import { EventMarginsComponent, EventMarginBottomComponent } from './event-margins.component';
+import { EventTileBackgroundComponent } from './event-tile-background.component';
 import { ImageCarouselComponent } from './image-carousel.component';
 import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
@@ -22,7 +23,7 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-event-detail',
-  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, EventMarginsComponent, EventMarginBottomComponent, ImageCarouselComponent, WeddingEventComponent],
+  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, EventMarginsComponent, EventMarginBottomComponent, EventTileBackgroundComponent, ImageCarouselComponent, WeddingEventComponent],
   template: `
     @if (loading()) {
       <app-navbar />
@@ -36,6 +37,7 @@ interface ChildRsvpState {
       } @else {
         <app-navbar />
         <app-event-margins [event]="ev" />
+        <app-event-tile-background [event]="ev" [contentWidth]="900" />
         <main class="shell">
           @if (bannerImage(); as banner) {
             <div class="banner">
@@ -217,7 +219,7 @@ interface ChildRsvpState {
     }
   `,
   styles: [`
-    .shell { max-width:900px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
+    .shell { max-width:900px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; position:relative; z-index:1; }
     .head { display:flex; align-items:flex-start; gap:1rem; }
     .head .title { flex:1; }
     .head h1 { margin:.15rem 0 0; }

@@ -629,7 +629,8 @@ public class EventsController : ControllerBase
             or ImageRole.Icon
             or ImageRole.MarginLeft
             or ImageRole.MarginRight
-            or ImageRole.MarginBottom;
+            or ImageRole.MarginBottom
+            or ImageRole.Tile;
 
     // Recursive visibility for an already-loaded-from-DB graph. Walks up via
     // ParentEventId for any ancestor that the current event opts to inherit

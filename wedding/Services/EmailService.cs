@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using FamilyHub.Controllers;
 using FamilyHub.Model;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Resend;
 
@@ -15,7 +16,7 @@ public sealed class EmailOptions
 {
     // Public URL where the SPA is hosted (no trailing slash). Used to build
     // onboarding + event links inside outgoing emails.
-    public string BaseUrl { get; set; } = "http://localhost:4200";
+    public string BaseUrl { get; set; } = "https://jonandmari.uk";
 
     // From address shown to recipients (must be a verified Resend sender).
     public string From { get; set; } = "FamilyHub <onboarding@resend.dev>";
@@ -30,12 +31,14 @@ public sealed class ResendEmailService : IEmailService
 {
     private readonly IResend _resend;
     private readonly EmailOptions _options;
+    private readonly UserManager<AppUser> _users;
     private readonly ILogger<ResendEmailService> _log;
 
-    public ResendEmailService(IResend resend, IOptions<EmailOptions> options, ILogger<ResendEmailService> log)
+    public ResendEmailService(IResend resend, IOptions<EmailOptions> options, UserManager<AppUser> users, ILogger<ResendEmailService> log)
     {
         _resend = resend;
         _options = options.Value;
+        _users = users;
         _log = log;
     }
 
@@ -50,9 +53,11 @@ public sealed class ResendEmailService : IEmailService
             ? $"{baseUrl}{eventPath}"
             : $"{baseUrl}/onboarding/{Uri.EscapeDataString(invitee.Id)}?next={HttpUtility.UrlEncode(eventPath)}";
 
+        var hosts = await ResolveHostsAsync(ev, lang);
+
         var values = ev.Type == EventType.Wedding
-            ? BuildWeddingValues(invitee, ev, inviter, link, isOnboarded, lang)
-            : BuildGenericValues(invitee, ev, inviter, link, isOnboarded, lang);
+            ? BuildWeddingValues(invitee, ev, hosts, link, isOnboarded, lang)
+            : BuildGenericValues(invitee, ev, hosts, link, isOnboarded, lang);
 
         var template = LoadTemplate(ev.Type == EventType.Wedding ? "invite-wedding.html" : "invite-generic.html");
         var html = Render(template, values);
@@ -80,7 +85,7 @@ public sealed class ResendEmailService : IEmailService
         }
     }
 
-    private Dictionary<string, string> BuildWeddingValues(AppUser invitee, CalendarEvent ev, AppUser inviter, string link, bool isOnboarded, string lang)
+    private Dictionary<string, string> BuildWeddingValues(AppUser invitee, CalendarEvent ev, string hosts, string link, bool isOnboarded, string lang)
     {
         var where = Enc(ev.Location);
         return new Dictionary<string, string>
@@ -89,7 +94,7 @@ public sealed class ResendEmailService : IEmailService
             ["link"] = link,
             ["title"] = Enc(LocalizedTitle(ev, lang)),
             ["who"] = Enc(string.IsNullOrWhiteSpace(invitee.DisplayName) ? T("dear_friend", lang) : invitee.DisplayName),
-            ["hosts"] = Enc(string.IsNullOrWhiteSpace(inviter.DisplayName) ? T("your_hosts", lang) : inviter.DisplayName),
+            ["hosts"] = Enc(hosts),
             ["when"] = Enc(FormatRange(ev.StartUtc, ev.EndUtc, lang)),
             ["where_block"] = string.IsNullOrEmpty(where) ? string.Empty
                 : $"<div style=\"font-style:italic;color:#5a4f37;margin-top:8px;\">{where}</div>",
@@ -105,7 +110,7 @@ public sealed class ResendEmailService : IEmailService
         };
     }
 
-    private Dictionary<string, string> BuildGenericValues(AppUser invitee, CalendarEvent ev, AppUser inviter, string link, bool isOnboarded, string lang)
+    private Dictionary<string, string> BuildGenericValues(AppUser invitee, CalendarEvent ev, string hosts, string link, bool isOnboarded, string lang)
     {
         var where = Enc(ev.Location);
         var description = Enc(LocalizedDescription(ev, lang));
@@ -115,7 +120,7 @@ public sealed class ResendEmailService : IEmailService
             ["link"] = link,
             ["title"] = Enc(LocalizedTitle(ev, lang)),
             ["who"] = Enc(string.IsNullOrWhiteSpace(invitee.DisplayName) ? T("there", lang) : invitee.DisplayName),
-            ["hosts"] = Enc(string.IsNullOrWhiteSpace(inviter.DisplayName) ? T("a_familyhub_member", lang) : inviter.DisplayName),
+            ["hosts"] = Enc(hosts),
             ["when"] = Enc(FormatRange(ev.StartUtc, ev.EndUtc, lang)),
             ["where_row"] = string.IsNullOrEmpty(where) ? string.Empty
                 : $"<tr><td style=\"color:#6b7280;padding:4px 0;\">{Enc(T("where_label", lang))}</td><td style=\"padding:4px 0;\">{where}</td></tr>",
@@ -130,6 +135,30 @@ public sealed class ResendEmailService : IEmailService
             ["youve_been_invited_tail"] = Enc(T("youve_been_invited_tail", lang)),
             ["trouble_link"] = Enc(T("trouble_link", lang)),
         };
+    }
+
+    private async Task<string> ResolveHostsAsync(CalendarEvent ev, string lang)
+    {
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        async Task AddAsync(string? userId, AppUser? loaded)
+        {
+            if (string.IsNullOrEmpty(userId) || !seen.Add(userId)) return;
+            var user = loaded ?? await _users.FindByIdAsync(userId);
+            var name = user?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(name)) names.Add(name);
+        }
+
+        await AddAsync(ev.CreatedById, null);
+        foreach (var co in ev.CoOwners)
+            await AddAsync(co.UserId, co.User);
+
+        if (names.Count == 0) return T("your_hosts", lang);
+        if (names.Count == 1) return names[0];
+        var and = T("and_word", lang);
+        var head = string.Join(", ", names.Take(names.Count - 1));
+        return $"{head} {and} {names[^1]}";
     }
 
     private static string LocalizedTitle(CalendarEvent ev, string lang)

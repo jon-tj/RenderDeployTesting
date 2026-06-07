@@ -413,7 +413,7 @@ public class EventsController : ControllerBase
         if (uid is null) return Unauthorized();
 
         var ev = await _db.Events
-            .Include(e => e.CoOwners)
+            .Include(e => e.CoOwners).ThenInclude(o => o.User)
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();

@@ -76,9 +76,9 @@ export class OnboardingComponent implements OnInit {
     try {
       const status = await this.api.getOnboardingStatus(userId);
       if (status.isOnboarded) {
-        // Already set up — drop them at the dashboard. If they aren't signed
-        // in, the auth guard will bounce them to /login from there.
-        this.router.navigateByUrl('/', { replaceUrl: true });
+        // Already set up — drop them at the requested destination (or the
+        // dashboard). If they aren't signed in, the auth guard handles login.
+        this.router.navigateByUrl(this.resolveNext(), { replaceUrl: true });
         return;
       }
       this.status.set(status);
@@ -106,9 +106,9 @@ export class OnboardingComponent implements OnInit {
     this.busy.set(true);
     try {
       await this.api.onboard(s.id, this.password, this.displayName.trim() || undefined);
-      // Auto-sign-in so the user lands on the dashboard ready to go.
+      // Auto-sign-in so the user lands on their destination ready to go.
       await this.auth.login(s.email, this.password);
-      this.router.navigateByUrl('/', { replaceUrl: true });
+      this.router.navigateByUrl(this.resolveNext(), { replaceUrl: true });
     } catch (e: any) {
       const body = e?.error;
       const detail = typeof body === 'string'
@@ -118,5 +118,13 @@ export class OnboardingComponent implements OnInit {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  // Only accept same-origin relative paths so a malicious link can't bounce
+  // a newly-onboarded user to an external site.
+  private resolveNext(): string {
+    const raw = this.route.snapshot.queryParamMap.get('next');
+    if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
+    return '/';
   }
 }

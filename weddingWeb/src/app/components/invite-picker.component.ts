@@ -1,4 +1,4 @@
-import { Component, inject, output, signal } from '@angular/core';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HubApi } from '../services/hub-api.service';
 import { UserSummary } from '../models';
@@ -80,6 +80,10 @@ export class InvitePickerComponent {
   private readonly api = inject(HubApi);
   readonly picked = output<UserSummary>();
 
+  // Optional path the onboarding link should redirect to after the invitee
+  // finishes signup, e.g. "/event/42/edit".
+  readonly nextPath = input<string | null>(null);
+
   protected query = '';
   protected newEmail = '';
   protected newName = '';
@@ -128,7 +132,7 @@ export class InvitePickerComponent {
     try {
       const user = await this.api.createInviteStub(email, this.newName.trim() || undefined);
       this.picked.emit(user);
-      this.lastInviteLink.set(`${window.location.origin}/onboarding/${encodeURIComponent(user.id)}`);
+      this.lastInviteLink.set(this.buildOnboardingLink(user.id));
       this.copied.set(false);
       this.query = '';
       this.newEmail = '';
@@ -140,6 +144,12 @@ export class InvitePickerComponent {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private buildOnboardingLink(userId: string): string {
+    const base = `${window.location.origin}/onboarding/${encodeURIComponent(userId)}`;
+    const next = this.nextPath();
+    return next ? `${base}?next=${encodeURIComponent(next)}` : base;
   }
 
   async copyLink(link: string): Promise<void> {

@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { InvitePickerComponent } from './invite-picker.component';
 import { HubApi } from '../services/hub-api.service';
@@ -9,7 +9,7 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
 
 @Component({
   selector: 'app-event-edit',
-  imports: [FormsModule, NavbarComponent, InvitePickerComponent],
+  imports: [FormsModule, NavbarComponent, InvitePickerComponent, RouterLink],
   template: `
     <app-navbar />
     <main class="shell">
@@ -21,7 +21,7 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
         <header class="head">
           <h1>{{ ev.isOwner ? 'Edit event' : ev.title }}</h1>
           <div class="head-actions">
-            <button type="button" class="ghost" (click)="back()">Back</button>
+            <a class="ghost" [routerLink]="['/event', ev.id]">View</a>
             @if (ev.isOwner) {
               <button type="button" class="danger" (click)="remove()">Delete</button>
             }
@@ -62,7 +62,7 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
         <section class="card">
           <h2>Invites</h2>
           @if (ev.isOwner) {
-            <app-invite-picker (picked)="addInvite($event)" />
+            <app-invite-picker [nextPath]="'/event/' + ev.id" (picked)="addInvite($event)" />
           }
           @if (!ev.invites.length) {
             <p class="muted">No invites yet.</p>
@@ -97,7 +97,8 @@ import { EVENT_TYPES, EventDetail, EventType, Invite, UserSummary } from '../mod
     label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:#5a5347; }
     label.block { display:flex; flex-direction:column; gap:.25rem; }
     input, select, textarea { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    .ghost { background:transparent; border:1px solid #c9b88a; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; }
+    .ghost { background:transparent; border:1px solid #c9b88a; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; font:inherit; text-decoration:none; color:#2d2a24; display:inline-flex; align-items:center; }
+    .ghost:hover { background:#f1e0c2; }
     .ghost.small { padding:.25rem .6rem; font-size:.8rem; }
     .danger { background:#a23; color:#fff; border:0; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; }
     .error { color:#a23; }
@@ -219,10 +220,6 @@ export class EventEditComponent implements OnInit {
     } catch (e: any) {
       this.error.set('Could not delete event.');
     }
-  }
-
-  back(): void {
-    this.router.navigate(['/']);
   }
 }
 

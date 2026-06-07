@@ -17,6 +17,11 @@ export const routes: Routes = [
     loadComponent: () => import('./components/event-edit.component').then(m => m.EventEditComponent),
   },
   {
+    path: 'event/:eventId',
+    canActivate: [authGuard],
+    loadComponent: () => import('./components/event-detail.component').then(m => m.EventDetailComponent),
+  },
+  {
     path: 'settings',
     canActivate: [authGuard],
     loadComponent: () => import('./components/settings.component').then(m => m.SettingsComponent),

@@ -75,6 +75,6 @@ export class HomeComponent implements OnInit {
   }
 
   openEvent(e: EventSummary): void {
-    this.router.navigate(['/event', e.id, 'edit']);
+    this.router.navigate(['/event', e.id]);
   }
 }

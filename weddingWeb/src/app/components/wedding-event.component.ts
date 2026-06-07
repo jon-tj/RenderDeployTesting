@@ -40,7 +40,7 @@ interface ChildRsvpState {
                 }
               </select>
             }
-            <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')">{{ s('edit') }}</a>
+            <a class="edit-link icon-btn" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')" [attr.aria-label]="s('edit')"><span class="material-icons">edit</span></a>
           </div>
         }
         @if (bannerImage(); as banner) {
@@ -102,75 +102,76 @@ interface ChildRsvpState {
 
         @if (ev.children.length) {
           <section class="schedule">
-            <h2 class="script">{{ s('theDay') }}</h2>
             <ol class="timeline">
               @for (c of ev.children; track c.id) {
                 <li class="t-item">
-                  <div class="t-time">
-                    <span class="t-day">{{ formatDay(c.startUtc) }}</span>
-                    <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
+                  <div class="t-head">
+                    <div class="t-time">
+                      <span class="t-day">{{ formatDay(c.startUtc) }}</span>
+                      <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
+                    </div>
+                    <div class="t-body">
+                      <h3>{{ tr(c) }}</h3>
+                      @if (dr(c)) {
+                        <p class="t-desc">{{ dr(c) }}</p>
+                      }
+                      <app-save-the-date
+                        [title]="tr(c)"
+                        [startUtc]="c.startUtc"
+                        [endUtc]="c.endUtc"
+                        [location]="c.location"
+                        [description]="dr(c)"
+                        [compact]="true"
+                        [lang]="lang()" />
+                    </div>
                   </div>
-                  <div class="t-body">
-                    <h3>{{ tr(c) }}</h3>
-                    @if (dr(c)) {
-                      <p class="t-desc">{{ dr(c) }}</p>
-                    }
-                    <app-save-the-date
-                      [title]="tr(c)"
-                      [startUtc]="c.startUtc"
-                      [endUtc]="c.endUtc"
-                      [location]="c.location"
-                      [description]="dr(c)"
-                      [compact]="true"
-                      [lang]="lang()" />
-                    @if (c.location) {
-                      <div class="t-map">
-                        <app-map-view [location]="c.location" [lang]="lang()" />
-                      </div>
-                    }
 
-                    @if (perChildRsvp() && childState(c.id); as st) {
-                      <div class="rsvp">
-                        <h4>{{ s('willYouBeThere') }}</h4>
-                        @if (st.error) { <p class="error">{{ st.error }}</p> }
-                        @if (st.savedAt) { <p class="saved">{{ s('thankYou') }}</p> }
-                        <div class="rsvp-grid">
-                          <label>{{ s('reply') }}
-                            <select [name]="'cs-' + c.id" [(ngModel)]="st.status">
-                              @for (st2 of statuses; track st2) {
-                                <option [value]="st2">{{ statusLabel(st2) }}</option>
+                  @if (c.location) {
+                    <div class="t-map">
+                      <app-map-view [location]="c.location" [lang]="lang()" />
+                    </div>
+                  }
+
+                  @if (perChildRsvp() && childState(c.id); as st) {
+                    <div class="rsvp t-rsvp">
+                      @if (st.error) { <p class="error">{{ st.error }}</p> }
+                      @if (st.savedAt) { <p class="saved">{{ s('thankYou') }}</p> }
+                      <div class="rsvp-grid">
+                        <label>{{ s('rsvp') }}
+                          <select [name]="'cs-' + c.id" [(ngModel)]="st.status">
+                            @for (st2 of statuses; track st2) {
+                              <option [value]="st2">{{ statusLabel(st2) }}</option>
+                            }
+                          </select>
+                        </label>
+                        @if (c.mealOptions.length) {
+                          <label>{{ s('meal') }}
+                            <select [name]="'cm-' + c.id" [(ngModel)]="st.mealChoice">
+                              <option [ngValue]="''">{{ s('noPreference') }}</option>
+                              @for (m of c.mealOptions; track m) {
+                                <option [ngValue]="m">{{ optLabel(c, 'meal', m) }}</option>
                               }
                             </select>
                           </label>
-                          @if (c.mealOptions.length) {
-                            <label>{{ s('meal') }}
-                              <select [name]="'cm-' + c.id" [(ngModel)]="st.mealChoice">
-                                <option [ngValue]="''">{{ s('noPreference') }}</option>
-                                @for (m of c.mealOptions; track m) {
-                                  <option [ngValue]="m">{{ optLabel(c, 'meal', m) }}</option>
-                                }
-                              </select>
-                            </label>
-                          }
-                          @if (c.drinkOptions.length) {
-                            <label>{{ s('drink') }}
-                              <select [name]="'cd-' + c.id" [(ngModel)]="st.drinkChoice">
-                                <option [ngValue]="''">{{ s('noPreference') }}</option>
-                                @for (d of c.drinkOptions; track d) {
-                                  <option [ngValue]="d">{{ optLabel(c, 'drink', d) }}</option>
-                                }
-                              </select>
-                            </label>
-                          }
-                        </div>
-                        <div class="rsvp-actions">
-                          <button type="button" class="soft" (click)="saveChildRsvp(c, st)" [disabled]="st.saving">
-                            {{ st.saving ? s('saving') : s('saveReply') }}
-                          </button>
-                        </div>
+                        }
+                        @if (c.drinkOptions.length) {
+                          <label>{{ s('drink') }}
+                            <select [name]="'cd-' + c.id" [(ngModel)]="st.drinkChoice">
+                              <option [ngValue]="''">{{ s('noPreference') }}</option>
+                              @for (d of c.drinkOptions; track d) {
+                                <option [ngValue]="d">{{ optLabel(c, 'drink', d) }}</option>
+                              }
+                            </select>
+                          </label>
+                        }
                       </div>
-                    }
-                  </div>
+                      <div class="rsvp-actions">
+                        <button type="button" class="soft" (click)="saveChildRsvp(c, st)" [disabled]="st.saving">
+                          {{ st.saving ? s('saving') : s('reply') }}
+                        </button>
+                      </div>
+                    </div>
+                  }
                 </li>
               }
             </ol>
@@ -186,7 +187,7 @@ interface ChildRsvpState {
             @if (rsvpError()) { <p class="error">{{ rsvpError() }}</p> }
             @if (rsvpSavedAt()) { <p class="saved">{{ s('thankYou') }}</p> }
             <div class="rsvp-grid">
-              <label>{{ s('reply') }}
+              <label>{{ s('rsvp') }}
                 <select name="status" [(ngModel)]="status">
                   @for (st of statuses; track st) {
                     <option [value]="st">{{ statusLabel(st) }}</option>
@@ -216,7 +217,7 @@ interface ChildRsvpState {
             </div>
             <div class="rsvp-actions">
               <button type="button" class="soft big" (click)="saveRsvp()" [disabled]="rsvpSaving()">
-                {{ rsvpSaving() ? s('saving') : s('sendReply') }}
+                {{ rsvpSaving() ? s('saving') : s('reply') }}
               </button>
             </div>
           </section>
@@ -234,9 +235,11 @@ interface ChildRsvpState {
     .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; z-index:1; background:#fbf6ec; }
     .edit-link, .lang-switch { background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; border:1px solid #ead9b3; font:inherit; }
     .edit-link:hover { background:#fff; }
+    .icon-btn { padding:.4rem; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+    .icon-btn .material-icons { font-size:1.25rem; }
     .owner-tools { position:fixed; top:1rem; right:1rem; z-index:10; display:flex; gap:.4rem; }
     .lang-switch { padding:.35rem .55rem; text-transform:none; letter-spacing:0; }
-    .script { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }
+    .script { font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }
     .hero { position:relative; height:50vh; overflow:hidden; background:#f1e0c2; }
     .hero app-event-image { display:block; width:100%; height:100%; }
     .hero ::ng-deep img { width:100%; height:100%; object-fit:cover; display:block; max-width:none; }
@@ -244,7 +247,7 @@ interface ChildRsvpState {
     .hero-text { position:absolute; left:0; right:0; bottom:1.5rem; text-align:center; padding:0 1rem; }
     .hero.plain { position:relative; height:auto; padding:4rem 1rem 2rem; text-align:center; background:transparent; }
     .hero.plain .hero-text { position:static; }
-    .hero h1 { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:3.4rem; color:#3a3327; margin:.4rem 0; line-height:1; letter-spacing:.02em; }
+    .hero h1 { font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:3.4rem; color:#3a3327; margin:.4rem 0; line-height:1; letter-spacing:.02em; }
     .kicker { font-style:italic; color:#7a6a4a; letter-spacing:.18em; text-transform:lowercase; font-size:.85rem; margin:.2rem 0; }
     .where { font-style:italic; color:#5a4f37; margin:.3rem 0 0; }
 
@@ -254,24 +257,29 @@ interface ChildRsvpState {
     .album { padding:0 1.5rem; }
 
     .schedule { padding:0 1.5rem; }
-    .timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:1.5rem; counter-reset:t; }
-    .t-item { display:grid; grid-template-columns:7rem 1fr; gap:1rem; align-items:flex-start; }
-    .t-time { text-align:right; padding-top:.25rem; border-right:1px solid #e0d2ad; padding-right:1rem; }
+    .timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:3rem; counter-reset:t; }
+    .t-item { display:flex; flex-direction:column; gap:.75rem; background:rgba(234,217,179,.18); border-radius:.8rem; padding:.9rem 1rem; min-width:0; overflow:hidden; }
+    .t-head { display:flex; gap:1rem; align-items:flex-start; min-width:0; }
+    .t-time { flex:0 0 7rem; text-align:right; padding-top:.25rem; border-right:1px solid #e0d2ad; padding-right:1rem; }
+    .t-body { flex:1 1 auto; min-width:0; }
     .t-day { display:block; font-size:.7rem; letter-spacing:.18em; text-transform:uppercase; color:#a08755; }
-    .t-hour { display:block; font-family:'Brush Script MT','Apple Chancery',cursive; font-size:1.8rem; color:#8a6f3a; line-height:1; margin-top:.2rem; }
-    .t-body h3 { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:1.9rem; color:#3a3327; margin:0 0 .25rem; }
+    .t-hour { display:block; font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-size:1.8rem; color:#8a6f3a; line-height:1; margin-top:.2rem; }
+    .t-body h3 { font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:1.9rem; color:#3a3327; margin:0 0 .25rem; }
     .t-where { font-style:italic; color:#7a6a4a; margin:0 0 .35rem; }
     .t-desc { margin:0 0 .75rem; line-height:1.6; color:#4a402d; }
-    .t-map { margin:.75rem 0; }
+    .t-map { margin:0; }
 
-    .rsvp, .rsvp-big { background:#fff; border:1px solid #ead9b3; border-radius:.8rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.6rem; margin-top:.75rem; }
+    .rsvp, .rsvp-big { background:transparent; border:0; border-radius:.8rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.6rem; margin-top:.75rem; }
+    .t-rsvp { margin-top:0; gap:.35rem; padding:0; }
     .rsvp-big { margin:1.5rem 1.5rem 0; padding:1.5rem; align-items:center; text-align:center; }
-    .rsvp h4 { margin:0; font-family:'Brush Script MT','Apple Chancery',cursive; font-size:1.3rem; color:#8a6f3a; font-weight:400; }
-    .rsvp-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:.6rem; width:100%; }
+    .rsvp h4 { margin:0; font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-size:1.3rem; color:#8a6f3a; font-weight:400; }
+    .rsvp-grid { display:grid; grid-template-columns:auto 1fr; gap:.5rem .75rem; width:100%; align-items:center; }
+    .rsvp-grid label { display:contents; }
+    .rsvp-grid label > select { width:100%; min-width:0; }
     .rsvp-big .rsvp-grid { max-width:520px; }
     label { display:flex; flex-direction:column; gap:.2rem; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:#8a7a55; }
     select { padding:.55rem .7rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; background:#fff; color:#3a3327; }
-    .rsvp-actions { display:flex; justify-content:flex-end; }
+    .rsvp-actions { display:flex; justify-content:center; }
     .rsvp-big .rsvp-actions { justify-content:center; }
     .soft { font:inherit; background:#8a6f3a; color:#faf5ea; border:0; padding:.55rem 1.1rem; border-radius:999px; cursor:pointer; letter-spacing:.06em; }
     .soft:hover { background:#6f5a2f; }
@@ -286,9 +294,14 @@ interface ChildRsvpState {
 
     @media (max-width: 560px) {
       .hero h1 { font-size:2.6rem; }
-      .t-item { grid-template-columns:5rem 1fr; }
+      .t-item { padding:.75rem .8rem; }
+      .t-head { gap:.75rem; }
+      .t-time { flex-basis:5rem; padding-right:.6rem; }
       .t-hour { font-size:1.4rem; }
-      .rsvp-big { margin-left:1rem; margin-right:1rem; padding:1.1rem; }
+      .rsvp-big { margin-left:0; margin-right:0; padding:1.1rem; align-items:stretch; text-align:left; }
+      .rsvp-big .rsvp-grid { max-width:none; }
+      .rsvp-big .rsvp-actions { justify-content:stretch; }
+      .rsvp-big .rsvp-actions .soft { width:100%; }
     }
   `],
 })

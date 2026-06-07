@@ -130,7 +130,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
                   <option [value]="l.code">{{ l.label }}</option>
                 }
               </select>
-              <button type="button" class="ghost small" (click)="printDiningPlan(ev)">{{ tr('printDiningPlan') }}</button>
+              <button type="button" class="ghost small" (click)="printDiningPlan(ev)">Print dining plan</button>
             </div>
           }
           @if (enableTranslations && (mealOptionsList().length || drinkOptionsList().length)) {
@@ -435,6 +435,8 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
     .opt-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:.5rem; align-items:center; margin-bottom:.35rem; }
     .opt-row .opt-src { font-size:.85rem; color:#5a5347; }
     .dining-plan-actions { display:flex; gap:.5rem; align-items:center; margin-top:.75rem; flex-wrap:wrap; }
+    .dining-plan-actions select { padding:.25rem .5rem; font-size:.8rem; }
+    .dining-plan-actions button { flex:1; justify-content:center; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -684,7 +686,7 @@ export class EventEditComponent implements OnInit {
         .toolbar button:hover { background:#000; }
         @media print { body { padding:0; } .toolbar { display:none; } }
       </style></head><body>
-      <div class="toolbar"><button type="button" onclick="window.print()">${escapeHtml(this.tr('printDiningPlan'))}</button></div>
+      <div class="toolbar"><button type="button" onclick="window.print()">Print dining plan</button></div>
       <h1>${heading}</h1>
       <p class="sub">${evTitle} · ${sub}</p>
       ${meals}${drinks}

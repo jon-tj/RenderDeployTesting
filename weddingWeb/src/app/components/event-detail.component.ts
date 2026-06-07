@@ -53,7 +53,7 @@ interface ChildRsvpState {
               <p class="muted">{{ s('hostedBy') }} {{ ev.createdByDisplayName || '—' }}</p>
             </div>
             <div class="head-actions">
-              <button type="button" class="ghost" (click)="back()">{{ s('back') }}</button>
+              <button type="button" class="ghost icon-btn" (click)="back()" [title]="s('back')" [attr.aria-label]="s('back')"><span class="material-icons">arrow_back</span></button>
               @if (ev.isOwner) {
                 @if (ev.enableTranslations) {
                   <select class="ghost lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang">
@@ -62,7 +62,7 @@ interface ChildRsvpState {
                     }
                   </select>
                 }
-                <a class="primary" [routerLink]="['/event', ev.id, 'edit']">{{ s('edit') }}</a>
+                <a class="primary icon-btn" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')" [attr.aria-label]="s('edit')"><span class="material-icons">edit</span></a>
               }
             </div>
           </header>
@@ -258,6 +258,8 @@ interface ChildRsvpState {
     .ghost:hover { background:#f1e0c2; }
     .primary { background:#6f7a5b; color:#faf5ea; border:0; padding:.5rem .9rem; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
     .primary:disabled { opacity:.6; cursor:default; }
+    .icon-btn { padding:.35rem; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+    .icon-btn .material-icons { font-size:1.25rem; }
     .muted { color:#8b8273; margin:0; }
     .small { font-size:.8rem; }
     .error { color:#a23; margin:0; }

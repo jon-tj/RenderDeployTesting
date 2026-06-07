@@ -29,12 +29,12 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
         <p class="error">Wishlist not found.</p>
       } @else if (view(); as v) {
         <header class="page-head">
-          <h1>{{ v.eventId ? ('Wishlist for ' + v.ownerDisplayName) : (v.ownerDisplayName + '\'s wishlist') }}</h1>
+          <h1>{{ headerTitle(v) }}</h1>
           <p class="muted small">
             @if (v.eventId) {
               <a [routerLink]="['/event', v.eventId]">← Back to event</a> ·
             }
-            {{ v.canEdit ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you\u2019d like to gift. Add items to your cart, then claim them together.' }}
+            {{ v.canEdit ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you’d like to gift. Add items to your cart, then claim them together.' }}
           </p>
         </header>
 
@@ -243,6 +243,11 @@ export class WishlistComponent implements OnInit {
   protected draftFile: File | null = null;
   protected claimantLabel = '';
   protected anonymous = false;
+
+  protected headerTitle(v: WishlistView): string {
+    const name = v.ownerDisplayName || 'Wishlist';
+    return v.eventId ? `Wishlist for ${name}` : `${name}’s wishlist`;
+  }
 
   async ngOnInit(): Promise<void> {
     const params = this.route.snapshot.paramMap;

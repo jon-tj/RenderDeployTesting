@@ -18,6 +18,11 @@ public class WishlistItem
     [MaxLength(500)] public string Url { get; set; } = string.Empty;
     [MaxLength(500)] public string ImageUrl { get; set; } = string.Empty;
 
+    // Optional uploaded image bytes. When present, the frontend uses
+    // /api/wishlist/{id}/image to render instead of ImageUrl.
+    public byte[]? ImageData { get; set; }
+    [MaxLength(100)] public string ImageContentType { get; set; } = string.Empty;
+
     // Stored in minor units of the chosen currency (e.g. cents/øre/centavos).
     public long PriceMinor { get; set; }
     public WishlistCurrency Currency { get; set; } = WishlistCurrency.BRL;

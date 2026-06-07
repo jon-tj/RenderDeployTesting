@@ -230,6 +230,9 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
                     <button type="button" class="ghost small" (click)="saveGroup(g)" [disabled]="savingGroupId() === g.id">
                       {{ savingGroupId() === g.id ? 'Saving…' : 'Save' }}
                     </button>
+                    <button type="button" class="ghost small" (click)="sendGroupEmails(g)" [disabled]="sendingGroupId() === g.id || !groupPendingCount(g)">
+                      {{ sendingGroupId() === g.id ? 'Sending…' : ('Send ' + groupPendingCount(g) + ' email(s)') }}
+                    </button>
                     <button type="button" class="ghost small" (click)="deleteGroup(g)">Delete</button>
                   </div>
                 </li>
@@ -543,6 +546,7 @@ export class EventEditComponent implements OnInit {
     this.event()?.invites.filter(i => !i.emailSentUtc).length ?? 0);
 
   protected readonly savingGroupId = signal<number | null>(null);
+  protected readonly sendingGroupId = signal<number | null>(null);
   protected readonly creatingGroup = signal(false);
   protected readonly groupError = signal('');
   protected newGroupName = '';
@@ -943,6 +947,24 @@ export class EventEditComponent implements OnInit {
       this.groupError.set('Could not save group.');
     } finally {
       this.savingGroupId.set(null);
+    }
+  }
+  groupPendingCount(g: InviteGroup): number {
+    return this.event()?.invites.filter(i => i.inviteGroupId === g.id && !i.emailSentUtc).length ?? 0;
+  }
+  async sendGroupEmails(g: InviteGroup): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    this.sendingGroupId.set(g.id);
+    this.groupError.set('');
+    try {
+      await this.api.sendGroupInviteEmails(ev.id, g.id);
+      const fresh = await this.api.getEvent(ev.id);
+      this.event.set(fresh);
+    } catch {
+      this.groupError.set('Could not send group emails.');
+    } finally {
+      this.sendingGroupId.set(null);
     }
   }
   async deleteGroup(g: InviteGroup): Promise<void> {

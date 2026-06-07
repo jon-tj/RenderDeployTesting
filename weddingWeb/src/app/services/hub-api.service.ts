@@ -79,6 +79,10 @@ export class HubApi {
     return firstValueFrom(this.http.put<Invite>(this.api.url(`/api/events/${eventId}/invites/${inviteId}/group`), { groupId }));
   }
 
+  sendGroupInviteEmails(eventId: number, groupId: number): Promise<number> {
+    return firstValueFrom(this.http.post<number>(this.api.url(`/api/events/${eventId}/groups/${groupId}/send-emails`), {}));
+  }
+
   getWishlist(userId: string): Promise<WishlistView> {
     return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/user/${encodeURIComponent(userId)}`)));
   }
@@ -109,6 +113,20 @@ export class HubApi {
 
   getWishlistRates(): Promise<Record<WishlistCurrency, number>> {
     return firstValueFrom(this.http.get<Record<WishlistCurrency, number>>(this.api.url('/api/wishlist/rates')));
+  }
+
+  uploadWishlistImage(itemId: number, file: File): Promise<WishlistItem> {
+    const form = new FormData();
+    form.append('File', file);
+    return firstValueFrom(this.http.post<WishlistItem>(this.api.url(`/api/wishlist/${itemId}/image`), form));
+  }
+
+  deleteWishlistImage(itemId: number): Promise<WishlistItem> {
+    return firstValueFrom(this.http.delete<WishlistItem>(this.api.url(`/api/wishlist/${itemId}/image`)));
+  }
+
+  wishlistImageUrl(itemId: number): string {
+    return this.api.url(`/api/wishlist/${itemId}/image`);
   }
 
   addCoOwner(eventId: number, userId: string): Promise<EventOwner> {

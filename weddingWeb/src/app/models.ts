@@ -205,6 +205,7 @@ export interface WishlistItem {
   description: string;
   url: string;
   imageUrl: string;
+  hasUploadedImage: boolean;
   priceMinor: number;
   currency: WishlistCurrency;
   pixKey: string;

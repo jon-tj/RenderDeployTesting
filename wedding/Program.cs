@@ -108,6 +108,8 @@ using (var scope = app.Services.CreateScope())
         CONSTRAINT FK_WishlistClaims_WishlistItems_ItemId FOREIGN KEY (ItemId) REFERENCES WishlistItems (Id) ON DELETE CASCADE,
         CONSTRAINT FK_WishlistClaims_Users_ClaimantUserId FOREIGN KEY (ClaimantUserId) REFERENCES AspNetUsers (Id) ON DELETE SET NULL
     );");
+    await EnsureColumnAsync(db, "WishlistItems", "ImageData", "BLOB NULL");
+    await EnsureColumnAsync(db, "WishlistItems", "ImageContentType", "TEXT NOT NULL DEFAULT ''");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");

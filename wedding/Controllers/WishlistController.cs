@@ -190,6 +190,54 @@ public class WishlistController : ControllerBase
     [AllowAnonymous]
     public ActionResult<Dictionary<string, decimal>> GetRates()
         => ToBrl.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
+
+    // Upload an image file for a wishlist item. Replaces any existing upload
+    // but doesn't touch ImageUrl — owner can keep both and the frontend
+    // prefers the uploaded blob when present.
+    [HttpPost("{id:int}/image")]
+    [Authorize]
+    [RequestSizeLimit(10_000_000)]
+    public async Task<ActionResult<WishlistItemDto>> UploadImage(int id, [FromForm] WishlistImageUploadDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var item = await _db.WishlistItems.Include(i => i.Claims).FirstOrDefaultAsync(i => i.Id == id);
+        if (item is null) return NotFound();
+        if (item.OwnerUserId != uid) return Forbid();
+        if (dto.File is null || dto.File.Length == 0) return BadRequest("File is required.");
+        if (!dto.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("File must be an image.");
+        using var ms = new MemoryStream();
+        await dto.File.CopyToAsync(ms);
+        item.ImageData = ms.ToArray();
+        item.ImageContentType = dto.File.ContentType;
+        await _db.SaveChangesAsync();
+        return WishlistItemDto.From(item, uid);
+    }
+
+    [HttpDelete("{id:int}/image")]
+    [Authorize]
+    public async Task<ActionResult<WishlistItemDto>> DeleteImage(int id)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var item = await _db.WishlistItems.Include(i => i.Claims).FirstOrDefaultAsync(i => i.Id == id);
+        if (item is null) return NotFound();
+        if (item.OwnerUserId != uid) return Forbid();
+        item.ImageData = null;
+        item.ImageContentType = string.Empty;
+        await _db.SaveChangesAsync();
+        return WishlistItemDto.From(item, uid);
+    }
+
+    [HttpGet("{id:int}/image")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetImage(int id)
+    {
+        var item = await _db.WishlistItems.FirstOrDefaultAsync(i => i.Id == id);
+        if (item is null || item.ImageData is null || item.ImageData.Length == 0) return NotFound();
+        return File(item.ImageData, string.IsNullOrEmpty(item.ImageContentType) ? "application/octet-stream" : item.ImageContentType);
+    }
 }
 
 public sealed record WishlistViewDto(
@@ -204,6 +252,7 @@ public sealed record WishlistItemDto(
     string Description,
     string Url,
     string ImageUrl,
+    bool HasUploadedImage,
     long PriceMinor,
     WishlistCurrency Currency,
     string PixKey,
@@ -225,6 +274,7 @@ public sealed record WishlistItemDto(
             .ToList();
         return new(
             i.Id, i.OwnerUserId, i.Name, i.Description, i.Url, i.ImageUrl,
+            i.ImageData is { Length: > 0 },
             i.PriceMinor, i.Currency, i.PixKey,
             i.WishedQuantity, claimed, visible, isMine);
     }
@@ -254,6 +304,11 @@ public sealed class WishlistItemWriteDto
     public WishlistCurrency? Currency { get; set; }
     [MaxLength(200)] public string? PixKey { get; set; }
     public int? WishedQuantity { get; set; }
+}
+
+public sealed class WishlistImageUploadDto
+{
+    [Required] public IFormFile File { get; set; } = default!;
 }
 
 public sealed class ClaimCartDto

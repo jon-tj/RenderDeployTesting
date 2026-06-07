@@ -469,6 +469,41 @@ public class EventsController : ControllerBase
         return pending.Count;
     }
 
+    // Send invitations for everyone in a single group, regardless of the
+    // group's GoPublicAtUtc. Useful for "send now" overrides from the editor.
+    // Skips invites that have already been emailed (use single-invite resend).
+    [HttpPost("{id:int}/groups/{groupId:int}/send-emails")]
+    public async Task<ActionResult<int>> SendGroupInviteEmails(int id, int groupId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.CoOwners).ThenInclude(o => o.User)
+            .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!IsOwner(ev, uid)) return Forbid();
+
+        var grp = await _db.InviteGroups.FirstOrDefaultAsync(g => g.Id == groupId && g.EventId == id);
+        if (grp is null) return NotFound();
+
+        var inviter = await _users.FindByIdAsync(uid);
+        if (inviter is null) return Unauthorized();
+
+        var pending = ev.Invites
+            .Where(i => i.InviteGroupId == groupId && i.InviteEmailSentUtc is null && i.Invitee is not null)
+            .ToList();
+        foreach (var invite in pending)
+        {
+            var isOnboarded = !string.IsNullOrEmpty(invite.Invitee!.PasswordHash);
+            await _email.SendInviteAsync(invite.Invitee, isOnboarded, ev, inviter, HttpContext.RequestAborted);
+            invite.InviteEmailSentUtc = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync();
+        return pending.Count;
+    }
+
     // ----- Invite groups -----
 
     [HttpGet("{id:int}/groups")]

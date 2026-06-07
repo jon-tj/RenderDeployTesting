@@ -47,6 +47,12 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
               <input type="number" placeholder="Qty" name="qty" min="1" [(ngModel)]="draftQty" />
               <input type="url" placeholder="Link (optional)" name="url" [(ngModel)]="draftUrl" />
               <input type="text" placeholder="Pix key (BRL only, optional)" name="pix" [(ngModel)]="draftPix" />
+              <input type="url" placeholder="Image URL (optional)" name="imgurl" [(ngModel)]="draftImageUrl" />
+              <label class="file-pick">
+                <span class="muted small">Or upload image:</span>
+                <input type="file" accept="image/*" (change)="onDraftFile($event)" />
+                @if (draftFile) { <span class="muted small">{{ draftFile.name }}</span> }
+              </label>
               <button type="submit" [disabled]="!draftName.trim() || saving()">{{ saving() ? 'Saving…' : 'Add' }}</button>
             </form>
             @if (addError()) { <p class="error small">{{ addError() }}</p> }
@@ -74,6 +80,9 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
               @for (i of v.items; track i.id) {
                 @let remaining = i.wishedQuantity - i.claimedQuantity;
                 <li class="item" [class.taken]="remaining <= 0">
+                  @if (itemImageSrc(i); as src) {
+                    <img class="item-img" [src]="src" alt="" />
+                  }
                   <div class="item-main">
                     <div class="item-name">
                       @if (i.url) {
@@ -102,6 +111,13 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                   </div>
                   <div class="item-actions">
                     @if (isMine()) {
+                      <label class="ghost small file-btn">
+                        {{ i.hasUploadedImage ? 'Change image' : 'Upload image' }}
+                        <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
+                      </label>
+                      @if (i.hasUploadedImage) {
+                        <button type="button" class="ghost small" (click)="removeItemImage(i)">Remove image</button>
+                      }
                       <button type="button" class="ghost small" (click)="deleteItem(i)">Remove</button>
                     } @else if (remaining > 0) {
                       <div class="cart-controls">
@@ -165,11 +181,14 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .row button { flex:0 0 auto; }
     ul.items { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.6rem; }
     .item { display:flex; gap:.75rem; align-items:flex-start; padding:.65rem .75rem; background:#faf7f0; border-radius:.4rem; }
+    .item-img { width:64px; height:64px; object-fit:cover; border-radius:.35rem; flex:0 0 auto; background:#eee; }
+    .file-pick { display:flex; align-items:center; gap:.4rem; flex-basis:100%; }
+    .item-actions { display:flex; flex-direction:column; gap:.3rem; align-items:flex-end; }
+    .file-btn { cursor:pointer; }
     .item-main { flex:1; min-width:0; }
     .item-name a { color:#8a6f3a; text-decoration:none; }
     .item-name a:hover { text-decoration:underline; }
     .item.taken .item-name { text-decoration:line-through; opacity:.55; }
-    .item-actions { flex:0 0 auto; }
     .cart-controls { display:flex; align-items:center; gap:.4rem; }
     .qty { min-width:1.4rem; text-align:center; }
     .cart-header { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; }
@@ -219,6 +238,8 @@ export class WishlistComponent implements OnInit {
   protected draftQty = 1;
   protected draftUrl = '';
   protected draftPix = '';
+  protected draftImageUrl = '';
+  protected draftFile: File | null = null;
   protected claimantLabel = '';
   protected anonymous = false;
 
@@ -289,22 +310,67 @@ export class WishlistComponent implements OnInit {
     this.saving.set(true);
     this.addError.set('');
     try {
-      const item = await this.api.createWishlistItem({
+      let item = await this.api.createWishlistItem({
         name: this.draftName.trim(),
         priceMinor: Math.round((this.draftPrice ?? 0) * 100),
         currency: this.draftCurrency,
         wishedQuantity: Math.max(1, this.draftQty || 1),
         url: this.draftUrl.trim(),
         pixKey: this.draftPix.trim(),
+        imageUrl: this.draftImageUrl.trim(),
       });
+      if (this.draftFile) {
+        try { item = await this.api.uploadWishlistImage(item.id, this.draftFile); }
+        catch { this.addError.set('Item added, but image upload failed.'); }
+      }
       const v = this.view();
       if (v) this.view.set({ ...v, items: [...v.items, item] });
       this.draftName = ''; this.draftPrice = null; this.draftQty = 1; this.draftUrl = ''; this.draftPix = '';
+      this.draftImageUrl = ''; this.draftFile = null;
     } catch {
       this.addError.set('Could not add item.');
     } finally {
       this.saving.set(false);
     }
+  }
+
+  protected onDraftFile(ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    this.draftFile = input.files && input.files.length ? input.files[0] : null;
+  }
+
+  protected itemImageSrc(i: WishlistItem): string | null {
+    if (i.hasUploadedImage) return this.api.wishlistImageUrl(i.id);
+    if (i.imageUrl) return i.imageUrl;
+    return null;
+  }
+
+  async onItemImage(ev: Event, item: WishlistItem): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files && input.files.length ? input.files[0] : null;
+    input.value = '';
+    if (!file) return;
+    try {
+      const updated = await this.api.uploadWishlistImage(item.id, file);
+      this.replaceItem(updated);
+    } catch {
+      this.addError.set('Could not upload image.');
+    }
+  }
+
+  async removeItemImage(item: WishlistItem): Promise<void> {
+    try {
+      const updated = await this.api.deleteWishlistImage(item.id);
+      this.replaceItem(updated);
+    } catch {
+      this.addError.set('Could not remove image.');
+    }
+  }
+
+  private replaceItem(updated: WishlistItem): void {
+    const v = this.view();
+    if (!v) return;
+    this.view.set({ ...v, items: v.items.map(x => x.id === updated.id ? updated : x) });
   }
 
   async deleteItem(item: WishlistItem): Promise<void> {

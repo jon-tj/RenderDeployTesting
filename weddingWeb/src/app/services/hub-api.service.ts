@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
+import { EventDetail, EventSummary, EventType, Invite, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -53,6 +53,18 @@ export class HubApi {
   createInviteStub(email: string, displayName?: string): Promise<UserSummary> {
     return firstValueFrom(
       this.http.post<UserSummary>(this.api.url('/api/users/invite-stub'), { email, displayName })
+    );
+  }
+
+  getOnboardingStatus(userId: string): Promise<OnboardingStatus> {
+    return firstValueFrom(
+      this.http.get<OnboardingStatus>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboarding-status`))
+    );
+  }
+
+  onboard(userId: string, password: string, displayName?: string): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName })
     );
   }
 }

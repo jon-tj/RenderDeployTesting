@@ -48,6 +48,16 @@ import { UserSummary } from '../models';
           @if (error()) { <p class="error">{{ error() }}</p> }
         </div>
       }
+
+      @if (lastInviteLink(); as link) {
+        <div class="link">
+          <p class="muted">Onboarding link for the new invitee — share it with them:</p>
+          <div class="row link-row">
+            <input readonly [value]="link" (focus)="$any($event.target).select()" />
+            <button type="button" (click)="copyLink(link)">{{ copied() ? 'Copied' : 'Copy' }}</button>
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -58,8 +68,10 @@ import { UserSummary } from '../models';
     button.pick:hover { background:#f1e0c2; }
     .create { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
     .row { display:grid; grid-template-columns:1fr 1fr auto; gap:.5rem; }
+    .row.link-row { grid-template-columns:1fr auto; }
     .row button { padding:.5rem .8rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; }
     .row button[disabled] { opacity:.6; cursor:wait; }
+    .link { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
     .muted { color:#8b8273; margin:0; }
     .error { color:#a23; margin:0; }
   `],
@@ -75,6 +87,8 @@ export class InvitePickerComponent {
   protected readonly searched = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  protected readonly lastInviteLink = signal<string | null>(null);
+  protected readonly copied = signal(false);
 
   private debounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -114,11 +128,26 @@ export class InvitePickerComponent {
     try {
       const user = await this.api.createInviteStub(email, this.newName.trim() || undefined);
       this.picked.emit(user);
-      this.reset();
+      this.lastInviteLink.set(`${window.location.origin}/onboarding/${encodeURIComponent(user.id)}`);
+      this.copied.set(false);
+      this.query = '';
+      this.newEmail = '';
+      this.newName = '';
+      this.results.set([]);
+      this.searched.set(false);
     } catch (e: any) {
       this.error.set(e?.error ?? 'Could not invite.');
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  async copyLink(link: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(link);
+      this.copied.set(true);
+    } catch {
+      this.copied.set(false);
     }
   }
 

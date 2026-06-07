@@ -1,11 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
     <div class="auth-page">
       <form class="card" (ngSubmit)="submit()">
@@ -18,7 +18,6 @@ import { AuthService } from '../services/auth.service';
         </label>
         @if (error()) { <p class="error">{{ error() }}</p> }
         <button type="submit" [disabled]="busy()">{{ busy() ? 'Signing in…' : 'Sign in' }}</button>
-        <p class="alt">No account? <a routerLink="/register">Create one</a></p>
       </form>
     </div>
   `,
@@ -31,7 +30,6 @@ import { AuthService } from '../services/auth.service';
     button { padding:.6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font-weight:600; }
     button[disabled] { opacity:.6; cursor:wait; }
     .error { color:#a23; margin:0; }
-    .alt { margin:.5rem 0 0; text-align:center; font-size:.9rem; }
   `],
 })
 export class LoginComponent {

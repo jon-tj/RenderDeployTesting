@@ -81,6 +81,13 @@ export interface UserSummary {
   email: string;
 }
 
+export interface OnboardingStatus {
+  id: string;
+  email: string;
+  displayName: string;
+  isOnboarded: boolean;
+}
+
 export interface AuthTokenResponse {
   tokenType: string;
   accessToken: string;

@@ -8,9 +8,8 @@ export const routes: Routes = [
     loadComponent: () => import('./components/login.component').then(m => m.LoginComponent),
   },
   {
-    path: 'register',
-    canActivate: [guestGuard],
-    loadComponent: () => import('./components/register.component').then(m => m.RegisterComponent),
+    path: 'onboarding/:userId',
+    loadComponent: () => import('./components/onboarding.component').then(m => m.OnboardingComponent),
   },
   {
     path: 'event/:eventId/edit',

@@ -25,7 +25,8 @@ const cache = new Map<string, GeocodeResult | null>();
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"
           title="Map of {{ location() }}"></iframe>
-        <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">Open in maps ↗</a>
+        <span class="footer-cover" aria-hidden="true">{{ location() }}</span>
+        <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">Open in Google Maps ↗</a>
       </div>
     } @else {
       <p class="muted small">Could not place &laquo;{{ location() }}&raquo; on the map.</p>
@@ -34,9 +35,10 @@ const cache = new Map<string, GeocodeResult | null>();
   styles: [`
     :host { display:block; }
     .map-skeleton { height:220px; display:flex; align-items:center; justify-content:center; background:#f6efe0; color:#8b8273; border-radius:.6rem; font-style:italic; }
-    .map-wrap { position:relative; border-radius:.6rem; overflow:hidden; box-shadow:0 1px 0 rgba(0,0,0,.04); }
+    .map-wrap { position:relative; display:block; border-radius:.6rem; overflow:hidden; box-shadow:0 1px 0 rgba(0,0,0,.04); }
     iframe { width:100%; height:260px; border:0; display:block; background:#f6efe0; }
-    .open { position:absolute; bottom:.5rem; right:.5rem; background:rgba(255,255,255,.92); color:#2d2a24; padding:.2rem .55rem; border-radius:999px; font-size:.7rem; text-decoration:none; letter-spacing:.05em; }
+    .footer-cover { position:absolute; left:0; right:0; bottom:0; height:22px; background:#f6efe0; pointer-events:none; display:flex; align-items:center; padding:0 .6rem; font-size:.72rem; color:#5a5347; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .open { position:absolute; bottom:.5rem; right:.5rem; background:rgba(255,255,255,.92); color:#2d2a24; padding:.25rem .6rem; border-radius:999px; font-size:.7rem; letter-spacing:.05em; text-decoration:none; box-shadow:0 1px 2px rgba(0,0,0,.15); }
     .open:hover { background:#fff; }
     .muted { color:#8b8273; }
     .small { font-size:.8rem; }
@@ -53,16 +55,25 @@ export class MapViewComponent {
   protected readonly embedUrl = computed<SafeResourceUrl | null>(() => {
     const r = this.result();
     if (!r) return null;
-    const [south, north, west, east] = r.boundingbox;
+    // Widen the bounding box so the embedded map shows surroundings instead
+    // of a tight crop on the pin. Use a fixed ~0.04 deg pad (~4 km) and
+    // expand any tiny boxes that Nominatim returns for points of interest.
+    const lat = parseFloat(r.lat);
+    const lon = parseFloat(r.lon);
+    const pad = 0.04;
+    const south = lat - pad;
+    const north = lat + pad;
+    const west = lon - pad;
+    const east = lon + pad;
     const bbox = `${west},${south},${east},${north}`;
     const url = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${r.lat},${r.lon}`;
     return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   });
 
   protected readonly externalUrl = computed(() => {
-    const r = this.result();
-    if (!r) return '';
-    return `https://www.openstreetmap.org/?mlat=${r.lat}&mlon=${r.lon}#map=17/${r.lat}/${r.lon}`;
+    const q = (this.location() || '').trim();
+    if (!q) return '';
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   });
 
   constructor() {

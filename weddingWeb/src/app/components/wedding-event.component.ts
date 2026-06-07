@@ -98,11 +98,6 @@ interface ChildRsvpState {
                   </div>
                   <div class="t-body">
                     <h3>{{ c.title }}</h3>
-                    @if (c.location) {
-                      <p class="t-where">
-                        <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a>
-                      </p>
-                    }
                     @if (c.description) {
                       <p class="t-desc">{{ c.description }}</p>
                     }

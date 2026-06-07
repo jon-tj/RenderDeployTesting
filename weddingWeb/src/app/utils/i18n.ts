@@ -67,7 +67,8 @@ type StringKey =
   | 'invitees' | 'noInvitees' | 'mealLabel' | 'drinkLabel'
   | 'statusPending' | 'statusAccepted' | 'statusDeclined' | 'statusMaybe'
   | 'diningPlan' | 'printDiningPlan' | 'option' | 'requested' | 'toOrder'
-  | 'unspecified' | 'total' | 'noAcceptedInvitees' | 'basedOnAccepted';
+  | 'unspecified' | 'total' | 'noAcceptedInvitees' | 'basedOnAccepted'
+  | 'wishlist';
 
 const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   saveTheDate:          { 'en': 'Save the date',           'nb': 'Sett av datoen',           'pt-BR': 'Reserve a data' },
@@ -128,6 +129,7 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   total:                { 'en': 'Total',                    'nb': 'Totalt',                   'pt-BR': 'Total' },
   noAcceptedInvitees:   { 'en': 'No accepted invitees yet.','nb': 'Ingen har takket ja ennå.','pt-BR': 'Nenhum convidado confirmou ainda.' },
   basedOnAccepted:      { 'en': 'Based on {0} accepted invitee(s).', 'nb': 'Basert på {0} som har takket ja.', 'pt-BR': 'Baseado em {0} confirmado(s).' },
+  wishlist:             { 'en': 'Wishlist',                 'nb': 'Ønskeliste',                'pt-BR': 'Lista de presentes' },
 };
 
 export function t(key: StringKey, lang: LanguageCode, ...args: string[]): string {

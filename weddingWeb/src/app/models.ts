@@ -184,3 +184,38 @@ export interface AuthTokenResponse {
   expiresIn: number;
   refreshToken: string;
 }
+
+export type WishlistCurrency = 'BRL' | 'NOK' | 'USD';
+export const WISHLIST_CURRENCIES: WishlistCurrency[] = ['BRL', 'NOK', 'USD'];
+
+export interface WishlistClaimDto {
+  id: number;
+  itemId: number;
+  claimantUserId: string | null;
+  claimantLabel: string;
+  quantity: number;
+  createdAtUtc: string;
+  isMine: boolean;
+}
+
+export interface WishlistItem {
+  id: number;
+  ownerUserId: string;
+  name: string;
+  description: string;
+  url: string;
+  imageUrl: string;
+  priceMinor: number;
+  currency: WishlistCurrency;
+  pixKey: string;
+  wishedQuantity: number;
+  claimedQuantity: number;
+  claims: WishlistClaimDto[];
+  isMine: boolean;
+}
+
+export interface WishlistView {
+  ownerUserId: string;
+  ownerDisplayName: string;
+  items: WishlistItem[];
+}

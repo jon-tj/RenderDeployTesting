@@ -14,6 +14,8 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<EventImage> Images => Set<EventImage>();
     public DbSet<EventOwner> EventOwners => Set<EventOwner>();
     public DbSet<InviteGroup> InviteGroups => Set<InviteGroup>();
+    public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
+    public DbSet<WishlistClaim> WishlistClaims => Set<WishlistClaim>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -158,6 +160,24 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasOne(i => i.InviteGroup)
             .WithMany(g => g.Invites)
             .HasForeignKey(i => i.InviteGroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<WishlistItem>()
+            .HasOne(w => w.Owner)
+            .WithMany()
+            .HasForeignKey(w => w.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<WishlistClaim>()
+            .HasOne(c => c.Item)
+            .WithMany(i => i.Claims)
+            .HasForeignKey(c => c.ItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<WishlistClaim>()
+            .HasOne(c => c.Claimant)
+            .WithMany()
+            .HasForeignKey(c => c.ClaimantUserId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

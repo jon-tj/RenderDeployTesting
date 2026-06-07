@@ -84,6 +84,31 @@ using (var scope = app.Services.CreateScope())
     );");
     await EnsureColumnAsync(db, "Invites", "InviteGroupId", "INTEGER NULL REFERENCES InviteGroups(Id) ON DELETE SET NULL");
 
+    await EnsureTableAsync(db, "WishlistItems", @"CREATE TABLE WishlistItems (
+        Id INTEGER NOT NULL CONSTRAINT PK_WishlistItems PRIMARY KEY AUTOINCREMENT,
+        OwnerUserId TEXT NOT NULL,
+        Name TEXT NOT NULL,
+        Description TEXT NOT NULL DEFAULT '',
+        Url TEXT NOT NULL DEFAULT '',
+        ImageUrl TEXT NOT NULL DEFAULT '',
+        PriceMinor INTEGER NOT NULL DEFAULT 0,
+        Currency INTEGER NOT NULL DEFAULT 0,
+        PixKey TEXT NOT NULL DEFAULT '',
+        WishedQuantity INTEGER NOT NULL DEFAULT 1,
+        CreatedAtUtc TEXT NOT NULL,
+        CONSTRAINT FK_WishlistItems_Users_OwnerUserId FOREIGN KEY (OwnerUserId) REFERENCES AspNetUsers (Id) ON DELETE CASCADE
+    );");
+    await EnsureTableAsync(db, "WishlistClaims", @"CREATE TABLE WishlistClaims (
+        Id INTEGER NOT NULL CONSTRAINT PK_WishlistClaims PRIMARY KEY AUTOINCREMENT,
+        ItemId INTEGER NOT NULL,
+        ClaimantUserId TEXT NULL,
+        ClaimantLabel TEXT NOT NULL DEFAULT '',
+        Quantity INTEGER NOT NULL DEFAULT 1,
+        CreatedAtUtc TEXT NOT NULL,
+        CONSTRAINT FK_WishlistClaims_WishlistItems_ItemId FOREIGN KEY (ItemId) REFERENCES WishlistItems (Id) ON DELETE CASCADE,
+        CONSTRAINT FK_WishlistClaims_Users_ClaimantUserId FOREIGN KEY (ClaimantUserId) REFERENCES AspNetUsers (Id) ON DELETE SET NULL
+    );");
+
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");
     await SeedAdminAsync(userManager, "mariana.slvapereira@gmail.com", "Passw0rd!", "Mariana");

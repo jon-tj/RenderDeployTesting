@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, UserSummary } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, UserSummary, WishlistCurrency, WishlistItem, WishlistView } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -77,6 +77,38 @@ export class HubApi {
 
   setInviteGroup(eventId: number, inviteId: number, groupId: number | null): Promise<Invite> {
     return firstValueFrom(this.http.put<Invite>(this.api.url(`/api/events/${eventId}/invites/${inviteId}/group`), { groupId }));
+  }
+
+  getWishlist(userId: string): Promise<WishlistView> {
+    return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/user/${encodeURIComponent(userId)}`)));
+  }
+
+  getMyWishlist(): Promise<WishlistView> {
+    return firstValueFrom(this.http.get<WishlistView>(this.api.url('/api/wishlist/mine')));
+  }
+
+  createWishlistItem(payload: Partial<Omit<WishlistItem, 'id' | 'ownerUserId' | 'claimedQuantity' | 'claims' | 'isMine'>>): Promise<WishlistItem> {
+    return firstValueFrom(this.http.post<WishlistItem>(this.api.url('/api/wishlist'), payload));
+  }
+
+  updateWishlistItem(id: number, payload: Partial<Omit<WishlistItem, 'id' | 'ownerUserId' | 'claimedQuantity' | 'claims' | 'isMine'>>): Promise<WishlistItem> {
+    return firstValueFrom(this.http.put<WishlistItem>(this.api.url(`/api/wishlist/${id}`), payload));
+  }
+
+  deleteWishlistItem(id: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/wishlist/${id}`)));
+  }
+
+  claimWishlistCart(payload: { claimantLabel?: string; items: { itemId: number; quantity: number }[] }): Promise<any> {
+    return firstValueFrom(this.http.post(this.api.url('/api/wishlist/claim'), payload));
+  }
+
+  releaseWishlistClaim(claimId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/wishlist/claim/${claimId}`)));
+  }
+
+  getWishlistRates(): Promise<Record<WishlistCurrency, number>> {
+    return firstValueFrom(this.http.get<Record<WishlistCurrency, number>>(this.api.url('/api/wishlist/rates')));
   }
 
   addCoOwner(eventId: number, userId: string): Promise<EventOwner> {

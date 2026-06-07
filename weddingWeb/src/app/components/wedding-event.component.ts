@@ -224,6 +224,13 @@ interface ChildRsvpState {
           </section>
         }
 
+        <section class="wishlist-link">
+          <a [routerLink]="['/wishlist', ev.createdById]" class="wl-btn">
+            <span class="material-icons">card_giftcard</span>
+            {{ s('wishlist') }}
+          </a>
+        </section>
+
         <footer class="foot">
           <p class="script">{{ s('withLove') }}</p>
         </footer>
@@ -297,6 +304,10 @@ interface ChildRsvpState {
 
     .foot { text-align:center; padding:3rem 0 0; }
     .foot .script { font-size:1.6rem; }
+    .wishlist-link { text-align:center; padding:1.5rem 0 0; }
+    .wl-btn { display:inline-flex; align-items:center; gap:.5rem; padding:.7rem 1.4rem; background:#fff; border:1px solid #ead9b3; border-radius:999px; color:#4a3f2a; text-decoration:none; font-family:'Georgia',serif; letter-spacing:.06em; }
+    .wl-btn:hover { background:#fdf6e3; }
+    .wl-btn .material-icons { color:#8a6f3a; }
 
     @media (max-width: 560px) {
       .hero h1 { font-size:2.6rem; }

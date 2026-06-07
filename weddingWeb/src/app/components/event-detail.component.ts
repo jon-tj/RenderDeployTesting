@@ -9,7 +9,7 @@ import { ImageCarouselComponent } from './image-carousel.component';
 import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LanguageCode } from '../models';
+import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LANGUAGES, LanguageCode } from '../models';
 import { localizedDescription, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
@@ -55,6 +55,11 @@ interface ChildRsvpState {
             <div class="head-actions">
               <button type="button" class="ghost" (click)="back()">{{ s('back') }}</button>
               @if (ev.isOwner) {
+                <select class="ghost lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang">
+                  @for (l of languages; track l.code) {
+                    <option [value]="l.code">{{ l.short }}</option>
+                  }
+                </select>
                 <a class="primary" [routerLink]="['/event', ev.id, 'edit']">{{ s('edit') }}</a>
               }
             </div>
@@ -231,6 +236,7 @@ interface ChildRsvpState {
     .album-upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.5rem; padding-top:.75rem; border-top:1px dashed #e6e1d4; }
     .album-upload input[type=text] { flex:1; min-width:200px; padding:.4rem .6rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
     .head-actions { display:flex; gap:.5rem; }
+    .lang-switch { padding:.4rem .6rem; font-size:.85rem; }
     .kind { display:inline-block; background:#dfe6cf; color:#2d2a24; padding:.15rem .55rem; border-radius:999px; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; }
     .kind.wedding { background:#f1e0c2; }
     .card { background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.5rem; }
@@ -272,7 +278,9 @@ export class EventDetailComponent implements OnInit {
   protected readonly notFound = signal(false);
 
   protected readonly lang = computed<LanguageCode>(() =>
-    (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
+    this.langOverride() ?? (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
+  protected readonly langOverride = signal<LanguageCode | null>(null);
+  protected readonly languages = LANGUAGES;
 
   protected tr(ev: EventDetail | ChildEvent): string {
     return localizedTitle(ev, this.lang());

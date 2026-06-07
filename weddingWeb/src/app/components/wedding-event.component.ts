@@ -9,7 +9,7 @@ import { MapViewComponent } from './map-view.component';
 import { SaveTheDateComponent } from './save-the-date.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LanguageCode } from '../models';
+import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LANGUAGES, LanguageCode } from '../models';
 import { localizedDescription, localizedOption, localizedTitle, localeFor, t, translateStatus } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
@@ -32,7 +32,14 @@ interface ChildRsvpState {
       <app-event-tile-background [event]="ev" [contentWidth]="780" />
       <div class="wedding">
         @if (ev.isOwner) {
-          <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')">{{ s('edit') }}</a>
+          <div class="owner-tools">
+            <select class="lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang" [title]="s('edit')">
+              @for (l of languages; track l.code) {
+                <option [value]="l.code">{{ l.short }}</option>
+              }
+            </select>
+            <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')">{{ s('edit') }}</a>
+          </div>
         }
         @if (bannerImage(); as banner) {
           <div class="hero">
@@ -223,8 +230,10 @@ interface ChildRsvpState {
   styles: [`
     :host { display:block; background:#fbf6ec; color:#3a3327; min-height:100vh; font-family:'Georgia', 'Cormorant Garamond', serif; }
     .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; z-index:1; background:#fbf6ec; }
-    .edit-link { position:fixed; top:1rem; right:1rem; z-index:10; background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; border:1px solid #ead9b3; }
+    .edit-link, .lang-switch { background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; border:1px solid #ead9b3; font:inherit; }
     .edit-link:hover { background:#fff; }
+    .owner-tools { position:fixed; top:1rem; right:1rem; z-index:10; display:flex; gap:.4rem; }
+    .lang-switch { padding:.35rem .55rem; text-transform:none; letter-spacing:0; }
     .script { font-family:'Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:2.2rem; color:#8a6f3a; text-align:center; margin:2.2rem 0 1rem; }
     .hero { position:relative; height:50vh; overflow:hidden; background:#f1e0c2; }
     .hero app-event-image { display:block; width:100%; height:100%; }
@@ -290,8 +299,10 @@ export class WeddingEventComponent implements OnChanges {
   readonly refresh = output<void>();
 
   protected readonly statuses = RSVP_STATUSES;
+  protected readonly languages = LANGUAGES;
+  protected readonly langOverride = signal<LanguageCode | null>(null);
   protected readonly lang = computed<LanguageCode>(() =>
-    (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
+    this.langOverride() ?? (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
 
   protected tr(ev: EventDetail | ChildEvent): string {
     return localizedTitle(ev, this.lang());

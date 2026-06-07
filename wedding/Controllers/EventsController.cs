@@ -144,6 +144,9 @@ public class EventsController : ControllerBase
             // Default child events to inherit so invitees of the parent
             // automatically see them; owners can toggle this off in the editor.
             InheritParentInvites = parent is not null,
+            // Ripple the parent's translation toggle so newly-added schedule
+            // items can be authored in every language out of the gate.
+            EnableTranslations = parent?.EnableTranslations ?? false,
         };
 
         if (!CanCreateType(user, ev.Type))

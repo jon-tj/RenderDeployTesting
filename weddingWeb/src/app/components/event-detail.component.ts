@@ -8,7 +8,9 @@ import { EventTileBackgroundComponent } from './event-tile-background.component'
 import { ImageCarouselComponent } from './image-carousel.component';
 import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
-import { ChildEvent, EventDetail, EventImage, InviteStatus } from '../models';
+import { AuthService } from '../services/auth.service';
+import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LanguageCode } from '../models';
+import { localizedDescription, localizedTitle } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -41,13 +43,13 @@ interface ChildRsvpState {
         <main class="shell">
           @if (bannerImage(); as banner) {
             <div class="banner">
-              <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || ev.title" />
+              <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || tr(ev)" />
             </div>
           }
           <header class="head">
             <div class="title">
               <span class="kind">{{ typeLabel(ev.type) }}</span>
-              <h1>{{ ev.title }}</h1>
+              <h1>{{ tr(ev) }}</h1>
               <p class="muted">Hosted by {{ ev.createdByDisplayName || '—' }}</p>
             </div>
             <div class="head-actions">
@@ -65,8 +67,8 @@ interface ChildRsvpState {
           @if (ev.location) {
             <p><strong>Location:</strong> <a [href]="mapsUrl(ev.location)" target="_blank" rel="noopener">{{ ev.location }}</a></p>
           }
-          @if (ev.description) {
-            <p class="desc">{{ ev.description }}</p>
+          @if (ev.description || (ev.enableTranslations && dr(ev))) {
+            <p class="desc">{{ dr(ev) }}</p>
           }
         </section>
 
@@ -142,12 +144,12 @@ interface ChildRsvpState {
             <section class="card child">
               <header class="child-head">
                 <span class="kind">{{ typeLabel(c.type) }}</span>
-                <h2>{{ c.title }}</h2>
+                <h2>{{ tr(c) }}</h2>
               </header>
               <p><strong>Start:</strong> {{ formatDate(c.startUtc) }}</p>
               <p><strong>End:</strong> {{ formatDate(c.endUtc) }}</p>
               @if (c.location) { <p><strong>Location:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a></p> }
-              @if (c.description) { <p class="desc">{{ c.description }}</p> }
+              @if (dr(c)) { <p class="desc">{{ dr(c) }}</p> }
 
               @if (childState(c.id); as st) {
                 <div class="rsvp-block">
@@ -263,10 +265,21 @@ export class EventDetailComponent implements OnInit {
   private readonly api = inject(HubApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   protected readonly event = signal<EventDetail | null>(null);
   protected readonly loading = signal(true);
   protected readonly notFound = signal(false);
+
+  protected readonly lang = computed<LanguageCode>(() =>
+    (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
+
+  protected tr(ev: EventDetail | ChildEvent): string {
+    return localizedTitle(ev, this.lang());
+  }
+  protected dr(ev: EventDetail | ChildEvent): string {
+    return localizedDescription(ev, this.lang());
+  }
 
   protected readonly statuses = RSVP_STATUSES;
   protected status: InviteStatus = 'Pending';

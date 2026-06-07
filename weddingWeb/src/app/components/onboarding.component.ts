@@ -3,12 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { Dietary, OnboardingStatus } from '../models';
+import { Dietary, DEFAULT_LANGUAGE, LanguageCode, OnboardingStatus } from '../models';
 import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
+import { LanguagePickerComponent } from './language-picker.component';
 
 @Component({
   selector: 'app-onboarding',
-  imports: [FormsModule, DietaryFormComponent],
+  imports: [FormsModule, DietaryFormComponent, LanguagePickerComponent],
   template: `
     <div class="auth-page">
       <div class="card">
@@ -25,6 +26,7 @@ import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
             <label>Display name
               <input name="displayName" [(ngModel)]="displayName" required />
             </label>
+            <app-language-picker [value]="language()" (valueChange)="language.set($event)" label="Preferred language" />
             <label>Choose a password
               <input type="password" name="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
             </label>
@@ -77,6 +79,7 @@ export class OnboardingComponent implements OnInit {
   protected password = '';
   protected confirmPassword = '';
   protected readonly dietary = signal<Dietary>({ ...EMPTY_DIETARY, allergens: [] });
+  protected readonly language = signal<LanguageCode>(DEFAULT_LANGUAGE);
 
   async ngOnInit(): Promise<void> {
     const userId = this.route.snapshot.paramMap.get('userId') ?? '';
@@ -117,7 +120,7 @@ export class OnboardingComponent implements OnInit {
     }
     this.busy.set(true);
     try {
-      await this.api.onboard(s.id, this.password, this.displayName.trim() || undefined, this.dietary());
+      await this.api.onboard(s.id, this.password, this.displayName.trim() || undefined, this.dietary(), this.language());
       // Auto-sign-in so the user lands on their destination ready to go.
       await this.auth.login(s.email, this.password);
       this.router.navigateByUrl(this.resolveNext(), { replaceUrl: true });

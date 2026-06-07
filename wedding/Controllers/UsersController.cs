@@ -61,6 +61,7 @@ public class UsersController : ControllerBase
             UserName = email,
             Email = email,
             DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? email : dto.DisplayName.Trim(),
+            PreferredLanguage = LanguageCodes.Normalize(dto.Language),
             DietaryPreferences = new DietaryPreferences()
         };
 
@@ -107,6 +108,8 @@ public class UsersController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(dto.DisplayName))
             user.DisplayName = dto.DisplayName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Language))
+            user.PreferredLanguage = LanguageCodes.Normalize(dto.Language);
         if (dto.Dietary is not null)
         {
             user.DietaryPreferences ??= new DietaryPreferences { UserId = user.Id };
@@ -139,6 +142,9 @@ public sealed class CreateInviteStubDto
 
     [MaxLength(120)]
     public string? DisplayName { get; set; }
+
+    [MaxLength(10)]
+    public string? Language { get; set; }
 }
 
 public sealed class OnboardDto
@@ -148,6 +154,9 @@ public sealed class OnboardDto
 
     [MaxLength(120)]
     public string? DisplayName { get; set; }
+
+    [MaxLength(10)]
+    public string? Language { get; set; }
 
     public DietaryDto? Dietary { get; set; }
 }

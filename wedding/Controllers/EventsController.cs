@@ -218,6 +218,24 @@ public class EventsController : ControllerBase
         if (dto.AllowGuestAlbumUploads.HasValue) ev.AllowGuestAlbumUploads = dto.AllowGuestAlbumUploads.Value;
         if (dto.ShowInviteesToGuests.HasValue) ev.ShowInviteesToGuests = dto.ShowInviteesToGuests.Value;
         if (dto.Visibility.HasValue) ev.Visibility = dto.Visibility.Value;
+        if (dto.EnableTranslations.HasValue) ev.EnableTranslations = dto.EnableTranslations.Value;
+        if (dto.Translations is not null)
+        {
+            var clean = new Dictionary<string, EventTranslation>();
+            foreach (var kv in dto.Translations)
+            {
+                var lang = LanguageCodes.Normalize(kv.Key);
+                if (lang == LanguageCodes.Default) continue; // English lives in Title/Description.
+                var t = kv.Value ?? new EventTranslation();
+                if (string.IsNullOrWhiteSpace(t.Title) && string.IsNullOrWhiteSpace(t.Description)) continue;
+                clean[lang] = new EventTranslation
+                {
+                    Title = (t.Title ?? string.Empty).Trim(),
+                    Description = t.Description ?? string.Empty,
+                };
+            }
+            ev.Translations = clean;
+        }
 
         if (dto.ParentEventId.HasValue)
         {
@@ -739,6 +757,8 @@ public sealed record EventDetailDto(
     bool AllowGuestAlbumUploads,
     bool ShowInviteesToGuests,
     EventVisibility Visibility,
+    bool EnableTranslations,
+    Dictionary<string, EventTranslation> Translations,
     List<EventOwnerDto> CoOwners,
     List<ChildEventDto> Children,
     List<InviteDto> Invites,
@@ -785,6 +805,8 @@ public sealed record EventDetailDto(
             e.AllowGuestAlbumUploads,
             e.ShowInviteesToGuests,
             e.Visibility,
+            e.EnableTranslations,
+            e.Translations ?? new(),
             coOwners,
             children,
             invites,
@@ -832,6 +854,8 @@ public sealed record ChildEventDto(
     bool IsOwner,
     List<string> MealOptions,
     List<string> DrinkOptions,
+    bool EnableTranslations,
+    Dictionary<string, EventTranslation> Translations,
     InviteDto? MyInvite)
 {
     public static ChildEventDto From(CalendarEvent c, string currentUserId)
@@ -847,6 +871,8 @@ public sealed record ChildEventDto(
             isOwner,
             c.MealOptions.ToList(),
             c.DrinkOptions.ToList(),
+            c.EnableTranslations,
+            c.Translations ?? new(),
             mine);
     }
 }
@@ -899,6 +925,10 @@ public sealed class UpdateEventDto
     public bool? AllowGuestAlbumUploads { get; set; }
     public bool? ShowInviteesToGuests { get; set; }
     public EventVisibility? Visibility { get; set; }
+    public bool? EnableTranslations { get; set; }
+    // Map of BCP-47 language tag -> { title, description }. Passing this
+    // replaces the entire dictionary. Use null to leave it unchanged.
+    public Dictionary<string, EventTranslation>? Translations { get; set; }
 }
 
 public sealed class AddInviteDto

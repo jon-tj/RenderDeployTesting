@@ -6,12 +6,13 @@ import { Router } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { AuthService } from '../services/auth.service';
 import { ApiConfig } from '../services/api-config.service';
-import { Dietary, Me } from '../models';
+import { Dietary, DEFAULT_LANGUAGE, LanguageCode, Me } from '../models';
 import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
+import { LanguagePickerComponent } from './language-picker.component';
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, NavbarComponent, DietaryFormComponent],
+  imports: [FormsModule, NavbarComponent, DietaryFormComponent, LanguagePickerComponent],
   template: `
     <app-navbar />
     <main class="shell">
@@ -33,6 +34,19 @@ import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
         <div class="row">
           <button type="button" class="primary" (click)="saveProfile()" [disabled]="savingProfile()">
             {{ savingProfile() ? 'Saving…' : 'Save profile' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Language</h2>
+        <p class="muted small">Used to pick translated titles and descriptions when hosts provide them.</p>
+        <app-language-picker [value]="language()" (valueChange)="language.set($event)" />
+        @if (languageError()) { <p class="error">{{ languageError() }}</p> }
+        @if (languageSaved()) { <p class="ok">Saved.</p> }
+        <div class="row">
+          <button type="button" class="primary" (click)="saveLanguage()" [disabled]="savingLanguage()">
+            {{ savingLanguage() ? 'Saving…' : 'Save language' }}
           </button>
         </div>
       </section>
@@ -99,6 +113,7 @@ export class SettingsComponent implements OnInit {
 
   protected displayName = '';
   protected readonly dietary = signal<Dietary>({ ...EMPTY_DIETARY, allergens: [] });
+  protected readonly language = signal<LanguageCode>(DEFAULT_LANGUAGE);
 
   protected oldPassword = '';
   protected newPassword = '';
@@ -111,6 +126,10 @@ export class SettingsComponent implements OnInit {
   protected readonly savingDietary = signal(false);
   protected readonly dietaryError = signal('');
   protected readonly dietarySaved = signal(false);
+
+  protected readonly savingLanguage = signal(false);
+  protected readonly languageError = signal('');
+  protected readonly languageSaved = signal(false);
 
   protected readonly changingPassword = signal(false);
   protected readonly passwordError = signal('');
@@ -128,6 +147,7 @@ export class SettingsComponent implements OnInit {
     const me = this.auth.me();
     if (!me) return;
     if (!this.displayName) this.displayName = me.displayName ?? '';
+    this.language.set((me.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
     this.dietary.set({
       preference: me.dietary?.preference ?? 'None',
       allergens: [...(me.dietary?.allergens ?? [])],
@@ -172,6 +192,23 @@ export class SettingsComponent implements OnInit {
       this.dietaryError.set(extractError(e) ?? 'Could not save dietary preferences.');
     } finally {
       this.savingDietary.set(false);
+    }
+  }
+
+  async saveLanguage(): Promise<void> {
+    this.languageError.set('');
+    this.languageSaved.set(false);
+    this.savingLanguage.set(true);
+    try {
+      const me = await firstValueFrom(
+        this.http.put<Me>(this.api.url('/api/me'), { preferredLanguage: this.language() })
+      );
+      this.auth.setMe(me);
+      this.languageSaved.set(true);
+    } catch (e) {
+      this.languageError.set(extractError(e) ?? 'Could not save language.');
+    } finally {
+      this.savingLanguage.set(false);
     }
   }
 

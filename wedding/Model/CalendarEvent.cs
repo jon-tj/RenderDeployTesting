@@ -31,6 +31,15 @@ public class CalendarEvent
     [MaxLength(2000)]
     public string Description { get; set; } = string.Empty;
 
+    // When true, the event owner has authored title/description overrides
+    // for languages other than the default (English, stored in Title /
+    // Description). When false, translations are ignored at render time.
+    public bool EnableTranslations { get; set; }
+
+    // Map of BCP-47 language tag -> overrides. The default (English) lives in
+    // Title/Description; this dictionary only holds non-default languages.
+    public Dictionary<string, EventTranslation> Translations { get; set; } = new();
+
     [MaxLength(300)]
     public string Location { get; set; } = string.Empty;
 

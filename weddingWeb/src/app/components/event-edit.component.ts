@@ -7,7 +7,7 @@ import { ChildPickerComponent } from './child-picker.component';
 import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, EventOwner, EventSummary, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, LANGUAGES, LanguageCode, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
@@ -53,7 +53,17 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
               </select>
             </label>
             <label>Title
-              <input name="title" [(ngModel)]="title" [disabled]="!ev.isOwner" (blur)="save()" />
+              <div class="with-lang">
+                <input name="title" [ngModel]="titleText()" (ngModelChange)="setTitleText($event)"
+                  [disabled]="!ev.isOwner" (blur)="save()" />
+                @if (enableTranslations) {
+                  <select class="lang-pill" [(ngModel)]="titleLang" name="titleLang" title="Editing language">
+                    @for (l of languages; track l.code) {
+                      <option [value]="l.code">{{ l.short }}</option>
+                    }
+                  </select>
+                }
+              </div>
             </label>
             <label>Location
               <input name="location" [(ngModel)]="location" [disabled]="!ev.isOwner" (blur)="save()" />
@@ -75,8 +85,26 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
           @if (ev.isOwner) {
             <p class="muted small">{{ visibilityHelp(visibility) }}</p>
           }
+          @if (ev.isOwner) {
+            <label class="check">
+              <input type="checkbox" name="enableTranslations"
+                [(ngModel)]="enableTranslations" (change)="save()" />
+              Enable translations
+            </label>
+            <p class="muted small">When on, you can write the title and description for multiple languages. Guests see the version that matches their preferred language, falling back to English.</p>
+          }
           <label class="block">Description
-            <textarea name="description" rows="4" [(ngModel)]="description" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
+            <div class="with-lang">
+              <textarea name="description" rows="4" [ngModel]="descriptionText()" (ngModelChange)="setDescriptionText($event)"
+                [disabled]="!ev.isOwner" (blur)="save()"></textarea>
+              @if (enableTranslations) {
+                <select class="lang-pill" [(ngModel)]="descLang" name="descLang" title="Editing language">
+                  @for (l of languages; track l.code) {
+                    <option [value]="l.code">{{ l.short }}</option>
+                  }
+                </select>
+              }
+            </div>
           </label>
         </section>
 
@@ -323,6 +351,9 @@ import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, E
     ul.images .thumb ::ng-deep img { width:100%; height:100%; object-fit:cover; }
     ul.images .meta { flex:1; display:flex; flex-direction:column; gap:.3rem; }
     ul.images .meta .row { display:flex; gap:.5rem; align-items:center; }
+    .with-lang { position:relative; }
+    .with-lang input, .with-lang textarea { width:100%; box-sizing:border-box; padding-right:3.5rem; }
+    .with-lang .lang-pill { position:absolute; bottom:.25rem; right:.25rem; padding:.1rem .35rem; font-size:.7rem; background:#faf7f0; border:1px solid #d8cfb8; border-radius:.3rem; color:#5a5347; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -351,6 +382,12 @@ export class EventEditComponent implements OnInit {
   protected showInviteesToGuests = true;
   protected visibility: EventVisibility = 'Closed';
   protected readonly allVisibilities = EVENT_VISIBILITIES;
+
+  protected enableTranslations = false;
+  protected translations: Record<string, EventTranslation> = {};
+  protected titleLang: LanguageCode = DEFAULT_LANGUAGE;
+  protected descLang: LanguageCode = DEFAULT_LANGUAGE;
+  protected readonly languages = LANGUAGES;
 
   // New-image upload form
   protected newImageRole: ImageRole = 'Album';
@@ -413,6 +450,42 @@ export class EventEditComponent implements OnInit {
     this.allowGuestAlbumUploads = ev.allowGuestAlbumUploads;
     this.showInviteesToGuests = ev.showInviteesToGuests;
     this.visibility = ev.visibility;
+    this.enableTranslations = ev.enableTranslations;
+    this.translations = { ...(ev.translations ?? {}) };
+  }
+
+  protected titleText(): string {
+    if (this.titleLang === DEFAULT_LANGUAGE) return this.title;
+    return this.translations[this.titleLang]?.title ?? '';
+  }
+
+  protected setTitleText(value: string): void {
+    if (this.titleLang === DEFAULT_LANGUAGE) {
+      this.title = value;
+      return;
+    }
+    const cur = this.translations[this.titleLang] ?? { title: '', description: '' };
+    this.translations = {
+      ...this.translations,
+      [this.titleLang]: { ...cur, title: value },
+    };
+  }
+
+  protected descriptionText(): string {
+    if (this.descLang === DEFAULT_LANGUAGE) return this.description;
+    return this.translations[this.descLang]?.description ?? '';
+  }
+
+  protected setDescriptionText(value: string): void {
+    if (this.descLang === DEFAULT_LANGUAGE) {
+      this.description = value;
+      return;
+    }
+    const cur = this.translations[this.descLang] ?? { title: '', description: '' };
+    this.translations = {
+      ...this.translations,
+      [this.descLang]: { ...cur, description: value },
+    };
   }
 
   async save(): Promise<void> {
@@ -428,6 +501,8 @@ export class EventEditComponent implements OnInit {
         endUtc: fromLocalInput(this.endLocal),
         mealOptions: parseOptionsText(this.mealOptionsText),
         drinkOptions: parseOptionsText(this.drinkOptionsText),
+        enableTranslations: this.enableTranslations,
+        translations: this.translations,
       });
       this.apply(updated);
       this.savedAt.set(Date.now());
@@ -506,6 +581,8 @@ export class EventEditComponent implements OnInit {
       isOwner: child.isOwner,
       mealOptions: [],
       drinkOptions: [],
+      enableTranslations: false,
+      translations: {},
       myInvite: null,
     };
     const next: EventDetail = {

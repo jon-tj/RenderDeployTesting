@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HubApi } from '../services/hub-api.service';
-import { UserSummary } from '../models';
+import { DEFAULT_LANGUAGE, LANGUAGES, LanguageCode, UserSummary } from '../models';
 import { extractHttpError } from '../utils/http-error';
 
 @Component({
@@ -42,6 +42,11 @@ import { extractHttpError } from '../utils/http-error';
               [(ngModel)]="newName"
               name="name"
             />
+            <select name="newLang" [(ngModel)]="newLanguage" title="Preferred language">
+              @for (l of languages; track l.code) {
+                <option [value]="l.code">{{ l.label }}</option>
+              }
+            </select>
             <button type="button" (click)="createAndPick()" [disabled]="busy()">
               {{ busy() ? 'Adding…' : 'Invite' }}
             </button>
@@ -68,8 +73,9 @@ import { extractHttpError } from '../utils/http-error';
     button.pick { display:block; width:100%; text-align:left; padding:.4rem .55rem; background:transparent; border:0; border-radius:.3rem; cursor:pointer; }
     button.pick:hover { background:#f1e0c2; }
     .create { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
-    .row { display:grid; grid-template-columns:1fr 1fr auto; gap:.5rem; }
+    .row { display:grid; grid-template-columns:1fr 1fr auto auto; gap:.5rem; }
     .row.link-row { grid-template-columns:1fr auto; }
+    .row select { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; background:#fff; }
     .row button { padding:.5rem .8rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; }
     .row button[disabled] { opacity:.6; cursor:wait; }
     .link { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
@@ -88,6 +94,8 @@ export class InvitePickerComponent {
   protected query = '';
   protected newEmail = '';
   protected newName = '';
+  protected newLanguage: LanguageCode = DEFAULT_LANGUAGE;
+  protected readonly languages = LANGUAGES;
   protected readonly results = signal<UserSummary[]>([]);
   protected readonly searched = signal(false);
   protected readonly busy = signal(false);
@@ -131,7 +139,7 @@ export class InvitePickerComponent {
     }
     this.busy.set(true);
     try {
-      const user = await this.api.createInviteStub(email, this.newName.trim() || undefined);
+      const user = await this.api.createInviteStub(email, this.newName.trim() || undefined, this.newLanguage);
       this.picked.emit(user);
       this.lastInviteLink.set(this.buildOnboardingLink(user.id));
       this.copied.set(false);

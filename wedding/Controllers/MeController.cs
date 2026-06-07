@@ -50,6 +50,9 @@ public class MeController : ControllerBase
         if (dto.DisplayName is not null)
             user.DisplayName = dto.DisplayName.Trim();
 
+        if (dto.PreferredLanguage is not null)
+            user.PreferredLanguage = LanguageCodes.Normalize(dto.PreferredLanguage);
+
         if (dto.Dietary is not null)
         {
             user.DietaryPreferences ??= new DietaryPreferences { UserId = user.Id };
@@ -68,6 +71,7 @@ public sealed record MeDto(
     string Id,
     string Email,
     string DisplayName,
+    string PreferredLanguage,
     PermissionsDto Permissions,
     DietaryDto Dietary)
 {
@@ -75,6 +79,7 @@ public sealed record MeDto(
         u.Id,
         u.Email ?? string.Empty,
         u.DisplayName,
+        LanguageCodes.Normalize(u.PreferredLanguage),
         new PermissionsDto(u.CanCreateWeddingEvent, u.CanCreateFamilyGathering),
         DietaryDto.From(u.DietaryPreferences ?? new DietaryPreferences()));
 }
@@ -95,5 +100,7 @@ public sealed class UpdateMeDto
 {
     [MaxLength(120)]
     public string? DisplayName { get; set; }
+    [MaxLength(10)]
+    public string? PreferredLanguage { get; set; }
     public DietaryDto? Dietary { get; set; }
 }

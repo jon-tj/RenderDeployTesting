@@ -26,6 +26,19 @@ export const EVENT_VISIBILITIES: EventVisibility[] = ['Closed', 'Open', 'Private
 
 export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Maybe';
 
+export type LanguageCode = 'en' | 'nb' | 'pt-BR';
+export const LANGUAGES: { code: LanguageCode; label: string; short: string }[] = [
+  { code: 'en', label: 'English', short: 'EN' },
+  { code: 'nb', label: 'Norsk', short: 'NB' },
+  { code: 'pt-BR', label: 'Português (BR)', short: 'PT' },
+];
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
+
+export interface EventTranslation {
+  title: string;
+  description: string;
+}
+
 export type ImageRole = 'Banner' | 'Album' | 'Icon' | 'MarginLeft' | 'MarginRight' | 'MarginBottom' | 'Tile';
 export const IMAGE_ROLES: ImageRole[] = ['Banner', 'Album', 'Icon', 'MarginLeft', 'MarginRight', 'MarginBottom', 'Tile'];
 
@@ -56,6 +69,7 @@ export interface Me {
   id: string;
   email: string;
   displayName: string;
+  preferredLanguage: LanguageCode;
   permissions: Permissions;
   dietary: Dietary;
 }
@@ -93,6 +107,8 @@ export interface ChildEvent {
   isOwner: boolean;
   mealOptions: string[];
   drinkOptions: string[];
+  enableTranslations: boolean;
+  translations: Record<string, EventTranslation>;
   myInvite: Invite | null;
 }
 
@@ -116,6 +132,8 @@ export interface EventDetail {
   allowGuestAlbumUploads: boolean;
   showInviteesToGuests: boolean;
   visibility: EventVisibility;
+  enableTranslations: boolean;
+  translations: Record<string, EventTranslation>;
   coOwners: EventOwner[];
   children: ChildEvent[];
   invites: Invite[];

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteStatus, LanguageCode, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -26,7 +26,7 @@ export class HubApi {
 
   updateEvent(
     id: number,
-    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps' | 'allowGuestAlbumUploads' | 'showInviteesToGuests' | 'visibility'>> & { parentEventId?: number | null },
+    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps' | 'allowGuestAlbumUploads' | 'showInviteesToGuests' | 'visibility' | 'enableTranslations'>> & { parentEventId?: number | null; translations?: Record<string, EventTranslation> },
   ): Promise<EventDetail> {
     return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
   }
@@ -81,9 +81,9 @@ export class HubApi {
     return firstValueFrom(this.http.get<UserSummary[]>(this.api.url('/api/users/search'), { params }));
   }
 
-  createInviteStub(email: string, displayName?: string): Promise<UserSummary> {
+  createInviteStub(email: string, displayName?: string, language?: LanguageCode): Promise<UserSummary> {
     return firstValueFrom(
-      this.http.post<UserSummary>(this.api.url('/api/users/invite-stub'), { email, displayName })
+      this.http.post<UserSummary>(this.api.url('/api/users/invite-stub'), { email, displayName, language })
     );
   }
 
@@ -93,9 +93,9 @@ export class HubApi {
     );
   }
 
-  onboard(userId: string, password: string, displayName?: string, dietary?: Dietary): Promise<void> {
+  onboard(userId: string, password: string, displayName?: string, dietary?: Dietary, language?: LanguageCode): Promise<void> {
     return firstValueFrom(
-      this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName, dietary })
+      this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName, dietary, language })
     );
   }
 

@@ -74,6 +74,23 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .Property(e => e.DrinkOptions)
             .HasConversion(stringListConverter, stringListComparer);
 
+        // Translations live as a JSON blob — tiny payload, no separate join
+        // table, and aligns with how MealOptions/DrinkOptions are stored.
+        var translationsConverter = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<Dictionary<string, EventTranslation>, string>(
+            v => System.Text.Json.JsonSerializer.Serialize(v ?? new(), (System.Text.Json.JsonSerializerOptions?)null),
+            v => string.IsNullOrEmpty(v)
+                ? new Dictionary<string, EventTranslation>()
+                : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, EventTranslation>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new());
+
+        var translationsComparer = new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<Dictionary<string, EventTranslation>>(
+            (a, b) => System.Text.Json.JsonSerializer.Serialize(a, (System.Text.Json.JsonSerializerOptions?)null) == System.Text.Json.JsonSerializer.Serialize(b, (System.Text.Json.JsonSerializerOptions?)null),
+            v => v == null ? 0 : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null).GetHashCode(),
+            v => System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, EventTranslation>>(System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null), (System.Text.Json.JsonSerializerOptions?)null) ?? new());
+
+        b.Entity<CalendarEvent>()
+            .Property(e => e.Translations)
+            .HasConversion(translationsConverter, translationsComparer);
+
         b.Entity<EventInvite>()
             .HasOne(i => i.Event)
             .WithMany(e => e.Invites)

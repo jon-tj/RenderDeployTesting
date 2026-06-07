@@ -8,7 +8,9 @@ import { ImageCarouselComponent } from './image-carousel.component';
 import { MapViewComponent } from './map-view.component';
 import { SaveTheDateComponent } from './save-the-date.component';
 import { HubApi } from '../services/hub-api.service';
-import { ChildEvent, EventDetail, EventImage, InviteStatus } from '../models';
+import { AuthService } from '../services/auth.service';
+import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LanguageCode } from '../models';
+import { localizedDescription, localizedTitle } from '../utils/i18n';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -34,11 +36,11 @@ interface ChildRsvpState {
         }
         @if (bannerImage(); as banner) {
           <div class="hero">
-            <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || ev.title" />
+            <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || tr(ev)" />
             <div class="hero-veil"></div>
             <div class="hero-text">
               <p class="kicker">together with their families</p>
-              <h1>{{ ev.title }}</h1>
+              <h1>{{ tr(ev) }}</h1>
               @if (!perChildRsvp()) {
                 <p class="kicker">{{ formatLong(ev.startUtc) }}</p>
               }
@@ -50,7 +52,7 @@ interface ChildRsvpState {
         } @else {
           <header class="hero plain">
             <p class="kicker">together with their families</p>
-            <h1>{{ ev.title }}</h1>
+            <h1>{{ tr(ev) }}</h1>
             @if (!perChildRsvp()) {
               <p class="kicker">{{ formatLong(ev.startUtc) }}</p>
             }
@@ -61,17 +63,17 @@ interface ChildRsvpState {
         <section class="save">
           @if (!perChildRsvp()) {
             <app-save-the-date
-              [title]="ev.title"
+              [title]="tr(ev)"
               [startUtc]="ev.startUtc"
               [endUtc]="ev.endUtc"
               [location]="ev.location"
-              [description]="ev.description" />
+              [description]="dr(ev)" />
           }
         </section>
 
-        @if (ev.description) {
+        @if (dr(ev)) {
           <section class="prose">
-            <p>{{ ev.description }}</p>
+            <p>{{ dr(ev) }}</p>
           </section>
         }
 
@@ -99,16 +101,16 @@ interface ChildRsvpState {
                     <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
                   </div>
                   <div class="t-body">
-                    <h3>{{ c.title }}</h3>
-                    @if (c.description) {
-                      <p class="t-desc">{{ c.description }}</p>
+                    <h3>{{ tr(c) }}</h3>
+                    @if (dr(c)) {
+                      <p class="t-desc">{{ dr(c) }}</p>
                     }
                     <app-save-the-date
-                      [title]="c.title"
+                      [title]="tr(c)"
                       [startUtc]="c.startUtc"
                       [endUtc]="c.endUtc"
                       [location]="c.location"
-                      [description]="c.description"
+                      [description]="dr(c)"
                       [compact]="true" />
                     @if (c.location) {
                       <div class="t-map">
@@ -280,11 +282,21 @@ interface ChildRsvpState {
 export class WeddingEventComponent implements OnChanges {
   private readonly api = inject(HubApi);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
 
   readonly event = input.required<EventDetail>();
   readonly refresh = output<void>();
 
   protected readonly statuses = RSVP_STATUSES;
+  protected readonly lang = computed<LanguageCode>(() =>
+    (this.auth.me()?.preferredLanguage as LanguageCode) ?? DEFAULT_LANGUAGE);
+
+  protected tr(ev: EventDetail | ChildEvent): string {
+    return localizedTitle(ev, this.lang());
+  }
+  protected dr(ev: EventDetail | ChildEvent): string {
+    return localizedDescription(ev, this.lang());
+  }
   protected status: InviteStatus = 'Pending';
   protected mealChoice = '';
   protected drinkChoice = '';

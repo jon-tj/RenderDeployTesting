@@ -1,5 +1,6 @@
-import { Component, computed, input, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { EventImage } from '../models';
+import { HubApi } from '../services/hub-api.service';
 import { EventImageComponent } from './event-image.component';
 
 // Reusable carousel that flips through a list of EventImages. The currently
@@ -15,7 +16,7 @@ import { EventImageComponent } from './event-image.component';
         <button type="button" class="nav prev" (click)="shift(-1)"
           [disabled]="images().length < 2 || isAnimating()">‹</button>
         <div class="slide">
-          <div class="image-stack">
+          <div class="image-stack" (click)="emitOpen(current())">
             @if (outgoing(); as out) {
               <div class="slide-image outgoing">
                 <app-event-image [eventId]="eventId()" [imageId]="out.id" [alt]="alt(out)" />
@@ -30,6 +31,10 @@ import { EventImageComponent } from './event-image.component';
                   (loaded)="onIncomingLoaded()" />
               </div>
             }
+            <div class="image-tools" (click)="$event.stopPropagation()">
+              <button type="button" class="tool" title="Download" (click)="download()" [disabled]="!current()">⬇</button>
+              <button type="button" class="tool" title="Expand" (click)="emitOpen(images()[0])" [disabled]="!images().length">⛶</button>
+            </div>
           </div>
           @if (current(); as cur) {
             @if (cur.description) { <p class="caption">{{ cur.description }}</p> }
@@ -46,7 +51,7 @@ import { EventImageComponent } from './event-image.component';
     .carousel .nav { background:#fff; border:1px solid #d8cfb8; width:2.25rem; border-radius:.4rem; cursor:pointer; font-size:1.25rem; }
     .carousel .nav:disabled { opacity:.4; cursor:default; }
     .carousel .slide { flex:1; display:flex; flex-direction:column; align-items:center; gap:.35rem; }
-    .carousel .image-stack { position:relative; width:100%; height:360px; }
+    .carousel .image-stack { position:relative; width:100%; height:360px; cursor:pointer; }
     .carousel .slide-image { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
     .carousel .slide-image ::ng-deep app-event-image { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
     .carousel .slide-image ::ng-deep img { max-height:100%; max-width:100%; width:auto; height:auto; border-radius:.4rem; object-fit:contain; }
@@ -61,14 +66,21 @@ import { EventImageComponent } from './event-image.component';
       .carousel .slide-image.incoming { opacity:1; }
       .carousel .slide-image.outgoing { animation: none; }
     }
+    .image-tools { position:absolute; top:.4rem; right:.4rem; display:flex; gap:.25rem; z-index:3; }
+    .tool { background:rgba(0,0,0,.55); color:#fff; border:0; width:2rem; height:2rem; border-radius:.3rem; cursor:pointer; font-size:.95rem; line-height:1; }
+    .tool:hover:not(:disabled) { background:rgba(0,0,0,.75); }
+    .tool:disabled { opacity:.4; cursor:default; }
     .caption { margin:0; text-align:center; }
     .muted { color:#8b8273; }
     .small { font-size:.8rem; }
   `],
 })
 export class ImageCarouselComponent {
+  private readonly api = inject(HubApi);
+
   readonly eventId = input.required<number>();
   readonly images = input.required<EventImage[]>();
+  readonly open = output<EventImage>();
 
   protected readonly index = signal(0);
   protected readonly outgoing = signal<EventImage | null>(null);
@@ -117,6 +129,24 @@ export class ImageCarouselComponent {
     const safe = ((targetIndex % list.length) + list.length) % list.length;
     this.finish();
     this.index.set(safe);
+  }
+
+  protected emitOpen(img: EventImage | null): void {
+    if (img) this.open.emit(img);
+  }
+
+  protected async download(): Promise<void> {
+    const img = this.current();
+    if (!img) return;
+    const blob = await this.api.imageBlob(this.eventId(), img.id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = img.fileName || `image-${img.id}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   protected alt(img: EventImage): string {

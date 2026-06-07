@@ -64,7 +64,7 @@ interface ChildRsvpState {
           <section class="card">
             <h2>Album ({{ albumImages().length }})</h2>
             @if (albumImages().length) {
-              <app-image-carousel [eventId]="ev.id" [images]="albumImages()" />
+              <app-image-carousel [eventId]="ev.id" [images]="albumImages()" (open)="openAlbum($event)" />
             } @else {
               <p class="muted">No album images yet.</p>
             }
@@ -408,6 +408,10 @@ export class EventDetailComponent implements OnInit {
 
   back(): void {
     this.router.navigate(['/']);
+  }
+
+  protected openAlbum(img: EventImage): void {
+    this.router.navigate(['/event', this.event()?.id, 'album', img.id]);
   }
 
   // Owner can always upload Album images. Non-owners can if the event opted

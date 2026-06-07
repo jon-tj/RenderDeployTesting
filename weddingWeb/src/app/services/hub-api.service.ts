@@ -120,4 +120,10 @@ export class HubApi {
     this.imageUrlCache.set(key, url);
     return url;
   }
+
+  imageBlob(eventId: number, imageId: number): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(this.api.url(`/api/events/${eventId}/images/${imageId}`), { responseType: 'blob' })
+    );
+  }
 }

@@ -2,6 +2,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HubApi } from '../services/hub-api.service';
 import { UserSummary } from '../models';
+import { extractHttpError } from '../utils/http-error';
 
 @Component({
   selector: 'app-invite-picker',
@@ -139,8 +140,8 @@ export class InvitePickerComponent {
       this.newName = '';
       this.results.set([]);
       this.searched.set(false);
-    } catch (e: any) {
-      this.error.set(e?.error ?? 'Could not invite.');
+    } catch (e: unknown) {
+      this.error.set(extractHttpError(e) ?? 'Could not invite.');
     } finally {
       this.busy.set(false);
     }

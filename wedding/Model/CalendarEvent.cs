@@ -51,7 +51,13 @@ public class CalendarEvent
     // Only meaningful when the event has children.
     public bool CollectChildRsvps { get; set; } = true;
 
+    // When true, any user who can see this event can also upload Album
+    // images. Banner and Icon uploads remain owner-only regardless.
+    public bool AllowGuestAlbumUploads { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();
+
+    public List<EventImage> Images { get; set; } = new();
 }

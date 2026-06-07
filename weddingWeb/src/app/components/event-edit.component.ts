@@ -4,13 +4,14 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { InvitePickerComponent } from './invite-picker.component';
 import { ChildPickerComponent } from './child-picker.component';
+import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, ChildEvent, EventDetail, EventImage, EventSummary, EventType, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
-  imports: [FormsModule, NavbarComponent, InvitePickerComponent, ChildPickerComponent, RouterLink],
+  imports: [FormsModule, NavbarComponent, InvitePickerComponent, ChildPickerComponent, EventImageComponent, RouterLink],
   template: `
     <app-navbar />
     <main class="shell">
@@ -159,6 +160,80 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, 
             }
           }
         </section>
+
+        <section class="card">
+          <h2>Images</h2>
+          @if (ev.isOwner) {
+            <label class="check">
+              <input type="checkbox" name="guestAlbum"
+                [(ngModel)]="allowGuestAlbumUploads"
+                (change)="saveAllowGuestAlbumUploads()" />
+              Let invitees upload to the album
+            </label>
+            <p class="muted small">When on, anyone who can see this event can add to the album. Banner and icon are always owner-only.</p>
+          }
+
+          <div class="upload">
+            <label class="block small">Role
+              <select name="newImageRole" [(ngModel)]="newImageRole" [disabled]="!ev.isOwner">
+                @for (r of allowedImageRoles(ev); track r) {
+                  <option [value]="r">{{ r }}</option>
+                }
+              </select>
+            </label>
+            <label class="block small">File
+              <input type="file" accept="image/*" (change)="onImageFile($event)" />
+            </label>
+            <label class="block small grow">Description
+              <input type="text" name="newImageDesc" [(ngModel)]="newImageDescription" placeholder="Optional" />
+            </label>
+            <button type="button" class="primary" (click)="uploadImage()" [disabled]="!newImageFile || imageUploading()">
+              {{ imageUploading() ? 'Uploading\u2026' : 'Upload' }}
+            </button>
+          </div>
+          @if (imageError()) { <p class="error">{{ imageError() }}</p> }
+
+          @if (!ev.images.length) {
+            <p class="muted">No images yet.</p>
+          } @else {
+            <ul class="images">
+              @for (img of ev.images; track img.id) {
+                <li>
+                  <div class="thumb">
+                    <app-event-image [eventId]="ev.id" [imageId]="img.id" [alt]="img.description || img.fileName" />
+                  </div>
+                  <div class="meta">
+                    <div class="row">
+                      <span class="badge">{{ img.role }}</span>
+                      <span class="muted small">{{ img.fileName }}</span>
+                    </div>
+                    @if (img.canEdit) {
+                      <input type="text"
+                        [ngModel]="img.description"
+                        (ngModelChange)="setImageDescription(img, $event)"
+                        (blur)="saveImageDescription(img)"
+                        [name]="'imgDesc-' + img.id"
+                        placeholder="Description" />
+                      @if (ev.isOwner) {
+                        <select [ngModel]="img.role" (ngModelChange)="setImageRole(img, $event)"
+                          (change)="saveImageRole(img)" [name]="'imgRole-' + img.id">
+                          @for (r of allImageRoles; track r) {
+                            <option [value]="r">{{ r }}</option>
+                          }
+                        </select>
+                      }
+                    } @else {
+                      <p class="muted small">{{ img.description || '\u2014' }}</p>
+                    }
+                  </div>
+                  @if (img.canEdit) {
+                    <button type="button" class="ghost small" (click)="deleteImage(img)">Delete</button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
         }
       }
     </main>
@@ -193,6 +268,14 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, 
     .check input { width:auto; }
     .small { font-size:.8rem; }
     .badge { background:#dfe6cf; padding:.15rem .5rem; border-radius:.25rem; font-size:.75rem; }
+    .upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end; }
+    .upload .grow { flex:1; min-width:180px; }
+    ul.images { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
+    ul.images li { display:flex; gap:.75rem; align-items:flex-start; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
+    ul.images .thumb { width:96px; height:72px; flex:0 0 96px; overflow:hidden; border-radius:.3rem; background:#fff; display:flex; align-items:center; justify-content:center; }
+    ul.images .thumb ::ng-deep img { width:100%; height:100%; object-fit:cover; }
+    ul.images .meta { flex:1; display:flex; flex-direction:column; gap:.3rem; }
+    ul.images .meta .row { display:flex; gap:.5rem; align-items:center; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -217,6 +300,15 @@ export class EventEditComponent implements OnInit {
   protected drinkOptionsText = '';
   protected inheritParentInvites = false;
   protected collectChildRsvps = true;
+  protected allowGuestAlbumUploads = false;
+
+  // New-image upload form
+  protected newImageRole: ImageRole = 'Album';
+  protected newImageDescription = '';
+  protected newImageFile: File | null = null;
+  protected readonly imageUploading = signal(false);
+  protected readonly imageError = signal('');
+  protected readonly allImageRoles = IMAGE_ROLES;
 
   async ngOnInit(): Promise<void> {
     // Subscribe so navigating between two /event/:id/edit URLs (e.g. via the
@@ -268,6 +360,7 @@ export class EventEditComponent implements OnInit {
     this.drinkOptionsText = ev.drinkOptions.join('\n');
     this.inheritParentInvites = ev.inheritParentInvites;
     this.collectChildRsvps = ev.collectChildRsvps;
+    this.allowGuestAlbumUploads = ev.allowGuestAlbumUploads;
   }
 
   async save(): Promise<void> {
@@ -389,6 +482,113 @@ export class EventEditComponent implements OnInit {
       this.router.navigate(['/']);
     } catch (e: any) {
       this.error.set('Could not delete event.');
+    }
+  }
+
+  async saveAllowGuestAlbumUploads(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    try {
+      const updated = await this.api.updateEvent(ev.id, { allowGuestAlbumUploads: this.allowGuestAlbumUploads });
+      this.apply(updated);
+      this.savedAt.set(Date.now());
+    } catch (e: any) {
+      this.error.set('Could not update album upload setting.');
+    }
+  }
+
+  protected allowedImageRoles(ev: EventDetail): ImageRole[] {
+    return ev.isOwner ? IMAGE_ROLES : ['Album'];
+  }
+
+  protected onImageFile(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this.newImageFile = input.files && input.files[0] ? input.files[0] : null;
+  }
+
+  async uploadImage(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !this.newImageFile) return;
+    this.imageUploading.set(true);
+    this.imageError.set('');
+    try {
+      const img = await this.api.uploadImage(ev.id, this.newImageFile, this.newImageRole, this.newImageDescription);
+      // Banner and Icon are singletons — drop any existing one of the same role.
+      const filtered = (this.newImageRole === 'Banner' || this.newImageRole === 'Icon')
+        ? ev.images.filter(i => i.role !== this.newImageRole)
+        : ev.images;
+      this.event.set({ ...ev, images: [...filtered, img] });
+      this.newImageFile = null;
+      this.newImageDescription = '';
+      const fileInput = document.querySelector<HTMLInputElement>('.upload input[type=file]');
+      if (fileInput) fileInput.value = '';
+    } catch (e: any) {
+      this.imageError.set(e?.error ?? 'Could not upload image.');
+    } finally {
+      this.imageUploading.set(false);
+    }
+  }
+
+  protected setImageDescription(img: EventImage, value: string): void {
+    const ev = this.event();
+    if (!ev) return;
+    this.event.set({
+      ...ev,
+      images: ev.images.map(i => i.id === img.id ? { ...i, description: value } : i),
+    });
+  }
+
+  protected setImageRole(img: EventImage, value: ImageRole): void {
+    const ev = this.event();
+    if (!ev) return;
+    this.event.set({
+      ...ev,
+      images: ev.images.map(i => i.id === img.id ? { ...i, role: value } : i),
+    });
+  }
+
+  async saveImageDescription(img: EventImage): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    const current = ev.images.find(i => i.id === img.id);
+    if (!current) return;
+    try {
+      const updated = await this.api.updateImage(ev.id, img.id, { description: current.description });
+      this.event.set({ ...ev, images: ev.images.map(i => i.id === img.id ? updated : i) });
+    } catch (e: any) {
+      this.imageError.set(e?.error ?? 'Could not update description.');
+    }
+  }
+
+  async saveImageRole(img: EventImage): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    const current = ev.images.find(i => i.id === img.id);
+    if (!current) return;
+    try {
+      const updated = await this.api.updateImage(ev.id, img.id, { role: current.role });
+      // Banner and Icon are singletons — server may have evicted siblings.
+      const filtered = (updated.role === 'Banner' || updated.role === 'Icon')
+        ? ev.images.filter(i => i.id === updated.id || i.role !== updated.role)
+        : ev.images;
+      this.event.set({
+        ...ev,
+        images: filtered.map(i => i.id === updated.id ? updated : i),
+      });
+    } catch (e: any) {
+      this.imageError.set(e?.error ?? 'Could not update role.');
+    }
+  }
+
+  async deleteImage(img: EventImage): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    if (!confirm('Delete this image?')) return;
+    try {
+      await this.api.deleteImage(ev.id, img.id);
+      this.event.set({ ...ev, images: ev.images.filter(i => i.id !== img.id) });
+    } catch (e: any) {
+      this.imageError.set(e?.error ?? 'Could not delete image.');
     }
   }
 }

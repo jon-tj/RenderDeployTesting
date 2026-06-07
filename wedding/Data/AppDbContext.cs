@@ -11,6 +11,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<DietaryPreferences> DietaryPreferences => Set<DietaryPreferences>();
     public DbSet<CalendarEvent> Events => Set<CalendarEvent>();
     public DbSet<EventInvite> Invites => Set<EventInvite>();
+    public DbSet<EventImage> Images => Set<EventImage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -87,5 +88,17 @@ public class AppDbContext : IdentityDbContext<AppUser>
         b.Entity<EventInvite>()
             .HasIndex(i => new { i.EventId, i.InviteeId })
             .IsUnique();
+
+        b.Entity<EventImage>()
+            .HasOne(i => i.Event)
+            .WithMany(e => e.Images)
+            .HasForeignKey(i => i.EventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<EventImage>()
+            .HasOne(i => i.UploadedBy)
+            .WithMany()
+            .HasForeignKey(i => i.UploadedById)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

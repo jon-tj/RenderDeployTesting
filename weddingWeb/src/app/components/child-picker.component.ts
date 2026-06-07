@@ -124,6 +124,7 @@ export class ChildPickerComponent {
         endUtc: created.endUtc,
         location: created.location,
         isOwner: created.isOwner,
+        iconImageId: created.images.find(i => i.role === 'Icon')?.id ?? null,
       };
       this.added.emit(summary);
       this.reset();

@@ -23,6 +23,20 @@ export const EVENT_TYPES: EventType[] = ['Wedding', 'FamilyGathering'];
 
 export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Maybe';
 
+export type ImageRole = 'Banner' | 'Album' | 'Icon';
+export const IMAGE_ROLES: ImageRole[] = ['Banner', 'Album', 'Icon'];
+
+export interface EventImage {
+  id: number;
+  role: ImageRole;
+  description: string;
+  fileName: string;
+  contentType: string;
+  uploadedById: string;
+  uploadedAtUtc: string;
+  canEdit: boolean;
+}
+
 export interface Permissions {
   canCreateWeddingEvent: boolean;
   canCreateFamilyGathering: boolean;
@@ -51,6 +65,7 @@ export interface EventSummary {
   endUtc: string;
   location: string;
   isOwner: boolean;
+  iconImageId: number | null;
 }
 
 export interface Invite {
@@ -94,9 +109,11 @@ export interface EventDetail {
   parentEventTitle: string | null;
   inheritParentInvites: boolean;
   collectChildRsvps: boolean;
+  allowGuestAlbumUploads: boolean;
   children: ChildEvent[];
   invites: Invite[];
   myInvite: Invite | null;
+  images: EventImage[];
 }
 
 export interface UserSummary {

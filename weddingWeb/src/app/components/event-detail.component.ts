@@ -1,9 +1,10 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
+import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
-import { ChildEvent, EventDetail, InviteStatus } from '../models';
+import { ChildEvent, EventDetail, EventImage, InviteStatus } from '../models';
 
 const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -18,7 +19,7 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-event-detail',
-  imports: [FormsModule, NavbarComponent, RouterLink],
+  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent],
   template: `
     <app-navbar />
     <main class="shell">
@@ -27,6 +28,11 @@ interface ChildRsvpState {
       } @else if (notFound()) {
         <p>Event not found.</p>
       } @else if (event(); as ev) {
+        @if (bannerImage(); as banner) {
+          <div class="banner">
+            <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || ev.title" />
+          </div>
+        }
         <header class="head">
           <div class="title">
             <span class="kind" [class.wedding]="ev.type === 'Wedding'">{{ typeLabel(ev.type) }}</span>
@@ -52,6 +58,38 @@ interface ChildRsvpState {
             <p class="desc">{{ ev.description }}</p>
           }
         </section>
+
+        @if (albumImages().length || canUploadAlbum(ev)) {
+          <section class="card">
+            <h2>Album ({{ albumImages().length }})</h2>
+            @if (albumImages().length) {
+              <div class="carousel">
+                <button type="button" class="nav prev" (click)="carouselShift(-1)" [disabled]="albumImages().length < 2">‹</button>
+                <div class="slide">
+                  @if (currentAlbum(); as cur) {
+                    <app-event-image [eventId]="ev.id" [imageId]="cur.id" [alt]="cur.description || cur.fileName" />
+                    @if (cur.description) { <p class="caption">{{ cur.description }}</p> }
+                    <p class="caption muted small">{{ carouselIndex() + 1 }} / {{ albumImages().length }}</p>
+                  }
+                </div>
+                <button type="button" class="nav next" (click)="carouselShift(1)" [disabled]="albumImages().length < 2">›</button>
+              </div>
+            } @else {
+              <p class="muted">No album images yet.</p>
+            }
+
+            @if (canUploadAlbum(ev)) {
+              <div class="album-upload">
+                <input type="file" accept="image/*" (change)="onAlbumFile($event)" />
+                <input type="text" placeholder="Description (optional)" [(ngModel)]="albumDescription" name="albumDescription" />
+                <button type="button" class="primary" (click)="uploadAlbum()" [disabled]="!albumFile || albumUploading()">
+                  {{ albumUploading() ? 'Uploading…' : 'Add to album' }}
+                </button>
+              </div>
+              @if (albumError()) { <p class="error">{{ albumError() }}</p> }
+            }
+          </section>
+        }
 
         @if (showParentRsvp(ev)) {
           <section class="card">
@@ -180,6 +218,16 @@ interface ChildRsvpState {
     .head { display:flex; align-items:flex-start; gap:1rem; }
     .head .title { flex:1; }
     .head h1 { margin:.15rem 0 0; }
+    .banner { border-radius:.6rem; overflow:hidden; max-height:320px; background:#f1e0c2; display:flex; align-items:center; justify-content:center; }
+    .banner ::ng-deep img { width:100%; height:100%; max-height:320px; object-fit:cover; }
+    .carousel { display:flex; align-items:stretch; gap:.5rem; }
+    .carousel .nav { background:#fff; border:1px solid #d8cfb8; width:2.25rem; border-radius:.4rem; cursor:pointer; font-size:1.25rem; }
+    .carousel .nav:disabled { opacity:.4; cursor:default; }
+    .carousel .slide { flex:1; display:flex; flex-direction:column; align-items:center; gap:.35rem; min-height:200px; }
+    .carousel .slide ::ng-deep img { max-height:360px; width:auto; max-width:100%; border-radius:.4rem; }
+    .caption { margin:0; text-align:center; }
+    .album-upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; margin-top:.5rem; padding-top:.75rem; border-top:1px dashed #e6e1d4; }
+    .album-upload input[type=text] { flex:1; min-width:200px; padding:.4rem .6rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
     .head-actions { display:flex; gap:.5rem; }
     .kind { display:inline-block; background:#dfe6cf; color:#2d2a24; padding:.15rem .55rem; border-radius:999px; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; }
     .kind.wedding { background:#f1e0c2; }
@@ -231,6 +279,23 @@ export class EventDetailComponent implements OnInit {
   // Per-child RSVP form state, keyed by child event id. Plain object so the
   // template can ngModel-bind into it without an extra signal per field.
   private readonly childStates = signal(new Map<number, ChildRsvpState>());
+
+  // Album upload form (only used when the user has rights to add images).
+  protected albumFile: File | null = null;
+  protected albumDescription = '';
+  protected readonly albumUploading = signal(false);
+  protected readonly albumError = signal('');
+
+  protected readonly carouselIndex = signal(0);
+  protected readonly bannerImage = computed<EventImage | null>(() =>
+    this.event()?.images.find(i => i.role === 'Banner') ?? null);
+  protected readonly albumImages = computed<EventImage[]>(() =>
+    this.event()?.images.filter(i => i.role === 'Album') ?? []);
+  protected readonly currentAlbum = computed<EventImage | null>(() => {
+    const list = this.albumImages();
+    if (!list.length) return null;
+    return list[this.carouselIndex() % list.length] ?? null;
+  });
 
   async ngOnInit(): Promise<void> {
     this.route.paramMap.subscribe(params => {
@@ -361,5 +426,46 @@ export class EventDetailComponent implements OnInit {
 
   back(): void {
     this.router.navigate(['/']);
+  }
+
+  // Owner can always upload Album images. Non-owners can if the event opted
+  // in. Banner and Icon stay owner-only and live in the edit page manager.
+  protected canUploadAlbum(ev: EventDetail): boolean {
+    return ev.isOwner || ev.allowGuestAlbumUploads;
+  }
+
+  protected onAlbumFile(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this.albumFile = input.files && input.files[0] ? input.files[0] : null;
+  }
+
+  protected carouselShift(delta: number): void {
+    const list = this.albumImages();
+    if (!list.length) return;
+    const next = (this.carouselIndex() + delta + list.length) % list.length;
+    this.carouselIndex.set(next);
+  }
+
+  async uploadAlbum(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !this.albumFile) return;
+    this.albumUploading.set(true);
+    this.albumError.set('');
+    try {
+      const img = await this.api.uploadImage(ev.id, this.albumFile, 'Album', this.albumDescription);
+      const next: EventDetail = { ...ev, images: [...ev.images, img] };
+      this.event.set(next);
+      this.albumFile = null;
+      this.albumDescription = '';
+      // Reset the file input element.
+      const fileInput = document.querySelector<HTMLInputElement>('.album-upload input[type=file]');
+      if (fileInput) fileInput.value = '';
+      // Jump to the newly added image.
+      this.carouselIndex.set(this.albumImages().length - 1);
+    } catch (e: any) {
+      this.albumError.set(e?.error ?? 'Could not upload image.');
+    } finally {
+      this.albumUploading.set(false);
+    }
   }
 }

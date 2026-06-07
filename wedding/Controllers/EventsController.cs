@@ -36,6 +36,7 @@ public class EventsController : ControllerBase
 
         var all = await _db.Events
             .Include(e => e.Invites)
+            .Include(e => e.Images)
             .ToListAsync();
         var byId = all.ToDictionary(e => e.Id);
 
@@ -45,7 +46,8 @@ public class EventsController : ControllerBase
             .Where(e => IsEffectivelyVisible(e, uid, byId, new HashSet<int>()))
             .OrderBy(e => e.StartUtc)
             .Select(e => new EventSummaryDto(
-                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, e.CreatedById == uid))
+                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, e.CreatedById == uid,
+                e.Images.FirstOrDefault(i => i.Role == ImageRole.Icon)?.Id))
             .ToList();
     }
 
@@ -60,6 +62,7 @@ public class EventsController : ControllerBase
             .Include(e => e.CreatedBy)
             .Include(e => e.ParentEvent)
             .Include(e => e.Children).ThenInclude(c => c.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.Images)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
@@ -99,7 +102,8 @@ public class EventsController : ControllerBase
             .OrderBy(e => e.StartUtc)
             .Take(10)
             .Select(e => new EventSummaryDto(
-                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, true))
+                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, true,
+                e.Images.Where(i => i.Role == ImageRole.Icon).Select(i => (int?)i.Id).FirstOrDefault()))
             .ToListAsync();
     }
 
@@ -158,6 +162,7 @@ public class EventsController : ControllerBase
             .Include(e => e.CreatedBy)
             .Include(e => e.ParentEvent)
             .Include(e => e.Children)
+            .Include(e => e.Images)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
         if (ev.CreatedById != uid) return Forbid();
@@ -177,6 +182,7 @@ public class EventsController : ControllerBase
         if (dto.DrinkOptions is not null) ev.DrinkOptions = NormalizeOptions(dto.DrinkOptions);
         if (dto.InheritParentInvites.HasValue) ev.InheritParentInvites = dto.InheritParentInvites.Value;
         if (dto.CollectChildRsvps.HasValue) ev.CollectChildRsvps = dto.CollectChildRsvps.Value;
+        if (dto.AllowGuestAlbumUploads.HasValue) ev.AllowGuestAlbumUploads = dto.AllowGuestAlbumUploads.Value;
 
         if (dto.ParentEventId.HasValue)
         {
@@ -391,6 +397,137 @@ public class EventsController : ControllerBase
         return InviteDto.From(invite, invite.Invitee);
     }
 
+    // Serves the raw image bytes. Anyone who can see the event can download.
+    [HttpGet("{id:int}/images/{imageId:int}")]
+    public async Task<IActionResult> GetImage(int id, int imageId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.Invites)
+            .Include(e => e.ParentEvent)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!await IsVisibleViaInheritanceAsync(ev, uid)) return Forbid();
+
+        var img = await _db.Images.FirstOrDefaultAsync(i => i.Id == imageId && i.EventId == id);
+        if (img is null) return NotFound();
+
+        return File(img.Data, string.IsNullOrEmpty(img.ContentType) ? "application/octet-stream" : img.ContentType);
+    }
+
+    // Owner can upload any role. Non-owners may only upload Album images,
+    // and only when AllowGuestAlbumUploads is enabled. Banner and Icon are
+    // singletons per event — uploading a new one replaces the existing.
+    [HttpPost("{id:int}/images")]
+    [RequestSizeLimit(20_000_000)] // 20 MB ceiling per upload.
+    public async Task<ActionResult<EventImageDto>> UploadImage(
+        int id,
+        [FromForm] ImageUploadDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.Invites)
+            .Include(e => e.ParentEvent)
+            .Include(e => e.Images)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (!await IsVisibleViaInheritanceAsync(ev, uid)) return Forbid();
+
+        var isOwner = ev.CreatedById == uid;
+        if (!isOwner && (dto.Role != ImageRole.Album || !ev.AllowGuestAlbumUploads))
+            return Forbid();
+
+        if (dto.File is null || dto.File.Length == 0) return BadRequest("File is required.");
+        if (!dto.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("File must be an image.");
+
+        // Banner and Icon are unique — replace the existing one.
+        if (dto.Role == ImageRole.Banner || dto.Role == ImageRole.Icon)
+        {
+            var existing = ev.Images.Where(i => i.Role == dto.Role).ToList();
+            foreach (var e in existing) _db.Images.Remove(e);
+        }
+
+        using var ms = new MemoryStream();
+        await dto.File.CopyToAsync(ms);
+
+        var img = new EventImage
+        {
+            EventId = ev.Id,
+            Role = dto.Role,
+            Description = (dto.Description ?? string.Empty).Trim(),
+            FileName = Path.GetFileName(dto.File.FileName) ?? string.Empty,
+            ContentType = dto.File.ContentType,
+            Data = ms.ToArray(),
+            UploadedById = uid,
+            UploadedAtUtc = DateTime.UtcNow,
+        };
+        _db.Images.Add(img);
+        await _db.SaveChangesAsync();
+
+        return EventImageDto.From(img, uid, ev.CreatedById);
+    }
+
+    // Update description (anyone with edit rights). Only the event owner can
+    // change the role — guests' album uploads stay as Album.
+    [HttpPut("{id:int}/images/{imageId:int}")]
+    public async Task<ActionResult<EventImageDto>> UpdateImage(
+        int id,
+        int imageId,
+        [FromBody] ImageUpdateDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.Images)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+
+        var img = ev.Images.FirstOrDefault(i => i.Id == imageId);
+        if (img is null) return NotFound();
+
+        var isOwner = ev.CreatedById == uid;
+        if (!isOwner && img.UploadedById != uid) return Forbid();
+
+        if (dto.Description is not null) img.Description = dto.Description.Trim();
+        if (dto.Role.HasValue && isOwner && dto.Role.Value != img.Role)
+        {
+            if (dto.Role.Value == ImageRole.Banner || dto.Role.Value == ImageRole.Icon)
+            {
+                var existing = ev.Images.Where(i => i.Role == dto.Role.Value && i.Id != img.Id).ToList();
+                foreach (var e in existing) _db.Images.Remove(e);
+            }
+            img.Role = dto.Role.Value;
+        }
+
+        await _db.SaveChangesAsync();
+        return EventImageDto.From(img, uid, ev.CreatedById);
+    }
+
+    [HttpDelete("{id:int}/images/{imageId:int}")]
+    public async Task<IActionResult> DeleteImage(int id, int imageId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+
+        var img = await _db.Images.FirstOrDefaultAsync(i => i.Id == imageId && i.EventId == id);
+        if (img is null) return NotFound();
+
+        if (ev.CreatedById != uid && img.UploadedById != uid) return Forbid();
+
+        _db.Images.Remove(img);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     private static List<string> NormalizeOptions(IEnumerable<string> raw) =>
         raw.Select(s => s?.Trim() ?? string.Empty)
            .Where(s => s.Length > 0)
@@ -468,7 +605,8 @@ public sealed record EventSummaryDto(
     DateTime StartUtc,
     DateTime EndUtc,
     string Location,
-    bool IsOwner);
+    bool IsOwner,
+    int? IconImageId);
 
 public sealed record EventDetailDto(
     int Id,
@@ -487,9 +625,11 @@ public sealed record EventDetailDto(
     string? ParentEventTitle,
     bool InheritParentInvites,
     bool CollectChildRsvps,
+    bool AllowGuestAlbumUploads,
     List<ChildEventDto> Children,
     List<InviteDto> Invites,
-    InviteDto? MyInvite)
+    InviteDto? MyInvite,
+    List<EventImageDto> Images)
 {
     public static EventDetailDto From(CalendarEvent e, string currentUserId)
     {
@@ -498,6 +638,11 @@ public sealed record EventDetailDto(
         var children = e.Children
             .OrderBy(c => c.StartUtc)
             .Select(c => ChildEventDto.From(c, currentUserId))
+            .ToList();
+        var images = (e.Images ?? new())
+            .OrderBy(i => i.Role)
+            .ThenBy(i => i.UploadedAtUtc)
+            .Select(i => EventImageDto.From(i, currentUserId, e.CreatedById))
             .ToList();
         return new(
             e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
@@ -510,10 +655,33 @@ public sealed record EventDetailDto(
             e.ParentEvent?.Title,
             e.InheritParentInvites,
             e.CollectChildRsvps,
+            e.AllowGuestAlbumUploads,
             children,
             invites,
-            mine);
+            mine,
+            images);
     }
+}
+
+public sealed record EventImageDto(
+    int Id,
+    ImageRole Role,
+    string Description,
+    string FileName,
+    string ContentType,
+    string UploadedById,
+    DateTime UploadedAtUtc,
+    bool CanEdit)
+{
+    public static EventImageDto From(EventImage i, string currentUserId, string eventOwnerId) => new(
+        i.Id,
+        i.Role,
+        i.Description,
+        i.FileName,
+        i.ContentType,
+        i.UploadedById,
+        i.UploadedAtUtc,
+        i.UploadedById == currentUserId || eventOwnerId == currentUserId);
 }
 
 // A child event surfaced on the parent detail. Carries enough to render the
@@ -589,6 +757,7 @@ public sealed class UpdateEventDto
     public int? ParentEventId { get; set; }
     public bool? InheritParentInvites { get; set; }
     public bool? CollectChildRsvps { get; set; }
+    public bool? AllowGuestAlbumUploads { get; set; }
 }
 
 public sealed class AddInviteDto
@@ -602,4 +771,17 @@ public sealed class RsvpDto
     // null = leave unchanged; "" = clear; non-empty = set (must match an option).
     public string? MealChoice { get; set; }
     public string? DrinkChoice { get; set; }
+}
+
+public sealed class ImageUploadDto
+{
+    [Required] public IFormFile File { get; set; } = default!;
+    public ImageRole Role { get; set; }
+    [MaxLength(500)] public string? Description { get; set; }
+}
+
+public sealed class ImageUpdateDto
+{
+    public ImageRole? Role { get; set; }
+    [MaxLength(500)] public string? Description { get; set; }
 }

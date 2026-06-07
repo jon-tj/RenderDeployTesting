@@ -1,5 +1,6 @@
 import { Component, computed, input, output, signal } from '@angular/core';
 import { EventSummary } from '../models';
+import { EventImageComponent } from './event-image.component';
 
 interface DayCell {
   date: Date;
@@ -9,7 +10,7 @@ interface DayCell {
 
 @Component({
   selector: 'app-calendar',
-  imports: [],
+  imports: [EventImageComponent],
   template: `
     <div class="cal">
       <header>
@@ -39,7 +40,12 @@ interface DayCell {
                 class="evt"
                 [class.wedding]="e.type === 'Wedding'"
                 (click)="onEventClick($event, e)"
-              >{{ e.title }}</span>
+              >
+                @if (e.iconImageId !== null) {
+                  <app-event-image class="evt-icon" [eventId]="e.id" [imageId]="e.iconImageId" [alt]="''" />
+                }
+                <span class="evt-title">{{ e.title }}</span>
+              </span>
             }
           </button>
         }
@@ -58,9 +64,12 @@ interface DayCell {
     .day.muted { opacity:.45; }
     .day.today .num { background:#6f7a5b; color:#faf5ea; border-radius:50%; padding:.1rem .35rem; }
     .num { font-size:.85rem; color:#5a5347; align-self:flex-start; }
-    .evt { display:block; background:#dfe6cf; color:#2d2a24; font-size:.75rem; padding:.1rem .35rem; border-radius:.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .evt { display:flex; align-items:center; gap:.25rem; background:#dfe6cf; color:#2d2a24; font-size:.75rem; padding:.1rem .35rem; border-radius:.25rem; white-space:nowrap; overflow:hidden; }
     .evt.wedding { background:#f1e0c2; }
     .evt:hover { filter:brightness(.95); }
+    .evt-title { overflow:hidden; text-overflow:ellipsis; }
+    .evt-icon { width:14px; height:14px; flex:0 0 14px; border-radius:2px; overflow:hidden; background:rgba(255,255,255,.5); }
+    .evt-icon ::ng-deep img { width:100%; height:100%; object-fit:cover; }
   `],
 })
 export class CalendarComponent {

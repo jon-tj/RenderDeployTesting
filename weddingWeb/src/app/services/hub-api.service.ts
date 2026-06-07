@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { EventDetail, EventSummary, EventType, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
+import { EventDetail, EventImage, EventSummary, EventType, ImageRole, Invite, InviteStatus, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -26,7 +26,7 @@ export class HubApi {
 
   updateEvent(
     id: number,
-    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps'>> & { parentEventId?: number | null },
+    payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc' | 'mealOptions' | 'drinkOptions' | 'inheritParentInvites' | 'collectChildRsvps' | 'allowGuestAlbumUploads'>> & { parentEventId?: number | null },
   ): Promise<EventDetail> {
     return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
   }
@@ -85,5 +85,30 @@ export class HubApi {
     return firstValueFrom(
       this.http.post<void>(this.api.url(`/api/users/${encodeURIComponent(userId)}/onboard`), { password, displayName })
     );
+  }
+
+  uploadImage(eventId: number, file: File, role: ImageRole, description: string): Promise<EventImage> {
+    const form = new FormData();
+    form.append('File', file);
+    form.append('Role', role);
+    form.append('Description', description ?? '');
+    return firstValueFrom(this.http.post<EventImage>(this.api.url(`/api/events/${eventId}/images`), form));
+  }
+
+  updateImage(eventId: number, imageId: number, payload: { role?: ImageRole; description?: string }): Promise<EventImage> {
+    return firstValueFrom(this.http.put<EventImage>(this.api.url(`/api/events/${eventId}/images/${imageId}`), payload));
+  }
+
+  deleteImage(eventId: number, imageId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/events/${eventId}/images/${imageId}`)));
+  }
+
+  // Fetch the bytes via HttpClient so the auth interceptor adds the bearer
+  // token, then wrap as an object URL so it can be used as <img src>.
+  async imageObjectUrl(eventId: number, imageId: number): Promise<string> {
+    const blob = await firstValueFrom(
+      this.http.get(this.api.url(`/api/events/${eventId}/images/${imageId}`), { responseType: 'blob' })
+    );
+    return URL.createObjectURL(blob);
   }
 }

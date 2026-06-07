@@ -33,11 +33,13 @@ interface ChildRsvpState {
       <div class="wedding">
         @if (ev.isOwner) {
           <div class="owner-tools">
-            <select class="lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang" [title]="s('edit')">
-              @for (l of languages; track l.code) {
-                <option [value]="l.code">{{ l.short }}</option>
-              }
-            </select>
+            @if (ev.enableTranslations) {
+              <select class="lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang" [title]="s('edit')">
+                @for (l of languages; track l.code) {
+                  <option [value]="l.code">{{ l.short }}</option>
+                }
+              </select>
+            }
             <a class="edit-link" [routerLink]="['/event', ev.id, 'edit']" [title]="s('edit')">{{ s('edit') }}</a>
           </div>
         }

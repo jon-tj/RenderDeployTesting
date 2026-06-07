@@ -55,11 +55,13 @@ interface ChildRsvpState {
             <div class="head-actions">
               <button type="button" class="ghost" (click)="back()">{{ s('back') }}</button>
               @if (ev.isOwner) {
-                <select class="ghost lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang">
-                  @for (l of languages; track l.code) {
-                    <option [value]="l.code">{{ l.short }}</option>
-                  }
-                </select>
+                @if (ev.enableTranslations) {
+                  <select class="ghost lang-switch" [ngModel]="lang()" (ngModelChange)="langOverride.set($event)" name="viewLang">
+                    @for (l of languages; track l.code) {
+                      <option [value]="l.code">{{ l.short }}</option>
+                    }
+                  </select>
+                }
                 <a class="primary" [routerLink]="['/event', ev.id, 'edit']">{{ s('edit') }}</a>
               }
             </div>

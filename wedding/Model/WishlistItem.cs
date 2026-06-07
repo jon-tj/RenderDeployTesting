@@ -4,14 +4,14 @@ using System.ComponentModel.DataAnnotations;
 
 public enum WishlistCurrency { BRL = 0, NOK = 1, USD = 2 }
 
-// A single thing on someone's wishlist. Owned by a user (not an event); the
-// wedding page links to the bride/groom's wishlist directly.
+// A single thing on an event's wishlist. Owned by the event (so any
+// owner/co-owner of the event can edit), not by an individual user.
 public class WishlistItem
 {
     public int Id { get; set; }
 
-    [Required] public string OwnerUserId { get; set; } = string.Empty;
-    public AppUser? Owner { get; set; }
+    public int EventId { get; set; }
+    public CalendarEvent? Event { get; set; }
 
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     [MaxLength(2000)] public string Description { get; set; } = string.Empty;

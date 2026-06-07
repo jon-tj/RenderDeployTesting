@@ -83,19 +83,15 @@ export class HubApi {
     return firstValueFrom(this.http.post<number>(this.api.url(`/api/events/${eventId}/groups/${groupId}/send-emails`), {}));
   }
 
-  getWishlist(userId: string): Promise<WishlistView> {
-    return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/user/${encodeURIComponent(userId)}`)));
+  getWishlist(eventId: number): Promise<WishlistView> {
+    return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/event/${eventId}`)));
   }
 
-  getMyWishlist(): Promise<WishlistView> {
-    return firstValueFrom(this.http.get<WishlistView>(this.api.url('/api/wishlist/mine')));
-  }
-
-  createWishlistItem(payload: Partial<Omit<WishlistItem, 'id' | 'ownerUserId' | 'claimedQuantity' | 'claims' | 'isMine'>>): Promise<WishlistItem> {
+  createWishlistItem(payload: { eventId: number } & Partial<Omit<WishlistItem, 'id' | 'eventId' | 'claimedQuantity' | 'claims' | 'canEdit'>>): Promise<WishlistItem> {
     return firstValueFrom(this.http.post<WishlistItem>(this.api.url('/api/wishlist'), payload));
   }
 
-  updateWishlistItem(id: number, payload: Partial<Omit<WishlistItem, 'id' | 'ownerUserId' | 'claimedQuantity' | 'claims' | 'isMine'>>): Promise<WishlistItem> {
+  updateWishlistItem(id: number, payload: Partial<Omit<WishlistItem, 'id' | 'eventId' | 'claimedQuantity' | 'claims' | 'canEdit'>>): Promise<WishlistItem> {
     return firstValueFrom(this.http.put<WishlistItem>(this.api.url(`/api/wishlist/${id}`), payload));
   }
 

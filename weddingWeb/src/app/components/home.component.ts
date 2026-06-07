@@ -33,13 +33,6 @@ import { EventSummary } from '../models';
                     <span class="muted small">Calendar entry, RSVPs, invites…</span>
                   </div>
                 </button>
-                <button type="button" role="menuitem" (click)="openWishlist()">
-                  <span class="material-icons">card_giftcard</span>
-                  <div>
-                    <strong>Wishlist item</strong>
-                    <span class="muted small">Add gift ideas to your wishlist</span>
-                  </div>
-                </button>
               </div>
             }
           </div>
@@ -120,9 +113,8 @@ export class HomeComponent implements OnInit {
     }
   }
 
-  openWishlist(): void {
-    this.menuOpen.set(false);
-    this.router.navigate(['/wishlist']);
+  openEvent(e: EventSummary): void {
+    this.router.navigate(['/event', e.id]);
   }
 
   async createOnDay(date: Date): Promise<void> {
@@ -144,9 +136,5 @@ export class HomeComponent implements OnInit {
     } catch (e: any) {
       this.error.set('Could not create event.');
     }
-  }
-
-  openEvent(e: EventSummary): void {
-    this.router.navigate(['/event', e.id]);
   }
 }

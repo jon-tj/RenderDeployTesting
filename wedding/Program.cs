@@ -85,7 +85,8 @@ using (var scope = app.Services.CreateScope())
 
     await EnsureTableAsync(db, "WishlistItems", @"CREATE TABLE WishlistItems (
         Id INTEGER NOT NULL CONSTRAINT PK_WishlistItems PRIMARY KEY AUTOINCREMENT,
-        OwnerUserId TEXT NOT NULL,
+        EventId INTEGER NULL,
+        OwnerUserId TEXT NOT NULL DEFAULT '',
         Name TEXT NOT NULL,
         Description TEXT NOT NULL DEFAULT '',
         Url TEXT NOT NULL DEFAULT '',
@@ -95,7 +96,7 @@ using (var scope = app.Services.CreateScope())
         PixKey TEXT NOT NULL DEFAULT '',
         WishedQuantity INTEGER NOT NULL DEFAULT 1,
         CreatedAtUtc TEXT NOT NULL,
-        CONSTRAINT FK_WishlistItems_Users_OwnerUserId FOREIGN KEY (OwnerUserId) REFERENCES AspNetUsers (Id) ON DELETE CASCADE
+        CONSTRAINT FK_WishlistItems_Events_EventId FOREIGN KEY (EventId) REFERENCES Events (Id) ON DELETE CASCADE
     );");
     await EnsureTableAsync(db, "WishlistClaims", @"CREATE TABLE WishlistClaims (
         Id INTEGER NOT NULL CONSTRAINT PK_WishlistClaims PRIMARY KEY AUTOINCREMENT,
@@ -109,6 +110,9 @@ using (var scope = app.Services.CreateScope())
     );");
     await EnsureColumnAsync(db, "WishlistItems", "ImageData", "BLOB NULL");
     await EnsureColumnAsync(db, "WishlistItems", "ImageContentType", "TEXT NOT NULL DEFAULT ''");
+    // Migration: wishlists were originally owned by users. Adding nullable
+    // EventId here lets old rows survive as orphans (controller hides them).
+    await EnsureColumnAsync(db, "WishlistItems", "EventId", "INTEGER NULL REFERENCES Events(Id) ON DELETE CASCADE");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");

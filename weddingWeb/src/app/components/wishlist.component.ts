@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
@@ -19,7 +19,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
 @Component({
   selector: 'app-wishlist',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavbarComponent, DatePipe],
+  imports: [CommonModule, FormsModule, NavbarComponent, DatePipe, RouterLink],
   template: `
     <app-navbar></app-navbar>
     <main class="page">
@@ -29,11 +29,15 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
         <p class="error">Wishlist not found.</p>
       } @else if (view(); as v) {
         <header class="page-head">
-          <h1>{{ v.ownerDisplayName }}'s wishlist</h1>
-          <p class="muted small">Pick what you'd like to gift. {{ isMine() ? 'Items you add appear here; you can see claim counts but not who claimed what.' : 'Add items to your cart, then claim them together.' }}</p>
+          <h1>Wishlist for {{ v.eventTitle }}</h1>
+          <p class="muted small">
+            <a [routerLink]="['/event', v.eventId]">← Back to event</a>
+            ·
+            {{ v.canEdit ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you\u2019d like to gift. Add items to your cart, then claim them together.' }}
+          </p>
         </header>
 
-        @if (isMine()) {
+        @if (v.canEdit) {
           <section class="card">
             <h2>Add an item</h2>
             <form class="row" (ngSubmit)="addItem()">
@@ -62,7 +66,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
         <section class="card">
           <div class="cart-header">
             <h2>Items</h2>
-            @if (!isMine()) {
+            @if (!v.canEdit) {
               <label class="muted small">
                 Show totals in
                 <select [(ngModel)]="displayCurrency" name="dispcur">
@@ -101,7 +105,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                         · Pix: <code>{{ i.pixKey }}</code>
                       }
                     </p>
-                    @if (isMine() && i.claims.length) {
+                    @if (v.canEdit && i.claims.length) {
                       <ul class="claims">
                         @for (c of i.claims; track c.id) {
                           <li class="muted small">{{ c.quantity }}× claimed {{ c.createdAtUtc | date:'short' }}</li>
@@ -110,7 +114,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     }
                   </div>
                   <div class="item-actions">
-                    @if (isMine()) {
+                    @if (v.canEdit) {
                       <label class="ghost small file-btn">
                         {{ i.hasUploadedImage ? 'Change image' : 'Upload image' }}
                         <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
@@ -135,7 +139,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
           }
         </section>
 
-        @if (!isMine() && cartCount() > 0) {
+        @if (!v.canEdit && cartCount() > 0) {
           <section class="card cart-summary">
             <h2>Your cart</h2>
             <ul class="muted small">
@@ -223,11 +227,7 @@ export class WishlistComponent implements OnInit {
   protected readonly cartLines = computed<CartLine[]>(() =>
     Array.from(this.cart().entries()).map(([itemId, quantity]) => ({ itemId, quantity })));
 
-  protected readonly isMine = computed(() => {
-    const v = this.view();
-    const me = this.auth.me();
-    return !!v && !!me && v.ownerUserId === me.id;
-  });
+  protected readonly canEdit = computed(() => this.view()?.canEdit ?? false);
 
   protected rates: Record<WishlistCurrency, number> = { ...FALLBACK_TO_BRL };
 
@@ -244,18 +244,18 @@ export class WishlistComponent implements OnInit {
   protected anonymous = false;
 
   async ngOnInit(): Promise<void> {
-    const ownerId = this.route.snapshot.paramMap.get('userId');
+    const raw = this.route.snapshot.paramMap.get('eventId');
+    const eventId = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(eventId) || eventId <= 0) {
+      this.notFound.set(true);
+      this.loading.set(false);
+      return;
+    }
     try {
       this.rates = await this.api.getWishlistRates();
     } catch { /* fallback already set */ }
     try {
-      const view = ownerId
-        ? await this.api.getWishlist(ownerId)
-        : await this.api.getMyWishlist();
-      this.view.set(view);
-      if (this.auth.me()?.id === view.ownerUserId) {
-        // Default to BRL for the owner — same as before — but no cart UI shown.
-      }
+      this.view.set(await this.api.getWishlist(eventId));
     } catch {
       this.notFound.set(true);
     } finally {
@@ -307,10 +307,13 @@ export class WishlistComponent implements OnInit {
 
   async addItem(): Promise<void> {
     if (!this.draftName.trim()) return;
+    const v = this.view();
+    if (!v) return;
     this.saving.set(true);
     this.addError.set('');
     try {
       let item = await this.api.createWishlistItem({
+        eventId: v.eventId,
         name: this.draftName.trim(),
         priceMinor: Math.round((this.draftPrice ?? 0) * 100),
         currency: this.draftCurrency,
@@ -323,8 +326,8 @@ export class WishlistComponent implements OnInit {
         try { item = await this.api.uploadWishlistImage(item.id, this.draftFile); }
         catch { this.addError.set('Item added, but image upload failed.'); }
       }
-      const v = this.view();
-      if (v) this.view.set({ ...v, items: [...v.items, item] });
+      const fresh = this.view();
+      if (fresh) this.view.set({ ...fresh, items: [...fresh.items, item] });
       this.draftName = ''; this.draftPrice = null; this.draftQty = 1; this.draftUrl = ''; this.draftPix = '';
       this.draftImageUrl = ''; this.draftFile = null;
     } catch {
@@ -397,8 +400,8 @@ export class WishlistComponent implements OnInit {
       this.cart.set(new Map());
       this.claimantLabel = '';
       // Reload to reflect new claim totals.
-      const ownerId = this.view()?.ownerUserId;
-      if (ownerId) this.view.set(await this.api.getWishlist(ownerId));
+      const eventId = this.view()?.eventId;
+      if (eventId) this.view.set(await this.api.getWishlist(eventId));
     } catch {
       this.claimError.set('Could not claim items. Some may already be taken — try again.');
     } finally {

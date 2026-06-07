@@ -163,9 +163,9 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .OnDelete(DeleteBehavior.SetNull);
 
         b.Entity<WishlistItem>()
-            .HasOne(w => w.Owner)
+            .HasOne(w => w.Event)
             .WithMany()
-            .HasForeignKey(w => w.OwnerUserId)
+            .HasForeignKey(w => w.EventId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<WishlistClaim>()

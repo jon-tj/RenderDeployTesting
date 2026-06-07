@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { EventImageComponent } from './event-image.component';
 import { ImageCarouselComponent } from './image-carousel.component';
+import { WeddingEventComponent } from './wedding-event.component';
 import { HubApi } from '../services/hub-api.service';
 import { ChildEvent, EventDetail, EventImage, InviteStatus } from '../models';
 
@@ -20,33 +21,38 @@ interface ChildRsvpState {
 
 @Component({
   selector: 'app-event-detail',
-  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, ImageCarouselComponent],
+  imports: [FormsModule, NavbarComponent, RouterLink, EventImageComponent, ImageCarouselComponent, WeddingEventComponent],
   template: `
-    <app-navbar />
-    <main class="shell">
-      @if (loading()) {
-        <p>Loading…</p>
-      } @else if (notFound()) {
-        <p>Event not found.</p>
-      } @else if (event(); as ev) {
-        @if (bannerImage(); as banner) {
-          <div class="banner">
-            <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || ev.title" />
-          </div>
-        }
-        <header class="head">
-          <div class="title">
-            <span class="kind" [class.wedding]="ev.type === 'Wedding'">{{ typeLabel(ev.type) }}</span>
-            <h1>{{ ev.title }}</h1>
-            <p class="muted">Hosted by {{ ev.createdByDisplayName || '—' }}</p>
-          </div>
-          <div class="head-actions">
-            <button type="button" class="ghost" (click)="back()">Back</button>
-            @if (ev.isOwner) {
-              <a class="primary" [routerLink]="['/event', ev.id, 'edit']">Edit</a>
-            }
-          </div>
-        </header>
+    @if (loading()) {
+      <app-navbar />
+      <main class="shell"><p>Loading…</p></main>
+    } @else if (notFound()) {
+      <app-navbar />
+      <main class="shell"><p>Event not found.</p></main>
+    } @else if (event(); as ev) {
+      @if (ev.type === 'Wedding') {
+        <app-wedding-event [event]="ev" (refresh)="reload()" />
+      } @else {
+        <app-navbar />
+        <main class="shell">
+          @if (bannerImage(); as banner) {
+            <div class="banner">
+              <app-event-image [eventId]="ev.id" [imageId]="banner.id" [alt]="banner.description || ev.title" />
+            </div>
+          }
+          <header class="head">
+            <div class="title">
+              <span class="kind">{{ typeLabel(ev.type) }}</span>
+              <h1>{{ ev.title }}</h1>
+              <p class="muted">Hosted by {{ ev.createdByDisplayName || '—' }}</p>
+            </div>
+            <div class="head-actions">
+              <button type="button" class="ghost" (click)="back()">Back</button>
+              @if (ev.isOwner) {
+                <a class="primary" [routerLink]="['/event', ev.id, 'edit']">Edit</a>
+              }
+            </div>
+          </header>
 
         <section class="card">
           <h2>When &amp; where</h2>
@@ -131,7 +137,7 @@ interface ChildRsvpState {
           @for (c of ev.children; track c.id) {
             <section class="card child">
               <header class="child-head">
-                <span class="kind" [class.wedding]="c.type === 'Wedding'">{{ typeLabel(c.type) }}</span>
+                <span class="kind">{{ typeLabel(c.type) }}</span>
                 <h2>{{ c.title }}</h2>
               </header>
               <p><strong>Start:</strong> {{ formatDate(c.startUtc) }}</p>
@@ -203,8 +209,9 @@ interface ChildRsvpState {
             }
           </section>
         }
+        </main>
       }
-    </main>
+    }
   `,
   styles: [`
     .shell { max-width:900px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
@@ -410,6 +417,11 @@ export class EventDetailComponent implements OnInit {
 
   back(): void {
     this.router.navigate(['/']);
+  }
+
+  reload(): void {
+    const id = this.event()?.id;
+    if (id) void this.load(id);
   }
 
   protected openAlbum(img: EventImage): void {

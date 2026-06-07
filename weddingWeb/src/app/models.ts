@@ -98,6 +98,15 @@ export interface Invite {
   drinkChoice: string | null;
   isOnboarded: boolean;
   emailSentUtc: string | null;
+  inviteGroupId: number | null;
+}
+
+export interface InviteGroup {
+  id: number;
+  eventId: number;
+  name: string;
+  goPublicAtUtc: string | null;
+  visibleChildEventIds: number[];
 }
 
 export interface ChildEvent {
@@ -145,6 +154,7 @@ export interface EventDetail {
   coOwners: EventOwner[];
   children: ChildEvent[];
   invites: Invite[];
+  groups: InviteGroup[];
   myInvite: Invite | null;
   images: EventImage[];
 }

@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteStatus, LanguageCode, OnboardingStatus, UserSummary } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, UserSummary } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -57,6 +57,26 @@ export class HubApi {
     return firstValueFrom(
       this.http.post<number>(this.api.url(`/api/events/${eventId}/invites/send-pending-emails`), {})
     );
+  }
+
+  listInviteGroups(eventId: number): Promise<InviteGroup[]> {
+    return firstValueFrom(this.http.get<InviteGroup[]>(this.api.url(`/api/events/${eventId}/groups`)));
+  }
+
+  createInviteGroup(eventId: number, payload: { name: string; goPublicAtUtc?: string | null; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
+    return firstValueFrom(this.http.post<InviteGroup>(this.api.url(`/api/events/${eventId}/groups`), payload));
+  }
+
+  updateInviteGroup(eventId: number, groupId: number, payload: { name?: string; goPublicAtUtc?: string | null; visibleChildEventIds?: number[] }): Promise<InviteGroup> {
+    return firstValueFrom(this.http.put<InviteGroup>(this.api.url(`/api/events/${eventId}/groups/${groupId}`), payload));
+  }
+
+  deleteInviteGroup(eventId: number, groupId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/events/${eventId}/groups/${groupId}`)));
+  }
+
+  setInviteGroup(eventId: number, inviteId: number, groupId: number | null): Promise<Invite> {
+    return firstValueFrom(this.http.put<Invite>(this.api.url(`/api/events/${eventId}/invites/${inviteId}/group`), { groupId }));
   }
 
   addCoOwner(eventId: number, userId: string): Promise<EventOwner> {

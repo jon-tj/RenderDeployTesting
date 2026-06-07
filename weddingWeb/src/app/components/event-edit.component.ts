@@ -8,7 +8,7 @@ import { ChildPickerComponent } from './child-picker.component';
 import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, LANGUAGES, LanguageCode, UserSummary } from '../models';
+import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, InviteGroup, LANGUAGES, LanguageCode, UserSummary } from '../models';
 import { localizedOption, localizedTitle, t } from '../utils/i18n';
 
 @Component({
@@ -194,6 +194,60 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
         </section>
 
         <section class="card">
+          <h2>Invite groups</h2>
+          <p class="muted small">Bundle invitees into groups. Each group can be limited to a subset of child events (e.g. evening reception only) and given a "go public" date — invitations stay queued and the event stays hidden until that moment.</p>
+          @if (!ev.children.length) {
+            <p class="muted small">Add child events first to control per-group visibility.</p>
+          }
+          @if (ev.groups.length) {
+            <ul class="invites">
+              @for (g of ev.groups; track g.id) {
+                <li class="group-row">
+                  <div class="group-fields">
+                    <label class="field">
+                      <span class="muted small">Name</span>
+                      <input type="text" [(ngModel)]="g.name" name="grp-name-{{g.id}}" />
+                    </label>
+                    <label class="field">
+                      <span class="muted small">Go public (UTC)</span>
+                      <input type="datetime-local" [ngModel]="goPublicLocal(g)" (ngModelChange)="setGoPublicLocal(g, $event)" name="grp-go-{{g.id}}" />
+                    </label>
+                  </div>
+                  @if (ev.children.length) {
+                    <div class="group-children">
+                      <span class="muted small">Visible child events</span>
+                      @for (c of ev.children; track c.id) {
+                        <label class="check">
+                          <input type="checkbox"
+                            [checked]="g.visibleChildEventIds.includes(c.id)"
+                            (change)="toggleGroupChild(g, c.id, $any($event.target).checked)" />
+                          {{ c.title }}
+                        </label>
+                      }
+                    </div>
+                  }
+                  <div class="group-actions">
+                    <button type="button" class="ghost small" (click)="saveGroup(g)" [disabled]="savingGroupId() === g.id">
+                      {{ savingGroupId() === g.id ? 'Saving…' : 'Save' }}
+                    </button>
+                    <button type="button" class="ghost small" (click)="deleteGroup(g)">Delete</button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+          <div class="group-create">
+            <input type="text" placeholder="New group name" [(ngModel)]="newGroupName" name="new-group-name" />
+            <button type="button" class="ghost small" (click)="createGroup()" [disabled]="!newGroupName.trim() || creatingGroup()">
+              {{ creatingGroup() ? 'Creating…' : 'Add group' }}
+            </button>
+          </div>
+          @if (groupError()) {
+            <p class="error small">{{ groupError() }}</p>
+          }
+        </section>
+
+        <section class="card">
           <h2>Invites</h2>
           @if (ev.isOwner) {
             <label class="check">
@@ -219,6 +273,15 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
                     }
                   </div>
                   <span class="badge" [class.warn]="!i.isOnboarded">{{ !i.isOnboarded ? 'Not onboarded' : i.status }}</span>
+                  @if (ev.isOwner && ev.groups.length) {
+                    <select class="ghost small" [ngModel]="i.inviteGroupId" name="invite-grp-{{i.id}}"
+                      (ngModelChange)="setInviteGroup(i, $event)">
+                      <option [ngValue]="null">— no group —</option>
+                      @for (g of ev.groups; track g.id) {
+                        <option [ngValue]="g.id">{{ g.name }}</option>
+                      }
+                    </select>
+                  }
                   @if (ev.isOwner) {
                     <button type="button" class="ghost small"
                       [disabled]="sendingInviteId() === i.id"
@@ -424,6 +487,13 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
     ul.invites li { display:flex; align-items:center; gap:.75rem; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
     ul.invites li > div { flex:1; }
     .invites-actions { margin-top:.6rem; display:flex; justify-content:flex-end; }
+    .group-row { flex-direction:column; align-items:stretch; gap:.5rem !important; }
+    .group-fields { display:flex; gap:.75rem; flex-wrap:wrap; }
+    .group-fields .field { flex:1; min-width:160px; display:flex; flex-direction:column; gap:.2rem; }
+    .group-children { display:flex; flex-wrap:wrap; gap:.4rem 1rem; padding:.25rem 0; }
+    .group-actions { display:flex; gap:.5rem; justify-content:flex-end; }
+    .group-create { margin-top:.75rem; display:flex; gap:.5rem; }
+    .group-create input { flex:1; }
     ul.children { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem; }
     ul.children li { display:flex; align-items:center; gap:.75rem; padding:.4rem .65rem; background:#faf7f0; border-radius:.4rem; }
     a.child-link { flex:1; color:#2d2a24; text-decoration:none; }
@@ -471,6 +541,11 @@ export class EventEditComponent implements OnInit {
   protected readonly inviteEmailError = signal('');
   protected readonly pendingEmailCount = computed(() =>
     this.event()?.invites.filter(i => !i.emailSentUtc).length ?? 0);
+
+  protected readonly savingGroupId = signal<number | null>(null);
+  protected readonly creatingGroup = signal(false);
+  protected readonly groupError = signal('');
+  protected newGroupName = '';
 
   protected type: EventType = 'FamilyGathering';
   protected title = '';
@@ -818,6 +893,81 @@ export class EventEditComponent implements OnInit {
       this.inviteEmailError.set('Could not send pending invitation emails.');
     } finally {
       this.sendingPending.set(false);
+    }
+  }
+
+  goPublicLocal(g: InviteGroup): string {
+    if (!g.goPublicAtUtc) return '';
+    const d = new Date(g.goPublicAtUtc);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  setGoPublicLocal(g: InviteGroup, value: string): void {
+    g.goPublicAtUtc = value ? new Date(value).toISOString() : null;
+  }
+  toggleGroupChild(g: InviteGroup, childId: number, checked: boolean): void {
+    const set = new Set(g.visibleChildEventIds);
+    if (checked) set.add(childId); else set.delete(childId);
+    g.visibleChildEventIds = Array.from(set);
+  }
+  async createGroup(): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    const name = this.newGroupName.trim();
+    if (!name) return;
+    this.creatingGroup.set(true);
+    this.groupError.set('');
+    try {
+      const grp = await this.api.createInviteGroup(ev.id, { name, visibleChildEventIds: [] });
+      this.event.set({ ...ev, groups: [...ev.groups, grp] });
+      this.newGroupName = '';
+    } catch {
+      this.groupError.set('Could not create group.');
+    } finally {
+      this.creatingGroup.set(false);
+    }
+  }
+  async saveGroup(g: InviteGroup): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    this.savingGroupId.set(g.id);
+    this.groupError.set('');
+    try {
+      const updated = await this.api.updateInviteGroup(ev.id, g.id, {
+        name: g.name,
+        goPublicAtUtc: g.goPublicAtUtc,
+        visibleChildEventIds: g.visibleChildEventIds,
+      });
+      this.event.set({ ...ev, groups: ev.groups.map(x => x.id === updated.id ? updated : x) });
+    } catch {
+      this.groupError.set('Could not save group.');
+    } finally {
+      this.savingGroupId.set(null);
+    }
+  }
+  async deleteGroup(g: InviteGroup): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    if (!confirm(`Delete group "${g.name}"? Invitees in this group will become ungrouped.`)) return;
+    try {
+      await this.api.deleteInviteGroup(ev.id, g.id);
+      this.event.set({
+        ...ev,
+        groups: ev.groups.filter(x => x.id !== g.id),
+        invites: ev.invites.map(i => i.inviteGroupId === g.id ? { ...i, inviteGroupId: null } : i),
+      });
+    } catch {
+      this.groupError.set('Could not delete group.');
+    }
+  }
+  async setInviteGroup(invite: Invite, groupId: number | null): Promise<void> {
+    const ev = this.event();
+    if (!ev) return;
+    try {
+      const updated = await this.api.setInviteGroup(ev.id, invite.id, groupId ?? null);
+      this.event.set({ ...ev, invites: ev.invites.map(i => i.id === updated.id ? updated : i) });
+    } catch {
+      this.groupError.set('Could not change invitee group.');
     }
   }
 

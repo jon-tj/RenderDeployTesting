@@ -8,6 +8,17 @@ public enum EventType
     FamilyGathering = 1
 }
 
+// Visibility of an event:
+//   Closed  - default; only invitees (and ancestors if InheritParentInvites) see it.
+//   Open    - any authenticated user can view (no invite needed).
+//   Private - only the owner can view; the event is hidden from invitees too.
+public enum EventVisibility
+{
+    Closed = 0,
+    Open = 1,
+    Private = 2,
+}
+
 public class CalendarEvent
 {
     public int Id { get; set; }
@@ -54,6 +65,14 @@ public class CalendarEvent
     // When true, any user who can see this event can also upload Album
     // images. Banner and Icon uploads remain owner-only regardless.
     public bool AllowGuestAlbumUploads { get; set; }
+
+    // When true, non-owner participants can see the full invitee list. When
+    // false, only the event owner sees it. Default is true to preserve the
+    // historical behaviour for events created before this flag existed.
+    public bool ShowInviteesToGuests { get; set; } = true;
+
+    // Controls who can view this event. See EventVisibility.
+    public EventVisibility Visibility { get; set; } = EventVisibility.Closed;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 

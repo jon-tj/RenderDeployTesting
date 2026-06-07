@@ -184,23 +184,25 @@ interface ChildRsvpState {
           }
         }
 
-        <section class="card">
-          <h2>Invitees ({{ ev.invites.length }})</h2>
-          @if (!ev.invites.length) {
-            <p class="muted">No invitees yet.</p>
-          } @else {
-            <ul class="invites">
-              @for (i of ev.invites; track i.id) {
-                <li>
-                  <strong>{{ i.inviteeDisplayName || i.inviteeEmail }}</strong>
-                  <span class="badge">{{ i.status }}</span>
-                  @if (i.mealChoice) { <span class="chip">Meal: {{ i.mealChoice }}</span> }
-                  @if (i.drinkChoice) { <span class="chip">Drink: {{ i.drinkChoice }}</span> }
-                </li>
-              }
-            </ul>
-          }
-        </section>
+        @if (ev.isOwner || ev.showInviteesToGuests) {
+          <section class="card">
+            <h2>Invitees ({{ ev.invites.length }})</h2>
+            @if (!ev.invites.length) {
+              <p class="muted">No invitees yet.</p>
+            } @else {
+              <ul class="invites">
+                @for (i of ev.invites; track i.id) {
+                  <li>
+                    <strong>{{ i.inviteeDisplayName || i.inviteeEmail }}</strong>
+                    <span class="badge">{{ i.status }}</span>
+                    @if (i.mealChoice) { <span class="chip">Meal: {{ i.mealChoice }}</span> }
+                    @if (i.drinkChoice) { <span class="chip">Drink: {{ i.drinkChoice }}</span> }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
       }
     </main>
   `,

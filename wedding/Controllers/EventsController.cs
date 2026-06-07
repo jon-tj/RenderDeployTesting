@@ -183,6 +183,8 @@ public class EventsController : ControllerBase
         if (dto.InheritParentInvites.HasValue) ev.InheritParentInvites = dto.InheritParentInvites.Value;
         if (dto.CollectChildRsvps.HasValue) ev.CollectChildRsvps = dto.CollectChildRsvps.Value;
         if (dto.AllowGuestAlbumUploads.HasValue) ev.AllowGuestAlbumUploads = dto.AllowGuestAlbumUploads.Value;
+        if (dto.ShowInviteesToGuests.HasValue) ev.ShowInviteesToGuests = dto.ShowInviteesToGuests.Value;
+        if (dto.Visibility.HasValue) ev.Visibility = dto.Visibility.Value;
 
         if (dto.ParentEventId.HasValue)
         {
@@ -545,6 +547,11 @@ public class EventsController : ControllerBase
     {
         if (!seen.Add(ev.Id)) return false;
         if (ev.CreatedById == uid) return true;
+        // Private hides the event from everyone except the owner. Open lets
+        // any authenticated user see it. Closed falls through to the
+        // invite/inheritance logic below.
+        if (ev.Visibility == EventVisibility.Private) return false;
+        if (ev.Visibility == EventVisibility.Open) return true;
         if (ev.Invites.Any(i => i.InviteeId == uid)) return true;
         if (ev.InheritParentInvites && ev.ParentEventId.HasValue
             && byId.TryGetValue(ev.ParentEventId.Value, out var parent))
@@ -561,6 +568,10 @@ public class EventsController : ControllerBase
         while (current is not null && seen.Add(current.Id))
         {
             if (current.CreatedById == uid) return true;
+            // Private/Open short-circuit on the current node only — ancestor
+            // visibility flags don't override descendant ones.
+            if (current.Visibility == EventVisibility.Private && current.Id == ev.Id) return false;
+            if (current.Visibility == EventVisibility.Open && current.Id == ev.Id) return true;
             var invites = current.Invites?.Count > 0
                 ? current.Invites
                 : await _db.Invites.Where(i => i.EventId == current.Id).ToListAsync();
@@ -626,6 +637,8 @@ public sealed record EventDetailDto(
     bool InheritParentInvites,
     bool CollectChildRsvps,
     bool AllowGuestAlbumUploads,
+    bool ShowInviteesToGuests,
+    EventVisibility Visibility,
     List<ChildEventDto> Children,
     List<InviteDto> Invites,
     InviteDto? MyInvite,
@@ -633,8 +646,14 @@ public sealed record EventDetailDto(
 {
     public static EventDetailDto From(CalendarEvent e, string currentUserId)
     {
-        var invites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
-        var mine = invites.FirstOrDefault(i => i.InviteeId == currentUserId);
+        var isOwner = e.CreatedById == currentUserId;
+        var allInvites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
+        var mine = allInvites.FirstOrDefault(i => i.InviteeId == currentUserId);
+        // Non-owners only see the invitee list when the event is configured
+        // to expose it. They always see their own invite (via MyInvite).
+        var invites = isOwner || e.ShowInviteesToGuests
+            ? allInvites
+            : new List<InviteDto>();
         var children = e.Children
             .OrderBy(c => c.StartUtc)
             .Select(c => ChildEventDto.From(c, currentUserId))
@@ -648,7 +667,7 @@ public sealed record EventDetailDto(
             e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
             e.CreatedById,
             e.CreatedBy?.DisplayName ?? string.Empty,
-            e.CreatedById == currentUserId,
+            isOwner,
             e.MealOptions.ToList(),
             e.DrinkOptions.ToList(),
             e.ParentEventId,
@@ -656,6 +675,8 @@ public sealed record EventDetailDto(
             e.InheritParentInvites,
             e.CollectChildRsvps,
             e.AllowGuestAlbumUploads,
+            e.ShowInviteesToGuests,
+            e.Visibility,
             children,
             invites,
             mine,
@@ -758,6 +779,8 @@ public sealed class UpdateEventDto
     public bool? InheritParentInvites { get; set; }
     public bool? CollectChildRsvps { get; set; }
     public bool? AllowGuestAlbumUploads { get; set; }
+    public bool? ShowInviteesToGuests { get; set; }
+    public EventVisibility? Visibility { get; set; }
 }
 
 public sealed class AddInviteDto

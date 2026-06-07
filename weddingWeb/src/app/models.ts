@@ -21,6 +21,9 @@ export const DIETARY_PREFERENCES: DietaryPreference[] = ['None', 'Vegan', 'Veget
 export type EventType = 'Wedding' | 'FamilyGathering';
 export const EVENT_TYPES: EventType[] = ['Wedding', 'FamilyGathering'];
 
+export type EventVisibility = 'Closed' | 'Open' | 'Private';
+export const EVENT_VISIBILITIES: EventVisibility[] = ['Closed', 'Open', 'Private'];
+
 export type InviteStatus = 'Pending' | 'Accepted' | 'Declined' | 'Maybe';
 
 export type ImageRole = 'Banner' | 'Album' | 'Icon';
@@ -110,6 +113,8 @@ export interface EventDetail {
   inheritParentInvites: boolean;
   collectChildRsvps: boolean;
   allowGuestAlbumUploads: boolean;
+  showInviteesToGuests: boolean;
+  visibility: EventVisibility;
   children: ChildEvent[];
   invites: Invite[];
   myInvite: Invite | null;

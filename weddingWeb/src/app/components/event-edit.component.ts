@@ -7,7 +7,7 @@ import { ChildPickerComponent } from './child-picker.component';
 import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, ChildEvent, EventDetail, EventImage, EventSummary, EventType, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, EventDetail, EventImage, EventSummary, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
@@ -64,7 +64,17 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventImage, EventSummary, EventTy
             <label>End
               <input type="datetime-local" name="end" [(ngModel)]="endLocal" [disabled]="!ev.isOwner" (change)="save()" />
             </label>
+            <label>Visibility
+              <select name="visibility" [(ngModel)]="visibility" [disabled]="!ev.isOwner" (change)="saveVisibility()">
+                @for (v of allVisibilities; track v) {
+                  <option [value]="v">{{ visibilityLabel(v) }}</option>
+                }
+              </select>
+            </label>
           </div>
+          @if (ev.isOwner) {
+            <p class="muted small">{{ visibilityHelp(visibility) }}</p>
+          }
           <label class="block">Description
             <textarea name="description" rows="4" [(ngModel)]="description" [disabled]="!ev.isOwner" (blur)="save()"></textarea>
           </label>
@@ -88,6 +98,13 @@ import { EVENT_TYPES, ChildEvent, EventDetail, EventImage, EventSummary, EventTy
         <section class="card">
           <h2>Invites</h2>
           @if (ev.isOwner) {
+            <label class="check">
+              <input type="checkbox" name="showInvitees"
+                [(ngModel)]="showInviteesToGuests"
+                (change)="saveShowInviteesToGuests()" />
+              Show invitee list to participants
+            </label>
+            <p class="muted small">When off, only you (the owner) can see who else is invited. Participants still see their own RSVP.</p>
             <app-invite-picker [nextPath]="'/event/' + ev.id" (picked)="addInvite($event)" />
           }
           @if (!ev.invites.length) {
@@ -301,6 +318,9 @@ export class EventEditComponent implements OnInit {
   protected inheritParentInvites = false;
   protected collectChildRsvps = true;
   protected allowGuestAlbumUploads = false;
+  protected showInviteesToGuests = true;
+  protected visibility: EventVisibility = 'Closed';
+  protected readonly allVisibilities = EVENT_VISIBILITIES;
 
   // New-image upload form
   protected newImageRole: ImageRole = 'Album';
@@ -361,6 +381,8 @@ export class EventEditComponent implements OnInit {
     this.inheritParentInvites = ev.inheritParentInvites;
     this.collectChildRsvps = ev.collectChildRsvps;
     this.allowGuestAlbumUploads = ev.allowGuestAlbumUploads;
+    this.showInviteesToGuests = ev.showInviteesToGuests;
+    this.visibility = ev.visibility;
   }
 
   async save(): Promise<void> {
@@ -494,6 +516,46 @@ export class EventEditComponent implements OnInit {
       this.savedAt.set(Date.now());
     } catch (e: any) {
       this.error.set('Could not update album upload setting.');
+    }
+  }
+
+  async saveShowInviteesToGuests(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    try {
+      const updated = await this.api.updateEvent(ev.id, { showInviteesToGuests: this.showInviteesToGuests });
+      this.apply(updated);
+      this.savedAt.set(Date.now());
+    } catch (e: any) {
+      this.error.set('Could not update invitee visibility setting.');
+    }
+  }
+
+  async saveVisibility(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    try {
+      const updated = await this.api.updateEvent(ev.id, { visibility: this.visibility });
+      this.apply(updated);
+      this.savedAt.set(Date.now());
+    } catch (e: any) {
+      this.error.set('Could not update visibility setting.');
+    }
+  }
+
+  protected visibilityLabel(v: EventVisibility): string {
+    switch (v) {
+      case 'Open': return 'Open — everyone can view';
+      case 'Closed': return 'Closed — invitees only';
+      case 'Private': return 'Private — only you';
+    }
+  }
+
+  protected visibilityHelp(v: EventVisibility): string {
+    switch (v) {
+      case 'Open': return 'Any signed-in user can view this event without an invite.';
+      case 'Closed': return 'Only people you invite (and ancestors that opt to inherit) can view.';
+      case 'Private': return 'Hidden from everyone except you. Existing invitees won’t see it until you change this back.';
     }
   }
 

@@ -15,4 +15,13 @@
     <PackageReference Include="Resend" Version="0.5.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Emails\**\*.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Emails\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,34 @@
+{
+  "default_title": "Vårt arrangement",
+  "dear_friend": "Kjære venn",
+  "your_hosts": "Vertskapet",
+  "a_familyhub_member": "Et FamilyHub-medlem",
+  "there": "du",
+
+  "subject_wedding": "Du er invitert \u2014 {0}",
+  "subject_generic": "Invitasjon: {0}",
+
+  "with_love_comma": "med kjærlighet,",
+  "you_are_invited": "du er invitert",
+  "save_the_date": "sett av datoen",
+  "dearest_prefix": "Kjæreste ",
+  "wedding_invite_tail": " vil bli beæret over å ha deg med på sin store dag.",
+  "wedding_cta_signed_in": "Se invitasjonen",
+  "wedding_cta_onboard": "Åpne invitasjonen din",
+  "wedding_hint_signed_in": "Logg inn med kontoen din for å svare.",
+  "wedding_hint_onboard": "Vi har opprettet en konto for deg \u2014 følg lenken for å fullføre innloggingen og svare.",
+  "with_love_heart": "med kjærlighet \u2665",
+  "fallback_link": "Hvis knappen ikke virker, kopier denne lenken:",
+
+  "youre_invited": "Du er invitert",
+  "from_label": "fra",
+  "when_label": "Når",
+  "where_label": "Hvor",
+  "hi_prefix": "Hei ",
+  "youve_been_invited_tail": ", du er invitert til dette arrangementet.",
+  "generic_cta_signed_in": "Se arrangement",
+  "generic_cta_onboard": "Opprett kontoen din",
+  "generic_hint_signed_in": "Logg inn med din eksisterende FamilyHub-konto for å svare.",
+  "generic_hint_onboard": "Vi har klargjort en konto for deg \u2014 følg lenken for å sette et passord og svare.",
+  "trouble_link": "Problemer med knappen? Kopier denne lenken:"
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{lang}}"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{title}}</title></head>
+<body style="margin:0;padding:0;background:#f3ead6;font-family:Georgia,'Cormorant Garamond',serif;color:#3a3327;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3ead6;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fbf6ec;border:1px solid #ead9b3;border-radius:6px;overflow:hidden;">
+        <tr><td style="padding:36px 36px 8px;text-align:center;">
+          <div style="font-family:'Brush Script MT','Apple Chancery',cursive;font-size:1.6rem;color:#8a6f3a;letter-spacing:.02em;">{{with_love_comma}}</div>
+          <div style="font-size:.72rem;letter-spacing:.32em;text-transform:uppercase;color:#a08755;margin-top:8px;">{{you_are_invited}}</div>
+          <h1 style="font-family:'Brush Script MT','Apple Chancery',cursive;font-weight:400;font-size:2.6rem;color:#3a3327;margin:14px 0 6px;line-height:1.05;">{{title}}</h1>
+          <div style="font-style:italic;color:#7a6a4a;letter-spacing:.16em;text-transform:lowercase;font-size:.78rem;">{{save_the_date}}</div>
+        </td></tr>
+        <tr><td style="padding:0 36px;">
+          <hr style="border:none;border-top:1px solid #ead9b3;margin:24px 0;" />
+        </td></tr>
+        <tr><td style="padding:0 36px;text-align:center;line-height:1.7;font-size:1rem;color:#4a402d;">
+          <p style="margin:0 0 12px;">{{dearest_prefix}}{{who}},</p>
+          <p style="margin:0 0 12px;">{{hosts}}{{wedding_invite_tail}}</p>
+        </td></tr>
+        <tr><td style="padding:24px 36px 8px;text-align:center;">
+          <div style="font-family:'Brush Script MT','Apple Chancery',cursive;font-size:1.6rem;color:#8a6f3a;line-height:1;">{{when}}</div>
+          {{where_block}}
+        </td></tr>
+        <tr><td style="padding:32px 36px;text-align:center;">
+          <a href="{{link}}" style="display:inline-block;background:#3a3327;color:#fbf6ec;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;">{{cta}}</a>
+          <p style="margin:18px 0 0;font-size:.85rem;color:#7a6a4a;">{{hint}}</p>
+        </td></tr>
+        <tr><td style="padding:0 36px 36px;text-align:center;">
+          <hr style="border:none;border-top:1px solid #ead9b3;margin:0 0 16px;" />
+          <div style="font-family:'Brush Script MT','Apple Chancery',cursive;font-size:1.4rem;color:#8a6f3a;">{{with_love_heart}}</div>
+        </td></tr>
+      </table>
+      <div style="max-width:560px;margin:14px auto 0;font-size:.72rem;color:#a08755;text-align:center;">
+        {{fallback_link}} <span style="word-break:break-all;">{{link}}</span>
+      </div>
+    </td></tr>
+  </table>
+</body></html>

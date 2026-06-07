@@ -1,0 +1,34 @@
+{
+  "default_title": "Our event",
+  "dear_friend": "Dear friend",
+  "your_hosts": "Your hosts",
+  "a_familyhub_member": "A FamilyHub member",
+  "there": "there",
+
+  "subject_wedding": "You're invited \u2014 {0}",
+  "subject_generic": "Invitation: {0}",
+
+  "with_love_comma": "with love,",
+  "you_are_invited": "you are invited",
+  "save_the_date": "save the date",
+  "dearest_prefix": "Dearest ",
+  "wedding_invite_tail": " would be honoured to have you join them on their special day.",
+  "wedding_cta_signed_in": "View the invitation",
+  "wedding_cta_onboard": "Open your invitation",
+  "wedding_hint_signed_in": "Sign in with your account to RSVP.",
+  "wedding_hint_onboard": "We've set up an account for you \u2014 follow the link to finish signing in and RSVP.",
+  "with_love_heart": "with love \u2665",
+  "fallback_link": "If the button doesn't work, copy this link:",
+
+  "youre_invited": "You're invited",
+  "from_label": "from",
+  "when_label": "When",
+  "where_label": "Where",
+  "hi_prefix": "Hi ",
+  "youve_been_invited_tail": ", you've been invited to this event.",
+  "generic_cta_signed_in": "View event",
+  "generic_cta_onboard": "Set up your account",
+  "generic_hint_signed_in": "Sign in with your existing FamilyHub account to RSVP.",
+  "generic_hint_onboard": "We've prepared an account for you \u2014 follow the link to set a password and RSVP.",
+  "trouble_link": "Trouble with the button? Copy this link:"
+}

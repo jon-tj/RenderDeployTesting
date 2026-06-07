@@ -1,0 +1,34 @@
+{
+  "default_title": "Nosso evento",
+  "dear_friend": "Querido amigo",
+  "your_hosts": "Os anfitriões",
+  "a_familyhub_member": "Um membro do FamilyHub",
+  "there": "olá",
+
+  "subject_wedding": "Você está convidado \u2014 {0}",
+  "subject_generic": "Convite: {0}",
+
+  "with_love_comma": "com amor,",
+  "you_are_invited": "você está convidado",
+  "save_the_date": "reserve a data",
+  "dearest_prefix": "Querido(a) ",
+  "wedding_invite_tail": " ficarão honrados em ter você presente neste dia especial.",
+  "wedding_cta_signed_in": "Ver o convite",
+  "wedding_cta_onboard": "Abrir seu convite",
+  "wedding_hint_signed_in": "Entre na sua conta para confirmar presença.",
+  "wedding_hint_onboard": "Criamos uma conta para você \u2014 siga o link para finalizar o cadastro e confirmar presença.",
+  "with_love_heart": "com amor \u2665",
+  "fallback_link": "Se o botão não funcionar, copie este link:",
+
+  "youre_invited": "Você está convidado",
+  "from_label": "de",
+  "when_label": "Quando",
+  "where_label": "Onde",
+  "hi_prefix": "Olá ",
+  "youve_been_invited_tail": ", você foi convidado para este evento.",
+  "generic_cta_signed_in": "Ver evento",
+  "generic_cta_onboard": "Configurar sua conta",
+  "generic_hint_signed_in": "Entre com sua conta FamilyHub para confirmar presença.",
+  "generic_hint_onboard": "Preparamos uma conta para você \u2014 siga o link para definir uma senha e confirmar presença.",
+  "trouble_link": "Problemas com o botão? Copie este link:"
+}

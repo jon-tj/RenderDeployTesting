@@ -61,7 +61,7 @@ interface ChildRsvpState {
           <p><strong>Start:</strong> {{ formatDate(ev.startUtc) }}</p>
           <p><strong>End:</strong> {{ formatDate(ev.endUtc) }}</p>
           @if (ev.location) {
-            <p><strong>Location:</strong> {{ ev.location }}</p>
+            <p><strong>Location:</strong> <a [href]="mapsUrl(ev.location)" target="_blank" rel="noopener">{{ ev.location }}</a></p>
           }
           @if (ev.description) {
             <p class="desc">{{ ev.description }}</p>
@@ -144,7 +144,7 @@ interface ChildRsvpState {
               </header>
               <p><strong>Start:</strong> {{ formatDate(c.startUtc) }}</p>
               <p><strong>End:</strong> {{ formatDate(c.endUtc) }}</p>
-              @if (c.location) { <p><strong>Location:</strong> {{ c.location }}</p> }
+              @if (c.location) { <p><strong>Location:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a></p> }
               @if (c.description) { <p class="desc">{{ c.description }}</p> }
 
               @if (childState(c.id); as st) {
@@ -356,6 +356,10 @@ export class EventDetailComponent implements OnInit {
 
   protected formatDate(iso: string): string {
     return new Date(iso).toLocaleString();
+  }
+
+  protected mapsUrl(location: string): string {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   }
 
   async saveRsvp(): Promise<void> {

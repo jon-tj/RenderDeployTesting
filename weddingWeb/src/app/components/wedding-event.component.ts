@@ -99,7 +99,9 @@ interface ChildRsvpState {
                   <div class="t-body">
                     <h3>{{ c.title }}</h3>
                     @if (c.location) {
-                      <p class="t-where">{{ c.location }}</p>
+                      <p class="t-where">
+                        <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ c.location }}</a>
+                      </p>
                     }
                     @if (c.description) {
                       <p class="t-desc">{{ c.description }}</p>
@@ -349,6 +351,10 @@ export class WeddingEventComponent implements OnChanges {
 
   protected openAlbum(img: EventImage): void {
     this.router.navigate(['/event', this.event().id, 'album', img.id]);
+  }
+
+  protected mapsUrl(location: string): string {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
   }
 
   async saveRsvp(): Promise<void> {

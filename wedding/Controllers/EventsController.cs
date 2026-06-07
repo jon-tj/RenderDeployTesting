@@ -59,7 +59,7 @@ public class EventsController : ControllerBase
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
             .Include(e => e.CreatedBy)
             .Include(e => e.ParentEvent)
-            .Include(e => e.Children)
+            .Include(e => e.Children).ThenInclude(c => c.Invites).ThenInclude(i => i.Invitee)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
@@ -176,6 +176,7 @@ public class EventsController : ControllerBase
         if (dto.MealOptions is not null) ev.MealOptions = NormalizeOptions(dto.MealOptions);
         if (dto.DrinkOptions is not null) ev.DrinkOptions = NormalizeOptions(dto.DrinkOptions);
         if (dto.InheritParentInvites.HasValue) ev.InheritParentInvites = dto.InheritParentInvites.Value;
+        if (dto.CollectChildRsvps.HasValue) ev.CollectChildRsvps = dto.CollectChildRsvps.Value;
 
         if (dto.ParentEventId.HasValue)
         {
@@ -268,14 +269,49 @@ public class EventsController : ControllerBase
         var invite = await _db.Invites.FirstOrDefaultAsync(i => i.Id == inviteId && i.EventId == id);
         if (invite is null) return NotFound();
 
+        // Mirror the RSVP ripple: removing a user's invite from the parent
+        // also strips their rippled/inherited RSVP rows from all descendants.
+        // We can't tell rippled rows apart from independent ones, so the
+        // owner is expected to re-add the user on any sub-event they still
+        // want them on. Walks the tree breadth-first; cycle-safe via `seen`.
+        var inviteeId = invite.InviteeId;
+        var descendantIds = new List<int>();
+        var seen = new HashSet<int> { id };
+        var frontier = new List<int> { id };
+        while (frontier.Count > 0)
+        {
+            var children = await _db.Events
+                .Where(e => e.ParentEventId != null && frontier.Contains(e.ParentEventId.Value))
+                .Select(e => e.Id)
+                .ToListAsync();
+            var next = new List<int>();
+            foreach (var cid in children)
+            {
+                if (seen.Add(cid))
+                {
+                    descendantIds.Add(cid);
+                    next.Add(cid);
+                }
+            }
+            frontier = next;
+        }
+
         _db.Invites.Remove(invite);
+        if (descendantIds.Count > 0)
+        {
+            var descendantInvites = await _db.Invites
+                .Where(i => i.InviteeId == inviteeId && descendantIds.Contains(i.EventId))
+                .ToListAsync();
+            _db.Invites.RemoveRange(descendantInvites);
+        }
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
-    // Lets an invitee set their own RSVP / meal / drink. The creator can't
-    // use this endpoint to set someone else's response unless they also
-    // invited themselves.
+    // Lets an invitee set their own RSVP / meal / drink. If the user has no
+    // direct invite row but can see the event via inheritance, we create one
+    // on the fly. When the event is in "collected" mode, the status ripples
+    // to all child events (creating child invite rows as needed).
     [HttpPut("{id:int}/rsvp")]
     public async Task<ActionResult<InviteDto>> Rsvp(int id, [FromBody] RsvpDto dto)
     {
@@ -284,11 +320,27 @@ public class EventsController : ControllerBase
 
         var ev = await _db.Events
             .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.ParentEvent)
+            .Include(e => e.Children).ThenInclude(c => c.Invites)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
+        if (!await IsVisibleViaInheritanceAsync(ev, uid))
+            return Forbid();
+
         var invite = ev.Invites.FirstOrDefault(i => i.InviteeId == uid);
-        if (invite is null) return Forbid();
+        if (invite is null)
+        {
+            invite = new EventInvite
+            {
+                EventId = ev.Id,
+                InviteeId = uid,
+                Status = InviteStatus.Pending,
+            };
+            ev.Invites.Add(invite);
+            _db.Invites.Add(invite);
+            await _db.Entry(invite).Reference(i => i.Invitee).LoadAsync();
+        }
 
         if (dto.Status.HasValue) invite.Status = dto.Status.Value;
 
@@ -309,7 +361,33 @@ public class EventsController : ControllerBase
             else return BadRequest("Drink choice is not one of the available options.");
         }
 
+        // Ripple status only — children have their own meal/drink option lists.
+        if (ev.CollectChildRsvps && dto.Status.HasValue)
+        {
+            foreach (var child in ev.Children)
+            {
+                var childInvite = child.Invites.FirstOrDefault(i => i.InviteeId == uid);
+                if (childInvite is null)
+                {
+                    childInvite = new EventInvite
+                    {
+                        EventId = child.Id,
+                        InviteeId = uid,
+                        Status = dto.Status.Value,
+                    };
+                    child.Invites.Add(childInvite);
+                    _db.Invites.Add(childInvite);
+                }
+                else
+                {
+                    childInvite.Status = dto.Status.Value;
+                }
+            }
+        }
+
         await _db.SaveChangesAsync();
+        if (invite.Invitee is null)
+            await _db.Entry(invite).Reference(i => i.Invitee).LoadAsync();
         return InviteDto.From(invite, invite.Invitee);
     }
 
@@ -408,7 +486,8 @@ public sealed record EventDetailDto(
     int? ParentEventId,
     string? ParentEventTitle,
     bool InheritParentInvites,
-    List<EventSummaryDto> Children,
+    bool CollectChildRsvps,
+    List<ChildEventDto> Children,
     List<InviteDto> Invites,
     InviteDto? MyInvite)
 {
@@ -418,8 +497,7 @@ public sealed record EventDetailDto(
         var mine = invites.FirstOrDefault(i => i.InviteeId == currentUserId);
         var children = e.Children
             .OrderBy(c => c.StartUtc)
-            .Select(c => new EventSummaryDto(
-                c.Id, c.Type, c.Title, c.StartUtc, c.EndUtc, c.Location, c.CreatedById == currentUserId))
+            .Select(c => ChildEventDto.From(c, currentUserId))
             .ToList();
         return new(
             e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
@@ -431,8 +509,39 @@ public sealed record EventDetailDto(
             e.ParentEventId,
             e.ParentEvent?.Title,
             e.InheritParentInvites,
+            e.CollectChildRsvps,
             children,
             invites,
+            mine);
+    }
+}
+
+// A child event surfaced on the parent detail. Carries enough to render the
+// per-child RSVP card on the view page without a second round-trip.
+public sealed record ChildEventDto(
+    int Id,
+    EventType Type,
+    string Title,
+    string Description,
+    string Location,
+    DateTime StartUtc,
+    DateTime EndUtc,
+    bool IsOwner,
+    List<string> MealOptions,
+    List<string> DrinkOptions,
+    InviteDto? MyInvite)
+{
+    public static ChildEventDto From(CalendarEvent c, string currentUserId)
+    {
+        var mine = c.Invites?
+            .Where(i => i.InviteeId == currentUserId)
+            .Select(i => InviteDto.From(i, i.Invitee))
+            .FirstOrDefault();
+        return new(
+            c.Id, c.Type, c.Title, c.Description, c.Location, c.StartUtc, c.EndUtc,
+            c.CreatedById == currentUserId,
+            c.MealOptions.ToList(),
+            c.DrinkOptions.ToList(),
             mine);
     }
 }
@@ -479,6 +588,7 @@ public sealed class UpdateEventDto
     // positive id = attach as child of that event.
     public int? ParentEventId { get; set; }
     public bool? InheritParentInvites { get; set; }
+    public bool? CollectChildRsvps { get; set; }
 }
 
 public sealed class AddInviteDto

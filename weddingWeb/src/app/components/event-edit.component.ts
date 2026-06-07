@@ -6,7 +6,7 @@ import { InvitePickerComponent } from './invite-picker.component';
 import { ChildPickerComponent } from './child-picker.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
+import { EVENT_TYPES, ChildEvent, EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
 
 @Component({
   selector: 'app-event-edit',
@@ -121,6 +121,16 @@ import { EVENT_TYPES, EventDetail, EventSummary, EventType, Invite, UserSummary 
             @if (ev.isOwner) {
               <app-child-picker [parentId]="ev.id" (added)="onChildAdded($event)" />
             }
+            @if (ev.children.length) {
+              <label class="check">
+                <input type="checkbox" name="collect"
+                  [(ngModel)]="collectChildRsvps"
+                  [disabled]="!ev.isOwner"
+                  (change)="saveCollectChildRsvps()" />
+                Collect RSVPs across all child events
+              </label>
+              <p class="muted small">When on, invitees give one RSVP on this event and it applies to every child. When off, the view page hides this event's RSVP and asks for one per child event.</p>
+            }
             @if (!ev.children.length) {
               <p class="muted">No child events yet.</p>
             } @else {
@@ -196,6 +206,7 @@ export class EventEditComponent implements OnInit {
   protected mealOptionsText = '';
   protected drinkOptionsText = '';
   protected inheritParentInvites = false;
+  protected collectChildRsvps = true;
 
   async ngOnInit(): Promise<void> {
     // Subscribe so navigating between two /event/:id/edit URLs (e.g. via the
@@ -246,6 +257,7 @@ export class EventEditComponent implements OnInit {
     this.mealOptionsText = ev.mealOptions.join('\n');
     this.drinkOptionsText = ev.drinkOptions.join('\n');
     this.inheritParentInvites = ev.inheritParentInvites;
+    this.collectChildRsvps = ev.collectChildRsvps;
   }
 
   async save(): Promise<void> {
@@ -298,15 +310,28 @@ export class EventEditComponent implements OnInit {
   onChildAdded(child: EventSummary): void {
     const ev = this.event();
     if (!ev) return;
+    const asChild: ChildEvent = {
+      id: child.id,
+      type: child.type,
+      title: child.title,
+      description: '',
+      location: child.location,
+      startUtc: child.startUtc,
+      endUtc: child.endUtc,
+      isOwner: child.isOwner,
+      mealOptions: [],
+      drinkOptions: [],
+      myInvite: null,
+    };
     const next: EventDetail = {
       ...ev,
-      children: [...ev.children.filter(c => c.id !== child.id), child]
+      children: [...ev.children.filter(c => c.id !== asChild.id), asChild]
         .sort((a, b) => a.startUtc.localeCompare(b.startUtc)),
     };
     this.event.set(next);
   }
 
-  async detachChild(child: EventSummary): Promise<void> {
+  async detachChild(child: ChildEvent): Promise<void> {
     const ev = this.event();
     if (!ev) return;
     try {
@@ -326,6 +351,18 @@ export class EventEditComponent implements OnInit {
       this.savedAt.set(Date.now());
     } catch (e: any) {
       this.error.set('Could not update inheritance.');
+    }
+  }
+
+  async saveCollectChildRsvps(): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    try {
+      const updated = await this.api.updateEvent(ev.id, { collectChildRsvps: this.collectChildRsvps });
+      this.apply(updated);
+      this.savedAt.set(Date.now());
+    } catch (e: any) {
+      this.error.set('Could not update RSVP collection.');
     }
   }
 

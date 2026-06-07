@@ -63,6 +63,20 @@ export interface Invite {
   drinkChoice: string | null;
 }
 
+export interface ChildEvent {
+  id: number;
+  type: EventType;
+  title: string;
+  description: string;
+  location: string;
+  startUtc: string;
+  endUtc: string;
+  isOwner: boolean;
+  mealOptions: string[];
+  drinkOptions: string[];
+  myInvite: Invite | null;
+}
+
 export interface EventDetail {
   id: number;
   type: EventType;
@@ -79,7 +93,8 @@ export interface EventDetail {
   parentEventId: number | null;
   parentEventTitle: string | null;
   inheritParentInvites: boolean;
-  children: EventSummary[];
+  collectChildRsvps: boolean;
+  children: ChildEvent[];
   invites: Invite[];
   myInvite: Invite | null;
 }

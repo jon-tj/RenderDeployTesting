@@ -45,6 +45,12 @@ public class CalendarEvent
     // ParentEventId is set; ignored otherwise.
     public bool InheritParentInvites { get; set; }
 
+    // When true, RSVPs made on this event ripple down to every child invite
+    // for the same user and the view page shows one RSVP card. When false,
+    // the view hides the parent RSVP and shows a per-child RSVP form.
+    // Only meaningful when the event has children.
+    public bool CollectChildRsvps { get; set; } = true;
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();

@@ -1,330 +1,260 @@
+using FamilyHub.Data;
+using FamilyHub.Model;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using wedding.Data;
-using wedding.Model;
+using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
-namespace wedding.Controllers;
+namespace FamilyHub.Controllers;
 
 [ApiController]
-[Route("api")]
-public sealed class EventsController : ControllerBase
+[Route("api/events")]
+[Authorize]
+public class EventsController : ControllerBase
 {
-    [HttpPost("event/rsvp")]
-    public ActionResult SaveRsvp([FromBody] RsvpRequest request, [FromServices] JsonDatabase database)
+    private readonly AppDbContext _db;
+    private readonly UserManager<AppUser> _users;
+
+    public EventsController(AppDbContext db, UserManager<AppUser> users)
     {
-        if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.Status))
-        {
-            return BadRequest(false);
-        }
-
-        var user = database.Users.FirstOrDefault(u =>
-            string.Equals(u.FullName, request.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (user is null)
-        {
-            return NotFound(false);
-        }
-
-        if (string.IsNullOrWhiteSpace(request.EventPlace))
-        {
-            return BadRequest(false);
-        }
-
-        var weddingEvent = database.Events.FirstOrDefault(e =>
-            string.Equals(e.Place, request.EventPlace.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (weddingEvent is null)
-        {
-            return NotFound(false);
-        }
-
-        var key = weddingEvent.Place;
-        if (!user.EventChoices.TryGetValue(key, out var choice))
-        {
-            choice = new GuestEventChoice();
-            user.EventChoices[key] = choice;
-        }
-        choice.Rsvp = request.Status.Trim();
-        database.Commit();
-
-        return Ok(ToEventResponses(database.Events, database.Users));
+        _db = db;
+        _users = users;
     }
 
-    [HttpPost("calendar/added")]
-    public ActionResult<bool> SetCalendarAdded([FromBody] CalendarAddedRequest request, [FromServices] JsonDatabase database)
+    // Events visible to the current user: created by them OR they're invited.
+    [HttpGet]
+    public async Task<ActionResult<List<EventSummaryDto>>> List(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to)
     {
-        if (string.IsNullOrWhiteSpace(request.FullName))
-        {
-            return BadRequest(false);
-        }
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
 
-        var user = database.Users.FirstOrDefault(u =>
-            string.Equals(u.FullName, request.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
+        var q = _db.Events
+            .Include(e => e.Invites)
+            .Where(e => e.CreatedById == uid || e.Invites.Any(i => i.InviteeId == uid));
 
-        if (user is null)
-        {
-            return NotFound(false);
-        }
+        if (from.HasValue) q = q.Where(e => e.EndUtc >= from.Value);
+        if (to.HasValue) q = q.Where(e => e.StartUtc <= to.Value);
 
-        if (user.AddedToCalendar != request.Added)
-        {
-            user.AddedToCalendar = request.Added;
-            database.Commit();
-        }
-
-        return Ok(true);
+        return await q
+            .OrderBy(e => e.StartUtc)
+            .Select(e => new EventSummaryDto(
+                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location, e.CreatedById == uid))
+            .ToListAsync();
     }
 
-    [HttpPost("user/allergies")]
-    public ActionResult<List<string>> SaveAllergies(
-        [FromBody] AllergiesRequest request,
-        [FromServices] JsonDatabase database)
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<EventDetailDto>> Get(int id)
     {
-        if (string.IsNullOrWhiteSpace(request.FullName))
-        {
-            return BadRequest();
-        }
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
 
-        var user = database.Users.FirstOrDefault(u =>
-            string.Equals(u.FullName, request.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
+        var ev = await _db.Events
+            .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.CreatedBy)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
 
-        if (user is null)
-        {
-            return NotFound();
-        }
-
-        var cleaned = (request.Allergies ?? new List<string>())
-            .Select(a => a?.Trim() ?? string.Empty)
-            .Where(a => !string.IsNullOrWhiteSpace(a))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        user.Allergies = cleaned;
-        database.Commit();
-
-        return Ok(user.Allergies);
-    }
-
-    [HttpPost("user/event-choice")]
-    public ActionResult<GuestEventChoice> SetEventChoice(
-        [FromBody] EventChoiceRequest request,
-        [FromServices] JsonDatabase database)
-    {
-        if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.EventPlace))
-        {
-            return BadRequest();
-        }
-
-        var user = database.Users.FirstOrDefault(u =>
-            string.Equals(u.FullName, request.FullName.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (user is null)
-        {
-            return NotFound();
-        }
-
-        var weddingEvent = database.Events.FirstOrDefault(e =>
-            string.Equals(e.Place, request.EventPlace.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (weddingEvent is null)
-        {
-            return NotFound();
-        }
-
-        var key = weddingEvent.Place;
-        if (!user.EventChoices.TryGetValue(key, out var existing))
-        {
-            existing = new GuestEventChoice();
-            user.EventChoices[key] = existing;
-        }
-
-        if (request.Meal is not null)
-        {
-            existing.Meal = request.Meal.Trim();
-        }
-        if (request.Drink is not null)
-        {
-            existing.Drink = request.Drink.Trim();
-        }
-
-        database.Commit();
-
-        return Ok(existing);
-    }
-
-    [HttpGet("admin/event-allergies")]
-    public ActionResult<EventAllergyReport> GetEventAllergyReport(
-        [FromQuery] string adminFullName,
-        [FromQuery] string eventPlace,
-        [FromServices] JsonDatabase database)
-    {
-        if (string.IsNullOrWhiteSpace(adminFullName) || string.IsNullOrWhiteSpace(eventPlace))
-        {
-            return BadRequest();
-        }
-
-        var admin = database.Users.FirstOrDefault(u =>
-            string.Equals(u.FullName, adminFullName.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (admin is null || !admin.Admin)
-        {
+        if (ev.CreatedById != uid && !ev.Invites.Any(i => i.InviteeId == uid))
             return Forbid();
-        }
 
-        var weddingEvent = database.Events.FirstOrDefault(e =>
-            string.Equals(e.Place, eventPlace.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (weddingEvent is null)
-        {
-            return NotFound();
-        }
-
-        // Attending = anyone whose RSVP is "yes" or "maybe".
-        var attendingUsers = database.Users
-            .Where(u =>
-            {
-                if (!u.EventChoices.TryGetValue(weddingEvent.Place, out var c)) return false;
-                var status = c.Rsvp;
-                return string.Equals(status, "yes", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(status, "maybe", StringComparison.OrdinalIgnoreCase);
-            })
-            .ToList();
-
-        var mealOptions = ResolveMealOptions(weddingEvent);
-        var drinkOptions = DrinkOptions;
-        var defaultMealKey = mealOptions[0].Type;
-        var defaultDrink = drinkOptions[0];
-
-        string DisplayMealName(string key)
-        {
-            var match = mealOptions.FirstOrDefault(m =>
-                string.Equals(m.Type, key, StringComparison.OrdinalIgnoreCase));
-            if (match is not null && !string.IsNullOrWhiteSpace(match.Name))
-            {
-                return match.Name;
-            }
-            return key;
-        }
-
-        var groups = attendingUsers
-            .Select(u =>
-            {
-                u.EventChoices.TryGetValue(weddingEvent.Place, out var choice);
-                var rawMeal = choice?.Meal?.Trim() ?? string.Empty;
-                var mealKey = string.IsNullOrWhiteSpace(rawMeal) ? defaultMealKey : rawMeal;
-                var allergies = (u.Allergies ?? new List<string>())
-                    .Select(a => a.Trim())
-                    .Where(a => !string.IsNullOrWhiteSpace(a))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(a => a, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                return new { User = u, MealKey = mealKey, Allergies = allergies };
-            })
-            .GroupBy(x => new
-            {
-                Meal = x.MealKey.ToLowerInvariant(),
-                AllergyKey = string.Join("|", x.Allergies.Select(a => a.ToLowerInvariant()))
-            })
-            .Select(g =>
-            {
-                var sample = g.First();
-                return new MealAllergyGroup(
-                    DisplayMealName(sample.MealKey),
-                    sample.Allergies,
-                    g.Count(),
-                    g.Select(x => x.User.FullName).OrderBy(n => n).ToList());
-            })
-            .OrderBy(g => g.Meal, StringComparer.OrdinalIgnoreCase)
-            .ThenByDescending(g => g.Count)
-            .ThenBy(g => string.Join(",", g.Allergies))
-            .ToList();
-
-        List<OptionCount> CountOptions(List<string> options, string defaultValue, Func<GuestEventChoice, string> selector)
-        {
-            var counts = options.ToDictionary(o => o, _ => 0, StringComparer.OrdinalIgnoreCase);
-            foreach (var u in attendingUsers)
-            {
-                u.EventChoices.TryGetValue(weddingEvent.Place, out var choice);
-                var raw = choice is null ? string.Empty : selector(choice);
-                var value = string.IsNullOrWhiteSpace(raw) ? defaultValue : raw;
-                if (counts.ContainsKey(value))
-                {
-                    counts[value]++;
-                }
-                else
-                {
-                    counts[value] = 1;
-                }
-            }
-            return counts.Select(kv => new OptionCount(kv.Key, kv.Value)).ToList();
-        }
-
-        var drinkCounts = CountOptions(drinkOptions, defaultDrink, c => c.Drink);
-
-        return Ok(new EventAllergyReport(
-            weddingEvent.Place,
-            attendingUsers.Count,
-            groups,
-            drinkCounts));
+        return EventDetailDto.From(ev, uid);
     }
 
-    private static readonly List<MealOption> DefaultMealOptions = new()
+    // Create a blank event for the calendar-click flow. The detail page then
+    // PUTs the actual values. Defaults to a 1-hour slot on the requested day.
+    [HttpPost]
+    public async Task<ActionResult<EventDetailDto>> Create([FromBody] CreateEventDto dto)
     {
-        new MealOption { Type = "meat", Name = "Meat", Price = 0m },
-        new MealOption { Type = "fish", Name = "Fish", Price = 0m },
-        new MealOption { Type = "salad", Name = "Salad", Price = 0m },
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var user = await _users.FindByIdAsync(uid);
+        if (user is null) return Unauthorized();
+
+        var start = dto.StartUtc ?? DateTime.UtcNow.Date.AddHours(12);
+        var ev = new CalendarEvent
+        {
+            Type = dto.Type ?? EventType.FamilyGathering,
+            Title = string.IsNullOrWhiteSpace(dto.Title) ? "Untitled event" : dto.Title.Trim(),
+            StartUtc = start,
+            EndUtc = dto.EndUtc ?? start.AddHours(1),
+            CreatedById = uid,
+        };
+
+        if (!CanCreateType(user, ev.Type))
+            return Forbid();
+
+        _db.Events.Add(ev);
+        await _db.SaveChangesAsync();
+
+        await _db.Entry(ev).Reference(e => e.CreatedBy).LoadAsync();
+        return EventDetailDto.From(ev, uid);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<EventDetailDto>> Update(int id, [FromBody] UpdateEventDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events
+            .Include(e => e.Invites).ThenInclude(i => i.Invitee)
+            .Include(e => e.CreatedBy)
+            .FirstOrDefaultAsync(e => e.Id == id);
+        if (ev is null) return NotFound();
+        if (ev.CreatedById != uid) return Forbid();
+
+        if (dto.Type.HasValue)
+        {
+            var user = await _users.FindByIdAsync(uid);
+            if (user is null || !CanCreateType(user, dto.Type.Value)) return Forbid();
+            ev.Type = dto.Type.Value;
+        }
+        if (dto.Title is not null) ev.Title = dto.Title.Trim();
+        if (dto.Description is not null) ev.Description = dto.Description;
+        if (dto.Location is not null) ev.Location = dto.Location;
+        if (dto.StartUtc.HasValue) ev.StartUtc = dto.StartUtc.Value;
+        if (dto.EndUtc.HasValue) ev.EndUtc = dto.EndUtc.Value;
+
+        await _db.SaveChangesAsync();
+        return EventDetailDto.From(ev, uid);
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.FindAsync(id);
+        if (ev is null) return NotFound();
+        if (ev.CreatedById != uid) return Forbid();
+
+        _db.Events.Remove(ev);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id:int}/invites")]
+    public async Task<ActionResult<InviteDto>> AddInvite(int id, [FromBody] AddInviteDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.FindAsync(id);
+        if (ev is null) return NotFound();
+        if (ev.CreatedById != uid) return Forbid();
+
+        var invitee = await _users.FindByIdAsync(dto.UserId);
+        if (invitee is null) return BadRequest("User not found.");
+
+        var existing = await _db.Invites.FirstOrDefaultAsync(i => i.EventId == id && i.InviteeId == dto.UserId);
+        if (existing is not null) return InviteDto.From(existing, invitee);
+
+        var invite = new EventInvite
+        {
+            EventId = id,
+            InviteeId = dto.UserId,
+            Status = InviteStatus.Pending,
+        };
+        _db.Invites.Add(invite);
+        await _db.SaveChangesAsync();
+
+        return InviteDto.From(invite, invitee);
+    }
+
+    [HttpDelete("{id:int}/invites/{inviteId:int}")]
+    public async Task<IActionResult> RemoveInvite(int id, int inviteId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+
+        var ev = await _db.Events.FindAsync(id);
+        if (ev is null) return NotFound();
+        if (ev.CreatedById != uid) return Forbid();
+
+        var invite = await _db.Invites.FirstOrDefaultAsync(i => i.Id == inviteId && i.EventId == id);
+        if (invite is null) return NotFound();
+
+        _db.Invites.Remove(invite);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private static bool CanCreateType(AppUser user, EventType type) => type switch
+    {
+        EventType.Wedding => user.CanCreateWeddingEvent,
+        EventType.FamilyGathering => user.CanCreateFamilyGathering || user.CanCreateWeddingEvent,
+        _ => false,
     };
-    internal static readonly List<string> DrinkOptions = new() { "water", "soda", "alcohol" };
-
-    internal static List<MealOption> ResolveMealOptions(WeddingEvent weddingEvent)
-        => weddingEvent.MealOptions is { Count: > 0 } m ? m : DefaultMealOptions;
-
-    internal static Dictionary<string, string> BuildRsvpMap(List<User> users, string place)
-    {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var u in users)
-        {
-            if (u.EventChoices.TryGetValue(place, out var c) && !string.IsNullOrWhiteSpace(c.Rsvp))
-            {
-                map[u.FullName] = c.Rsvp;
-            }
-        }
-        return map;
-    }
-
-    internal static List<EventsItemResponse> ToEventResponses(List<WeddingEvent> weddingEvents, List<User> users)
-    {
-        return weddingEvents
-            .Select(weddingEvent => new EventsItemResponse(
-                weddingEvent.Place,
-                weddingEvent.VenueName,
-                weddingEvent.MapQuery,
-                weddingEvent.Time,
-                weddingEvent.DressCode,
-                weddingEvent.Currency,
-                ResolveMealOptions(weddingEvent),
-                BuildRsvpMap(users, weddingEvent.Place)))
-            .ToList();
-    }
 }
 
-public sealed record RsvpRequest(string FullName, string EventPlace, string Status);
-public sealed record CalendarAddedRequest(string FullName, bool Added);
-public sealed record AllergiesRequest(string FullName, List<string> Allergies);
-public sealed record EventChoiceRequest(string FullName, string EventPlace, string? Meal, string? Drink);
-public sealed record EventsItemResponse(
-    string Place,
-    string VenueName,
-    string MapQuery,
-    DateTimeOffset Time,
-    string DressCode,
-    string Currency,
-    List<MealOption> MealOptions,
-    Dictionary<string, string> Rsvp);
-public sealed record AllergyGroup(List<string> Allergies, int Count, List<string> Guests);
-public sealed record MealAllergyGroup(string Meal, List<string> Allergies, int Count, List<string> Guests);
-public sealed record OptionCount(string Option, int Count);
-public sealed record EventAllergyReport(
-    string Place,
-    int TotalAttending,
-    List<MealAllergyGroup> Groups,
-    List<OptionCount> DrinkCounts);
+public sealed record EventSummaryDto(
+    int Id,
+    EventType Type,
+    string Title,
+    DateTime StartUtc,
+    DateTime EndUtc,
+    string Location,
+    bool IsOwner);
+
+public sealed record EventDetailDto(
+    int Id,
+    EventType Type,
+    string Title,
+    string Description,
+    string Location,
+    DateTime StartUtc,
+    DateTime EndUtc,
+    string CreatedById,
+    string CreatedByDisplayName,
+    bool IsOwner,
+    List<InviteDto> Invites)
+{
+    public static EventDetailDto From(CalendarEvent e, string currentUserId) => new(
+        e.Id, e.Type, e.Title, e.Description, e.Location, e.StartUtc, e.EndUtc,
+        e.CreatedById,
+        e.CreatedBy?.DisplayName ?? string.Empty,
+        e.CreatedById == currentUserId,
+        e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList());
+}
+
+public sealed record InviteDto(
+    int Id,
+    string InviteeId,
+    string InviteeDisplayName,
+    string InviteeEmail,
+    InviteStatus Status)
+{
+    public static InviteDto From(EventInvite i, AppUser? invitee) => new(
+        i.Id,
+        i.InviteeId,
+        invitee?.DisplayName ?? string.Empty,
+        invitee?.Email ?? string.Empty,
+        i.Status);
+}
+
+public sealed class CreateEventDto
+{
+    public EventType? Type { get; set; }
+    [MaxLength(200)] public string? Title { get; set; }
+    public DateTime? StartUtc { get; set; }
+    public DateTime? EndUtc { get; set; }
+}
+
+public sealed class UpdateEventDto
+{
+    public EventType? Type { get; set; }
+    [MaxLength(200)] public string? Title { get; set; }
+    [MaxLength(2000)] public string? Description { get; set; }
+    [MaxLength(300)] public string? Location { get; set; }
+    public DateTime? StartUtc { get; set; }
+    public DateTime? EndUtc { get; set; }
+}
+
+public sealed class AddInviteDto
+{
+    [Required] public string UserId { get; set; } = string.Empty;
+}

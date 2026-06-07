@@ -1,0 +1,19 @@
+using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
+
+namespace FamilyHub.Model;
+
+// Identity-managed user that doubles as the root entity for the family hub.
+// Domain-specific fields live here; auth fields are inherited from IdentityUser.
+public class AppUser : IdentityUser
+{
+    [MaxLength(120)]
+    public string DisplayName { get; set; } = string.Empty;
+
+    // Permission flags. Keep as discrete bools for now; promote to a join table
+    // once the matrix of capabilities grows beyond a handful.
+    public bool CanCreateWeddingEvent { get; set; }
+    public bool CanCreateFamilyGathering { get; set; }
+
+    public DietaryPreferences DietaryPreferences { get; set; } = new();
+}

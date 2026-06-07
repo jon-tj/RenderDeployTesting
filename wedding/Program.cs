@@ -1,54 +1,102 @@
+using FamilyHub.Data;
+using FamilyHub.Model;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddControllers();
-builder.Services.AddSingleton<wedding.Data.JsonDatabase>();
+var dbPath = builder.Configuration["FAMILYHUB_DB_PATH"]
+    ?? Path.Combine(AppContext.BaseDirectory, "Data", "familyhub.db");
+Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 
-// Resend email client. Reads RESEND_API_KEY from env / config; if missing,
-// EmailService falls back to logging instead of sending.
-builder.Services.AddOptions();
-builder.Services.AddHttpClient<Resend.ResendClient>();
-builder.Services.Configure<Resend.ResendClientOptions>(o =>
-{
-    o.ApiToken = builder.Configuration["RESEND_API_KEY"] ?? string.Empty;
-});
-builder.Services.AddTransient<Resend.IResend, Resend.ResendClient>();
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddScoped<wedding.Services.EmailService>();
-builder.Services.AddSingleton<wedding.Services.AdminTwoFactorService>();
-builder.Services.AddSingleton<wedding.Services.AdminSessionService>();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("WeddingWebDev", policy =>
+builder.Services
+    .AddIdentityApiEndpoints<AppUser>(opt =>
     {
-        policy
-            .WithOrigins("http://localhost:4200", "https://localhost:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
+        opt.Password.RequiredLength = 8;
+        opt.Password.RequireNonAlphanumeric = false;
+        opt.Password.RequireUppercase = false;
+        opt.User.RequireUniqueEmail = true;
+        opt.SignIn.RequireConfirmedAccount = false;
+    })
+    .AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.AddAuthorization();
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
+builder.Services.AddCors(opt =>
+{
+    opt.AddPolicy("SpaDev", p => p
+        .WithOrigins("http://localhost:4200", "https://localhost:4200")
+        .AllowAnyHeader()
+        .AllowAnyMethod());
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
+
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!");
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// Note: no UseHttpsRedirection() here — Render terminates TLS and forwards
-// plain HTTP to the container on $PORT; redirecting would create a loop.
-
-app.UseCors("WeddingWebDev");
+app.UseCors("SpaDev");
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.MapGroup("/api/auth").MapIdentityApi<AppUser>();
 app.MapControllers();
 
-// SPA fallback: any non-API, non-file request returns index.html
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Ensures the named account exists and always has the full permission set.
+// Safe to run on every startup: only flips flags / resets the password when needed.
+static async Task SeedAdminAsync(UserManager<AppUser> users, string email, string password)
+{
+    var normalized = email.Trim().ToLowerInvariant();
+    var user = await users.FindByEmailAsync(normalized);
+    if (user is null)
+    {
+        user = new AppUser
+        {
+            UserName = normalized,
+            Email = normalized,
+            EmailConfirmed = true,
+            DisplayName = normalized,
+            CanCreateWeddingEvent = true,
+            CanCreateFamilyGathering = true,
+            DietaryPreferences = new DietaryPreferences(),
+        };
+        await users.CreateAsync(user, password);
+        return;
+    }
+
+    var changed = false;
+    if (!user.CanCreateWeddingEvent) { user.CanCreateWeddingEvent = true; changed = true; }
+    if (!user.CanCreateFamilyGathering) { user.CanCreateFamilyGathering = true; changed = true; }
+    if (!user.EmailConfirmed) { user.EmailConfirmed = true; changed = true; }
+    if (changed) await users.UpdateAsync(user);
+
+    // If the account was created earlier without a password (e.g. invite stub),
+    // attach the seed password so the admin can actually sign in.
+    if (!await users.HasPasswordAsync(user))
+    {
+        await users.AddPasswordAsync(user, password);
+    }
+}

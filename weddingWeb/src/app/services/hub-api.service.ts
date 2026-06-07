@@ -1,0 +1,58 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { ApiConfig } from './api-config.service';
+import { EventDetail, EventSummary, EventType, Invite, UserSummary } from '../models';
+
+@Injectable({ providedIn: 'root' })
+export class HubApi {
+  private readonly http = inject(HttpClient);
+  private readonly api = inject(ApiConfig);
+
+  listEvents(fromUtc?: string, toUtc?: string): Promise<EventSummary[]> {
+    let params = new HttpParams();
+    if (fromUtc) params = params.set('from', fromUtc);
+    if (toUtc) params = params.set('to', toUtc);
+    return firstValueFrom(this.http.get<EventSummary[]>(this.api.url('/api/events'), { params }));
+  }
+
+  getEvent(id: number): Promise<EventDetail> {
+    return firstValueFrom(this.http.get<EventDetail>(this.api.url(`/api/events/${id}`)));
+  }
+
+  createEvent(payload: { type?: EventType; title?: string; startUtc?: string; endUtc?: string }): Promise<EventDetail> {
+    return firstValueFrom(this.http.post<EventDetail>(this.api.url('/api/events'), payload));
+  }
+
+  updateEvent(id: number, payload: Partial<Pick<EventDetail, 'type' | 'title' | 'description' | 'location' | 'startUtc' | 'endUtc'>>): Promise<EventDetail> {
+    return firstValueFrom(this.http.put<EventDetail>(this.api.url(`/api/events/${id}`), payload));
+  }
+
+  deleteEvent(id: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/events/${id}`)));
+  }
+
+  addInvite(eventId: number, userId: string): Promise<Invite> {
+    return firstValueFrom(
+      this.http.post<Invite>(this.api.url(`/api/events/${eventId}/invites`), { userId })
+    );
+  }
+
+  removeInvite(eventId: number, inviteId: number): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(this.api.url(`/api/events/${eventId}/invites/${inviteId}`))
+    );
+  }
+
+  searchUsers(q: string): Promise<UserSummary[]> {
+    if (q.trim().length < 2) return Promise.resolve([]);
+    const params = new HttpParams().set('q', q);
+    return firstValueFrom(this.http.get<UserSummary[]>(this.api.url('/api/users/search'), { params }));
+  }
+
+  createInviteStub(email: string, displayName?: string): Promise<UserSummary> {
+    return firstValueFrom(
+      this.http.post<UserSummary>(this.api.url('/api/users/invite-stub'), { email, displayName })
+    );
+  }
+}

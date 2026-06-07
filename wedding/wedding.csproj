@@ -4,18 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FamilyHub</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
-    <PackageReference Include="Resend" Version="0.5.1" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- .html outside wwwroot is NOT auto-included by the Web SDK, so Include it. -->
-    <Content Include="Emails\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <!-- .json IS auto-included as Content, so only Update its publish metadata. -->
-    <Content Update="Data\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.1" />
   </ItemGroup>
 
 </Project>

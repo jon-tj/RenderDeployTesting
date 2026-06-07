@@ -225,7 +225,7 @@ interface ChildRsvpState {
         }
 
         <section class="wishlist-link">
-          <a [routerLink]="['/wishlist', ev.id]" class="wl-btn">
+          <a [routerLink]="['/wishlist/event', ev.id]" class="wl-btn">
             <span class="material-icons">card_giftcard</span>
             {{ s('wishlist') }}
           </a>

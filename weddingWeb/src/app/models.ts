@@ -199,7 +199,8 @@ export interface WishlistClaimDto {
 
 export interface WishlistItem {
   id: number;
-  eventId: number;
+  eventId: number | null;
+  ownerUserId: string | null;
   name: string;
   description: string;
   url: string;
@@ -215,8 +216,9 @@ export interface WishlistItem {
 }
 
 export interface WishlistView {
-  eventId: number;
-  eventTitle: string;
+  eventId: number | null;
+  ownerUserId: string | null;
+  ownerDisplayName: string;
   canEdit: boolean;
   items: WishlistItem[];
 }

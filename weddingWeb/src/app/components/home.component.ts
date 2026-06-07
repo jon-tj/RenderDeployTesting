@@ -33,6 +33,13 @@ import { EventSummary } from '../models';
                     <span class="muted small">Calendar entry, RSVPs, invites…</span>
                   </div>
                 </button>
+                <button type="button" role="menuitem" (click)="openMyWishlist()">
+                  <span class="material-icons">card_giftcard</span>
+                  <div>
+                    <strong>Wishlist item</strong>
+                    <span class="muted small">Add gift ideas to your personal wishlist</span>
+                  </div>
+                </button>
               </div>
             }
           </div>
@@ -115,6 +122,11 @@ export class HomeComponent implements OnInit {
 
   openEvent(e: EventSummary): void {
     this.router.navigate(['/event', e.id]);
+  }
+
+  openMyWishlist(): void {
+    this.menuOpen.set(false);
+    this.router.navigate(['/wishlist']);
   }
 
   async createOnDay(date: Date): Promise<void> {

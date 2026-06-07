@@ -86,7 +86,7 @@ using (var scope = app.Services.CreateScope())
     await EnsureTableAsync(db, "WishlistItems", @"CREATE TABLE WishlistItems (
         Id INTEGER NOT NULL CONSTRAINT PK_WishlistItems PRIMARY KEY AUTOINCREMENT,
         EventId INTEGER NULL,
-        OwnerUserId TEXT NOT NULL DEFAULT '',
+        OwnerUserId TEXT NULL,
         Name TEXT NOT NULL,
         Description TEXT NOT NULL DEFAULT '',
         Url TEXT NOT NULL DEFAULT '',

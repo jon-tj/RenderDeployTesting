@@ -32,7 +32,16 @@ export const routes: Routes = [
     loadComponent: () => import('./components/settings.component').then(m => m.SettingsComponent),
   },
   {
-    path: 'wishlist/:eventId',
+    path: 'wishlist/event/:eventId',
+    loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
+  },
+  {
+    path: 'wishlist/user/:userId',
+    loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
+  },
+  {
+    path: 'wishlist',
+    canActivate: [authGuard],
     loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
   },
   {

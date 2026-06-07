@@ -19,7 +19,7 @@ public enum EventVisibility
     Private = 2,
 }
 
-public class CalendarEvent
+public class CalendarEvent : IAssetOwner
 {
     public int Id { get; set; }
 
@@ -100,4 +100,19 @@ public class CalendarEvent
     // Additional owners on top of the creator (CreatedById). Anyone in this
     // list has the same edit/visibility rights as the creator.
     public List<EventOwner> CoOwners { get; set; } = new();
+
+    // IAssetOwner: creator plus any co-owners. Requires CoOwners to be
+    // loaded by the caller (use `.Include(e => e.CoOwners)`).
+    public IReadOnlyCollection<string> EditorUserIds
+    {
+        get
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            if (!string.IsNullOrEmpty(CreatedById)) ids.Add(CreatedById);
+            if (CoOwners is not null)
+                foreach (var o in CoOwners)
+                    if (!string.IsNullOrEmpty(o.UserId)) ids.Add(o.UserId);
+            return ids;
+        }
+    }
 }

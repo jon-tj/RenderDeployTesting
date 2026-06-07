@@ -4,14 +4,19 @@ using System.ComponentModel.DataAnnotations;
 
 public enum WishlistCurrency { BRL = 0, NOK = 1, USD = 2 }
 
-// A single thing on an event's wishlist. Owned by the event (so any
-// owner/co-owner of the event can edit), not by an individual user.
+// A single thing on a wishlist. The wishlist itself belongs to an
+// IAssetOwner — either an event (any event owner/co-owner can edit) or a
+// user (only that user can edit). Exactly one of EventId / OwnerUserId
+// must be set.
 public class WishlistItem
 {
     public int Id { get; set; }
 
-    public int EventId { get; set; }
+    public int? EventId { get; set; }
     public CalendarEvent? Event { get; set; }
+
+    public string? OwnerUserId { get; set; }
+    public AppUser? Owner { get; set; }
 
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     [MaxLength(2000)] public string Description { get; set; } = string.Empty;

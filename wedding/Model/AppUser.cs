@@ -5,7 +5,7 @@ namespace FamilyHub.Model;
 
 // Identity-managed user that doubles as the root entity for the family hub.
 // Domain-specific fields live here; auth fields are inherited from IdentityUser.
-public class AppUser : IdentityUser
+public class AppUser : IdentityUser, IAssetOwner
 {
     [MaxLength(120)]
     public string DisplayName { get; set; } = string.Empty;
@@ -21,4 +21,7 @@ public class AppUser : IdentityUser
     public bool CanCreateFamilyGathering { get; set; }
 
     public DietaryPreferences DietaryPreferences { get; set; } = new();
+
+    // IAssetOwner: only the user themselves can edit their own assets.
+    public IReadOnlyCollection<string> EditorUserIds => new[] { Id };
 }

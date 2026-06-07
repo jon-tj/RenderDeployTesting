@@ -29,10 +29,11 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
         <p class="error">Wishlist not found.</p>
       } @else if (view(); as v) {
         <header class="page-head">
-          <h1>Wishlist for {{ v.eventTitle }}</h1>
+          <h1>{{ v.eventId ? ('Wishlist for ' + v.ownerDisplayName) : (v.ownerDisplayName + '\'s wishlist') }}</h1>
           <p class="muted small">
-            <a [routerLink]="['/event', v.eventId]">← Back to event</a>
-            ·
+            @if (v.eventId) {
+              <a [routerLink]="['/event', v.eventId]">← Back to event</a> ·
+            }
             {{ v.canEdit ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you\u2019d like to gift. Add items to your cart, then claim them together.' }}
           </p>
         </header>
@@ -244,18 +245,24 @@ export class WishlistComponent implements OnInit {
   protected anonymous = false;
 
   async ngOnInit(): Promise<void> {
-    const raw = this.route.snapshot.paramMap.get('eventId');
-    const eventId = raw ? Number(raw) : NaN;
-    if (!Number.isFinite(eventId) || eventId <= 0) {
-      this.notFound.set(true);
-      this.loading.set(false);
-      return;
-    }
+    const params = this.route.snapshot.paramMap;
+    const url = this.route.snapshot.url.map(s => s.path);
+    // Routes: /wishlist (mine), /wishlist/event/:eventId, /wishlist/user/:userId
     try {
       this.rates = await this.api.getWishlistRates();
     } catch { /* fallback already set */ }
     try {
-      this.view.set(await this.api.getWishlist(eventId));
+      let view: WishlistView;
+      if (params.has('eventId')) {
+        const eid = Number(params.get('eventId'));
+        if (!Number.isFinite(eid) || eid <= 0) { this.notFound.set(true); return; }
+        view = await this.api.getEventWishlist(eid);
+      } else if (params.has('userId')) {
+        view = await this.api.getUserWishlist(params.get('userId')!);
+      } else {
+        view = await this.api.getMyWishlist();
+      }
+      this.view.set(view);
     } catch {
       this.notFound.set(true);
     } finally {
@@ -313,7 +320,8 @@ export class WishlistComponent implements OnInit {
     this.addError.set('');
     try {
       let item = await this.api.createWishlistItem({
-        eventId: v.eventId,
+        eventId: v.eventId ?? undefined,
+        ownerUserId: v.ownerUserId ?? undefined,
         name: this.draftName.trim(),
         priceMinor: Math.round((this.draftPrice ?? 0) * 100),
         currency: this.draftCurrency,
@@ -400,8 +408,9 @@ export class WishlistComponent implements OnInit {
       this.cart.set(new Map());
       this.claimantLabel = '';
       // Reload to reflect new claim totals.
-      const eventId = this.view()?.eventId;
-      if (eventId) this.view.set(await this.api.getWishlist(eventId));
+      const v = this.view();
+      if (v?.eventId) this.view.set(await this.api.getEventWishlist(v.eventId));
+      else if (v?.ownerUserId) this.view.set(await this.api.getUserWishlist(v.ownerUserId));
     } catch {
       this.claimError.set('Could not claim items. Some may already be taken — try again.');
     } finally {

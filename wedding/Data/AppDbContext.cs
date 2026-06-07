@@ -168,6 +168,12 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(w => w.EventId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        b.Entity<WishlistItem>()
+            .HasOne(w => w.Owner)
+            .WithMany()
+            .HasForeignKey(w => w.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         b.Entity<WishlistClaim>()
             .HasOne(c => c.Item)
             .WithMany(i => i.Claims)

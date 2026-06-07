@@ -35,7 +35,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
           <h1>{{ ev.isOwner ? 'Edit event' : ev.title }}</h1>
           <div class="head-actions">
             <a class="ghost" [routerLink]="['/event', ev.id]">View</a>
-            <a class="ghost" [routerLink]="['/wishlist', ev.id]">Wishlist</a>
+            <a class="ghost" [routerLink]="['/wishlist/event', ev.id]">Wishlist</a>
             @if (ev.isOwner) {
               <button type="button" class="danger" (click)="remove()">Delete</button>
             }

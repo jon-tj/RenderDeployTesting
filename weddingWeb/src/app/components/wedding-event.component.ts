@@ -93,10 +93,10 @@ interface ChildRsvpState {
           </section>
         }
 
-        @if (albumImages().length) {
-          <section class="album">
-            <h2 class="script">{{ s('moments') }}</h2>
-            <app-image-carousel [eventId]="ev.id" [images]="albumImages()" (open)="openAlbum($event)" />
+        @if (ev.dressCode) {
+          <section class="dress">
+            <p class="label">{{ s('dressCode') }}</p>
+            <p class="script">{{ dc(ev) }}</p>
           </section>
         }
 
@@ -111,12 +111,9 @@ interface ChildRsvpState {
                       <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
                     </div>
                     <div class="t-body">
-                      <h3>{{ tr(c) }}</h3>
-                      @if (dr(c)) {
-                        <p class="t-desc">{{ dr(c) }}</p>
-                      }
-                      @if (c.dressCode) {
-                        <p class="t-dress"><strong>{{ s('dressCode') }}:</strong> {{ dc(c) }}</p>
+                      <h3><a class="t-link" [routerLink]="['/event', c.id]">{{ tr(c) }}</a></h3>
+                      @if (c.location) {
+                        <p class="t-where">{{ locLabel(c) }}</p>
                       }
                       <app-save-the-date
                         [title]="tr(c)"
@@ -128,12 +125,6 @@ interface ChildRsvpState {
                         [lang]="lang()" />
                     </div>
                   </div>
-
-                  @if (c.location) {
-                    <div class="t-map">
-                      <app-map-view [location]="c.location" [lang]="lang()" />
-                    </div>
-                  }
 
                   @if (perChildRsvp() && childState(c.id); as st) {
                     <div class="rsvp t-rsvp">
@@ -226,6 +217,13 @@ interface ChildRsvpState {
           </section>
         }
 
+        @if (albumImages().length) {
+          <section class="album">
+            <h2 class="script">{{ s('moments') }}</h2>
+            <app-image-carousel [eventId]="ev.id" [images]="albumImages()" (open)="openAlbum($event)" />
+          </section>
+        }
+
         <footer class="foot">
           <p class="script">{{ s('withLove') }}</p>
         </footer>
@@ -258,6 +256,9 @@ interface ChildRsvpState {
     .prose { padding:1rem 1.5rem; text-align:center; line-height:1.7; color:#4a402d; font-size:1.05rem; }
     .map { padding:0 1.5rem; }
     .album { padding:0 1.5rem; }
+    .dress { padding:1.25rem 1.5rem 0; text-align:center; }
+    .dress .label { font-family:'Georgia', serif; color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0; }
+    .dress .script { font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-size:2rem; color:#8a6f3a; margin:.2rem 0 0; }
 
     .schedule { padding:0 1.5rem; }
     .timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:3rem; counter-reset:t; }
@@ -268,6 +269,8 @@ interface ChildRsvpState {
     .t-day { display:block; font-size:.7rem; letter-spacing:.18em; text-transform:uppercase; color:#a08755; }
     .t-hour { display:block; font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-size:1.8rem; color:#8a6f3a; line-height:1; margin-top:.2rem; }
     .t-body h3 { font-family:'Parisienne','Brush Script MT','Apple Chancery',cursive; font-weight:400; font-size:1.9rem; color:#3a3327; margin:0 0 .25rem; }
+    .t-link { color:inherit; text-decoration:none; }
+    .t-link:hover { color:#8a6f3a; }
     .t-where { font-style:italic; color:#7a6a4a; margin:0 0 .35rem; }
     .t-desc { margin:0 0 .75rem; line-height:1.6; color:#4a402d; }
     .t-map { margin:0; }
@@ -330,6 +333,9 @@ export class WeddingEventComponent implements OnChanges {
   }
   protected dc(ev: EventDetail | ChildEvent): string {
     return localizedDressCode(ev, this.lang());
+  }
+  protected locLabel(ev: EventDetail | ChildEvent): string {
+    return (ev as any).locationLabel?.trim() || ev.location;
   }
   protected s(key: Parameters<typeof t>[0]): string {
     return t(key, this.lang());

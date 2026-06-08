@@ -206,32 +206,49 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
             @if (cartCount() === 0) {
               <p class="muted small">Pick items above to add them to your cart.</p>
             } @else {
-              <ul class="muted small">
+              <ul class="cart-lines">
                 @for (line of cartLines(); track line.itemId) {
                   @let it = itemById(line.itemId);
                   @if (it) {
-                    <li>{{ line.quantity }}× {{ it.name }} ({{ formatPrice(it.priceMinor * line.quantity, it.currency) }})</li>
+                    <li>
+                      <span class="cart-qty">{{ line.quantity }}×</span>
+                      <span class="cart-name">{{ it.name }}</span>
+                      <span class="cart-line-total muted small">{{ formatPrice(it.priceMinor * line.quantity, it.currency) }}</span>
+                    </li>
                   }
                 }
               </ul>
+              <div class="cart-total-row">
+                <span>Total</span>
+                <strong>{{ formatTotal(cartTotalBrl(), displayCurrency) }}</strong>
+              </div>
             }
-            <p><strong>Total: {{ formatTotal(cartTotalBrl(), displayCurrency) }}</strong></p>
             @if (v.pixKey) {
-              <p class="muted small">Pay with Pix: <code>{{ v.pixKey }}</code></p>
+              <div class="pix-pill">
+                <span class="material-icons">qr_code_2</span>
+                <div>
+                  <div class="muted small">Pay with Pix</div>
+                  <code>{{ v.pixKey }}</code>
+                </div>
+              </div>
             }
             @if (cartCount() > 0) {
-              @if (!auth.isAuthenticated()) {
-                <label class="field">
-                  <span class="muted small">Your name (so the bride/groom know who to thank)</span>
-                  <input type="text" name="label" [(ngModel)]="claimantLabel" />
-                </label>
-              } @else {
-                <label class="check">
-                  <input type="checkbox" name="anon" [(ngModel)]="anonymous" />
-                  Claim anonymously
-                </label>
-              }
-              <button type="button" (click)="submitCart()" [disabled]="claiming() || !canSubmit()">{{ claiming() ? 'Claiming…' : 'Claim cart' }}</button>
+              <form class="add-form cart-form" (ngSubmit)="submitCart()">
+                @if (!auth.isAuthenticated()) {
+                  <label class="field span-2">
+                    <span class="field-label">Your name <span class="muted small">(so the host knows who to thank)</span></span>
+                    <input type="text" name="label" [(ngModel)]="claimantLabel" />
+                  </label>
+                } @else {
+                  <label class="check span-2">
+                    <input type="checkbox" name="anon" [(ngModel)]="anonymous" />
+                    Claim anonymously
+                  </label>
+                }
+                <div class="form-actions span-2">
+                  <button type="submit" class="primary-btn" [disabled]="claiming() || !canSubmit()">{{ claiming() ? 'Claiming…' : 'Claim cart' }}</button>
+                </div>
+              </form>
               @if (claimError()) { <p class="error small">{{ claimError() }}</p> }
             }
           </section>
@@ -294,6 +311,17 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .item.taken .item-name { text-decoration:line-through; opacity:.55; }
     .item-actions { padding:.5rem .85rem .85rem; display:flex; flex-direction:column; gap:.4rem; align-items:stretch; }
     .item-actions .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; height:2.15rem; padding:0 .6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:999px; cursor:pointer; font:inherit; font-weight:600; box-sizing:border-box; }
+    .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; }
+    .primary-btn:disabled { opacity:.6; cursor:default; }
+    .cart-lines { list-style:none; margin:0 0 .5rem; padding:0; display:flex; flex-direction:column; gap:.3rem; }
+    .cart-lines li { display:grid; grid-template-columns:2.25rem 1fr auto; gap:.5rem; align-items:baseline; padding:.25rem 0; }
+    .cart-qty { font-weight:600; color:#6f7a5b; text-align:right; }
+    .cart-name { overflow-wrap:anywhere; }
+    .cart-total-row { display:flex; justify-content:space-between; align-items:baseline; padding:.55rem .25rem .25rem; border-top:1px dashed #e4d8b5; margin-top:.25rem; font-size:1.05rem; }
+    .pix-pill { display:flex; align-items:center; gap:.6rem; padding:.55rem .75rem; background:#fff; border:1px dashed #d9cfb8; border-radius:.4rem; margin:.5rem 0; }
+    .pix-pill .material-icons { font-size:1.8rem; color:#6f7a5b; }
+    .pix-pill code { background:transparent; padding:0; font-size:.95rem; }
+    .cart-form { margin-top:.25rem; }
     .item-actions .primary-btn:disabled { opacity:.6; cursor:default; }
     .item-actions button { display:inline-flex; align-items:center; justify-content:center; gap:.3rem; }
     .remove-btn { position:absolute; top:.4rem; left:.4rem; width:1.85rem; height:1.85rem; padding:0; background:rgba(255,255,255,.92); border:0; border-radius:50%; color:#9b6b6b; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.2); z-index:2; }
@@ -305,10 +333,16 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .cart-controls button:disabled { opacity:.35; cursor:default; }
     .qty { min-width:1.4rem; text-align:center; font-weight:600; }
     .cart-header { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; }
-    .cart-summary { background:#fff8e6; }
-    .cart-summary.empty { background:#faf7f0; }
+    .cart-summary { background:#fff; }
+    .cart-summary.empty { background:#fff; }
     .field { display:flex; flex-direction:column; gap:.2rem; margin:.5rem 0; }
-    .check { display:flex; align-items:center; gap:.4rem; margin:.5rem 0; }
+    .check { display:flex; align-items:center; gap:.5rem; margin:0; padding:.25rem 0; cursor:pointer; }
+    .check input[type="checkbox"] { width:auto; margin:0; }
+    .cart-form .form-actions { justify-content:center; }
+    @media (max-width:520px) {
+      .cart-form .form-actions { justify-content:stretch; }
+      .cart-form .form-actions .primary-btn { width:100%; }
+    }
     .claims { list-style:disc; margin:.25rem 0 0 1.25rem; padding:0; }
     .claim-row { display:flex; align-items:center; gap:.5rem; justify-content:space-between; }
     .error { color:#b03030; }

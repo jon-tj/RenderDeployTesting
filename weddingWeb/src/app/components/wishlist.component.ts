@@ -5,7 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { WISHLIST_CURRENCIES, WishlistCurrency, WishlistItem, WishlistView } from '../models';
+import { I18nService } from '../services/i18n.service';
+import { WISHLIST_CURRENCIES, WishlistClaimMode, WishlistCurrency, WishlistItem, WishlistView } from '../models';
 
 interface CartLine {
   itemId: number;
@@ -24,9 +25,9 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     <app-navbar></app-navbar>
     <main class="page">
       @if (loading()) {
-        <p class="muted">Loading…</p>
+        <p class="muted">{{ t('wishlist.loading') }}</p>
       } @else if (notFound()) {
-        <p class="error">Wishlist not found.</p>
+        <p class="error">{{ t('wishlist.notFound') }}</p>
       } @else if (view(); as v) {
         <header class="page-head">
           <div class="head-row">
@@ -34,21 +35,21 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
             <div class="head-actions">
               @if (v.canEdit) {
                 <button type="button" class="primary icon-btn" (click)="toggleOwnerView()"
-                        [title]="previewingAsGuest() ? 'Back to owner view' : 'Preview as a guest'"
-                        [attr.aria-label]="previewingAsGuest() ? 'Back to owner view' : 'Preview as a guest'">
+                        [title]="t(previewingAsGuest() ? 'wishlist.backToOwner' : 'wishlist.previewGuest')"
+                        [attr.aria-label]="t(previewingAsGuest() ? 'wishlist.backToOwner' : 'wishlist.previewGuest')">
                   <span class="material-icons">{{ previewingAsGuest() ? 'edit' : 'visibility' }}</span>
                 </button>
               }
-              <button type="button" class="primary icon-btn" (click)="share()" [title]="shareLabel()" [attr.aria-label]="shareLabel()">
+              <button type="button" class="primary icon-btn" (click)="share()" [title]="shareLabel() || t('wishlist.share')" [attr.aria-label]="shareLabel() || t('wishlist.share')">
                 <span class="material-icons">{{ shareCopied() ? 'done' : 'share' }}</span>
               </button>
             </div>
           </div>
           <p class="muted small">
             @if (v.eventId) {
-              <a [routerLink]="['/event', v.eventId]">← Back to event</a> ·
+              <a [routerLink]="['/event', v.eventId]">{{ t('wishlist.backToEvent') }}</a> ·
             }
-            {{ canEdit() ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you’d like to gift. Add items to your cart, then claim them together.' }}
+            {{ canEdit() ? t('wishlist.subtitleOwner') : t('wishlist.subtitleGuest') }}
           </p>
         </header>
 
@@ -61,13 +62,13 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                 <span class="field-label">Pix key <span class="muted small">(shown to guests so they can pay you back)</span></span>
                 <input type="text" name="pix" placeholder="email, CPF, phone or random key" [(ngModel)]="pixDraft" />
               </label>
-              <label class="check span-2">
-                <input type="checkbox" name="showqty" [(ngModel)]="showQuantitiesDraft" />
-                Show quantities <span class="muted small">(let guests pick how many of each item to claim)</span>
-              </label>
-              <label class="check span-2">
-                <input type="checkbox" name="enableclaim" [(ngModel)]="enableClaimingDraft" />
-                Enable claiming <span class="muted small">(guests can mark items as taken)</span>
+              <label class="field span-2">
+                <span class="field-label">Claims</span>
+                <select name="claimmode" [(ngModel)]="claimModeDraft">
+                  <option value="LimitedQuantities">Limited quantities — guests see counts and pick how many to claim</option>
+                  <option value="UnlimitedQuantities">Unlimited quantities — guests claim without seeing counts</option>
+                  <option value="Disabled">Disabled — guests can browse but not claim</option>
+                </select>
               </label>
               <div class="form-actions span-2">
                 <button type="submit" [disabled]="pixSaving() || !optionsDirty(v)">
@@ -87,7 +88,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                 <span class="field-label">Name</span>
                 <input type="text" name="name" [(ngModel)]="draftName" required />
               </label>
-              <div class="field-row span-2">
+              <div class="field-row span-2" [class.no-qty]="claimModeDraft !== 'LimitedQuantities'">
                 <label class="field">
                   <span class="field-label">Price</span>
                   <input type="number" name="price" min="0" step="0.01" [(ngModel)]="draftPrice" />
@@ -100,10 +101,12 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     }
                   </select>
                 </label>
-                <label class="field">
-                  <span class="field-label">Quantity</span>
-                  <input type="number" name="qty" min="1" [(ngModel)]="draftQty" />
-                </label>
+                @if (claimModeDraft === 'LimitedQuantities') {
+                  <label class="field">
+                    <span class="field-label">Quantity</span>
+                    <input type="number" name="qty" min="1" [(ngModel)]="draftQty" />
+                  </label>
+                }
               </div>
               <label class="field span-2">
                 <span class="field-label">Link <span class="muted small">(optional)</span></span>
@@ -144,13 +147,13 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
           </div>
         }
         @if (!v.items.length) {
-          <p class="muted">No items yet.</p>
+          <p class="muted">{{ t('wishlist.noItems') }}</p>
         } @else {
           <ul class="items">
               @for (i of v.items; track i.id) {
                 @let remaining = i.wishedQuantity - i.claimedQuantity;
                 @let inCart = cart().get(i.id) ?? 0;
-                <li class="item" [class.taken]="remaining <= 0">
+                <li class="item" [class.taken]="v.claimMode === 'LimitedQuantities' && remaining <= 0">
                   @if (itemImageSrc(i); as src) {
                     <div class="item-img-wrap">
                       <img class="item-img" [src]="src" alt="" />
@@ -179,41 +182,29 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     </div>
                     <div class="item-meta muted small">
                       @if (i.priceMinor > 0) { <span>{{ formatPriceIn(i.priceMinor, i.currency, displayCurrency) }}</span> }
-                      @if (v.showQuantities) {
-                        <span>{{ i.claimedQuantity }} / {{ i.wishedQuantity }} claimed</span>
+                      @if (v.claimMode === 'LimitedQuantities') {
+                        <span>{{ t('wishlist.claimedOfTotal', { claimed: i.claimedQuantity, total: i.wishedQuantity }) }}</span>
+                      } @else if (v.claimMode === 'UnlimitedQuantities' && i.claimedQuantity > 0) {
+                        <span>{{ t('wishlist.claimedCount', { claimed: i.claimedQuantity }) }}</span>
                       }
                     </div>
                     @if (i.description) { <p class="muted small desc">{{ i.description }}</p> }
-                    @if (canEdit() && i.claims.length) {
-                      <ul class="claims">
-                        @for (c of i.claims; track c.id) {
-                          <li class="muted small claim-row">
-                            <span>{{ c.quantity }}× claimed {{ c.createdAtUtc | date:'short' }}</span>
-                            <button type="button" class="ghost small" (click)="completeClaim(c.id)" title="Remove these from your wishlist once you've received them">Mark as complete</button>
-                          </li>
-                        }
-                      </ul>
-                    }
                   </div>
                   <div class="item-actions">
-                    @if (v.enableClaiming && remaining > 0) {
+                    @if (v.claimMode !== 'Disabled' && (v.claimMode === 'UnlimitedQuantities' || remaining > 0)) {
                       @if (inCart === 0) {
-                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, 1, v.showQuantities ? remaining : 1)" title="Add to cart" aria-label="Add to cart">
+                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, 1, v.claimMode === 'LimitedQuantities' ? remaining : undefined)" [title]="t('wishlist.addToCart')" [attr.aria-label]="t('wishlist.addToCart')">
                           <span class="material-icons">add_shopping_cart</span>
                         </button>
-                      } @else if (v.showQuantities) {
+                      } @else {
                         <div class="cart-controls">
                           <button type="button" class="ghost small" (click)="adjustCart(i.id, -1)">−</button>
                           <span class="qty">{{ inCart }}</span>
-                          <button type="button" class="ghost small" (click)="adjustCart(i.id, 1, remaining)" [disabled]="inCart >= remaining">+</button>
+                          <button type="button" class="ghost small" (click)="adjustCart(i.id, 1, v.claimMode === 'LimitedQuantities' ? remaining : undefined)" [disabled]="v.claimMode === 'LimitedQuantities' && inCart >= remaining">+</button>
                         </div>
-                      } @else {
-                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, -1)" title="Remove from cart" aria-label="Remove from cart">
-                          <span class="material-icons">remove_shopping_cart</span>
-                        </button>
                       }
-                    } @else if (v.enableClaiming) {
-                      <span class="muted small">Fully claimed</span>
+                    } @else if (v.claimMode !== 'Disabled') {
+                      <span class="muted small">{{ t('wishlist.fullyClaimed') }}</span>
                     }
                     @if (canEdit()) {
                       <button type="button" class="remove-btn" (click)="deleteItem(i)" title="Remove from wishlist" aria-label="Remove">
@@ -226,11 +217,11 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
             </ul>
         }
 
-        @if (v.enableClaiming) {
+        @if (v.claimMode !== 'Disabled') {
         <section #cartSummary class="card cart-summary" [class.empty]="cartCount() === 0">
-            <h2>Your cart</h2>
+            <h2>{{ t('wishlist.cart.title') }}</h2>
             @if (cartCount() === 0) {
-              <p class="muted small">Pick items above to add them to your cart.</p>
+              <p class="muted small">{{ t('wishlist.cart.empty') }}</p>
             } @else {
               <ul class="cart-lines">
                 @for (line of cartLines(); track line.itemId) {
@@ -245,7 +236,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                 }
               </ul>
               <div class="cart-total-row">
-                <span>Total</span>
+                <span>{{ t('wishlist.cart.total') }}</span>
                 <strong>{{ formatTotal(cartTotalBrl(), displayCurrency) }}</strong>
               </div>
             }
@@ -253,7 +244,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
               <div class="pix-pill">
                 <span class="material-icons">qr_code_2</span>
                 <div>
-                  <div class="muted small">Pay with Pix</div>
+                  <div class="muted small">{{ t('wishlist.cart.payWithPix') }}</div>
                   <code>{{ v.pixKey }}</code>
                 </div>
               </div>
@@ -262,17 +253,17 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
               <form class="add-form cart-form" (ngSubmit)="submitCart()">
                 @if (!auth.isAuthenticated()) {
                   <label class="field span-2">
-                    <span class="field-label">Your name <span class="muted small">(so the host knows who to thank)</span></span>
+                    <span class="field-label">{{ t('wishlist.cart.yourName') }} <span class="muted small">{{ t('wishlist.cart.yourNameHint') }}</span></span>
                     <input type="text" name="label" [(ngModel)]="claimantLabel" />
                   </label>
                 } @else {
                   <label class="check span-2">
                     <input type="checkbox" name="anon" [(ngModel)]="anonymous" />
-                    Claim anonymously
+                    {{ t('wishlist.cart.anon') }}
                   </label>
                 }
                 <div class="form-actions span-2">
-                  <button type="submit" class="primary-btn" [disabled]="claiming() || !canSubmit()">{{ claiming() ? 'Claiming…' : 'Claim cart' }}</button>
+                  <button type="submit" class="primary-btn" [disabled]="claiming() || !canSubmit()">{{ claiming() ? t('wishlist.cart.claiming') : t('wishlist.cart.claim') }}</button>
                 </div>
               </form>
               @if (claimError()) { <p class="error small">{{ claimError() }}</p> }
@@ -282,7 +273,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
       }
     </main>
 
-    @if (view()?.enableClaiming && cartCount() > 0 && !cartInView()) {
+    @if (view()?.claimMode !== 'Disabled' && cartCount() > 0 && !cartInView()) {
       <button type="button" class="cart-fab" (click)="scrollToCart()">
         <span class="material-icons">shopping_cart</span>
         <span class="fab-count">{{ cartCount() }}</span>
@@ -307,6 +298,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .add-form { display:grid; grid-template-columns:1fr 1fr; gap:.6rem .75rem; }
     .add-form .span-2 { grid-column:1 / -1; }
     .add-form .field-row { display:grid; grid-template-columns:1fr auto 1fr; gap:.5rem; }
+    .add-form .field-row.no-qty { grid-template-columns:1fr auto; }
     .add-form .field { display:flex; flex-direction:column; gap:.25rem; margin:0; }
     .add-form .field-label { font-size:.8rem; color:#5a5347; font-weight:500; }
     .add-form input, .add-form select { width:100%; box-sizing:border-box; padding:.45rem .55rem; border:1px solid #e4e4e4; border-radius:.35rem; background:#fafafa; font:inherit; }
@@ -398,6 +390,8 @@ export class WishlistComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
+  private readonly i18n = inject(I18nService);
+  protected readonly t = (k: string, p?: Record<string, string | number>) => this.i18n.t(k, p);
 
   protected readonly currencies = WISHLIST_CURRENCIES;
   protected readonly view = signal<WishlistView | null>(null);
@@ -409,7 +403,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected readonly claimError = signal('');
   protected readonly pixSaving = signal(false);
   protected readonly pixError = signal('');
-  protected readonly shareLabel = signal('Share');
+  protected readonly shareLabel = signal('');
   protected readonly shareCopied = signal(false);
   protected readonly cartInView = signal(true);
   protected readonly imageVersions = signal<Map<number, number>>(new Map());
@@ -451,8 +445,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected claimantLabel = '';
   protected anonymous = false;
   protected pixDraft = '';
-  protected showQuantitiesDraft = true;
-  protected enableClaimingDraft = true;
+  protected claimModeDraft: WishlistClaimMode = 'LimitedQuantities';
 
   private observer: IntersectionObserver | null = null;
   private observed: HTMLElement | null = null;
@@ -468,8 +461,8 @@ export class WishlistComponent implements OnInit, OnDestroy {
   }
 
   protected headerTitle(v: WishlistView): string {
-    const name = v.ownerDisplayName || 'Wishlist';
-    return v.eventId ? `Wishlist for ${name}` : `${name}’s wishlist`;
+    const name = v.ownerDisplayName || this.t('wishlist.fallbackName');
+    return this.t(v.eventId ? 'wishlist.titleFor' : 'wishlist.titleOwn', { name });
   }
 
   async ngOnInit(): Promise<void> {
@@ -537,12 +530,12 @@ export class WishlistComponent implements OnInit, OnDestroy {
     const url = `${window.location.origin}${path}`;
     try {
       await navigator.clipboard.writeText(url);
-      this.shareLabel.set('Link copied');
+      this.shareLabel.set(this.t('wishlist.linkCopied'));
       this.shareCopied.set(true);
     } catch {
       this.shareLabel.set('Copy: ' + url);
     }
-    setTimeout(() => { this.shareLabel.set('Share'); this.shareCopied.set(false); }, 2500);
+    setTimeout(() => { this.shareLabel.set(this.t('wishlist.share')); this.shareCopied.set(false); }, 2500);
   }
 
   async saveOptions(): Promise<void> {
@@ -555,8 +548,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
         eventId: v.eventId ?? undefined,
         ownerUserId: v.ownerUserId ?? undefined,
         pixKey: this.pixDraft.trim(),
-        showQuantities: this.showQuantitiesDraft,
-        enableClaiming: this.enableClaimingDraft,
+        claimMode: this.claimModeDraft,
       });
       this.view.set(updated);
       this.syncOptionDrafts(updated);
@@ -569,14 +561,12 @@ export class WishlistComponent implements OnInit, OnDestroy {
 
   protected optionsDirty(v: WishlistView): boolean {
     return this.pixDraft.trim() !== (v.pixKey ?? '').trim()
-      || this.showQuantitiesDraft !== v.showQuantities
-      || this.enableClaimingDraft !== v.enableClaiming;
+      || this.claimModeDraft !== v.claimMode;
   }
 
   private syncOptionDrafts(v: WishlistView): void {
     this.pixDraft = v.pixKey ?? '';
-    this.showQuantitiesDraft = v.showQuantities;
-    this.enableClaimingDraft = v.enableClaiming;
+    this.claimModeDraft = v.claimMode;
   }
 
   async completeClaim(claimId: number): Promise<void> {

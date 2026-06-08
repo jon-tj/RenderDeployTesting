@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, SearchResults, UserSummary, WishlistCurrency, WishlistItem, WishlistView } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, SearchResults, UserSummary, WishlistClaimMode, WishlistCurrency, WishlistItem, WishlistView } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -119,7 +119,7 @@ export class HubApi {
     return firstValueFrom(this.http.post<void>(this.api.url(`/api/wishlist/claim/${claimId}/complete`), {}));
   }
 
-  updateWishlistPayment(payload: { eventId?: number; ownerUserId?: string; pixKey?: string; showQuantities?: boolean; enableClaiming?: boolean }): Promise<WishlistView> {
+  updateWishlistPayment(payload: { eventId?: number; ownerUserId?: string; pixKey?: string; claimMode?: WishlistClaimMode }): Promise<WishlistView> {
     return firstValueFrom(this.http.put<WishlistView>(this.api.url('/api/wishlist/options'), payload));
   }
 

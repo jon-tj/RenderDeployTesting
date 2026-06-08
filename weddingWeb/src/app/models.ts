@@ -215,14 +215,15 @@ export interface WishlistItem {
   canEdit: boolean;
 }
 
+export type WishlistClaimMode = 'Disabled' | 'LimitedQuantities' | 'UnlimitedQuantities';
+
 export interface WishlistView {
   eventId: number | null;
   ownerUserId: string | null;
   ownerDisplayName: string;
   canEdit: boolean;
   pixKey?: string;
-  showQuantities: boolean;
-  enableClaiming: boolean;
+  claimMode: WishlistClaimMode;
   items: WishlistItem[];
 }
 

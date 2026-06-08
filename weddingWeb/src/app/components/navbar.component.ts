@@ -10,7 +10,7 @@ import { EventSummary, WishlistOwnerHit } from '../models';
   imports: [RouterLink, FormsModule],
   template: `
     <nav class="navbar">
-      <a class="brand" routerLink="/">Jon and Mari</a>
+      <a class="brand" routerLink="/" aria-label="Home" title="Home"><span class="material-icons">home</span></a>
       <div class="spacer"></div>
       <div class="search" (click)="$event.stopPropagation()">
         <span class="material-icons search-icon">search</span>
@@ -69,7 +69,8 @@ import { EventSummary, WishlistOwnerHit } from '../models';
   `,
   styles: [`
     .navbar { display:flex; align-items:center; gap:1rem; padding:.75rem 1.25rem; background:#fff; border-bottom:1px solid #e6e1d4; }
-    .brand { font-weight:600; font-size:1.1rem; text-decoration:none; color:#2d2a24; white-space:nowrap; }
+    .brand { font-weight:600; font-size:1.1rem; text-decoration:none; color:#2d2a24; white-space:nowrap; display:inline-flex; align-items:center; }
+    .brand .material-icons { font-size:1.6rem; }
     .search { flex:0 1 480px; width:100%; position:relative; }
     .spacer { flex:1 1 0; min-width:0; }
     .search-icon { position:absolute; left:.5rem; top:50%; transform:translateY(-50%); color:#8a8275; font-size:1.1rem; pointer-events:none; }

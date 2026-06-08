@@ -148,26 +148,39 @@ public class WishlistController : ControllerBase
             .ToListAsync();
         var itemsById = items.ToDictionary(i => i.Id);
 
-        // Reject claims targeting wishlists where the owner disabled claiming.
+        // Look up each owner's claim mode once so we can both reject Disabled
+        // wishlists and skip the remaining-quantity cap in Unlimited mode.
+        var modeByItem = new Dictionary<int, WishlistClaimMode>();
         foreach (var item in items)
         {
             var owner = await LoadOwnerAsync(item.EventId, item.OwnerUserId);
-            var enabled = owner switch
+            var mode = owner switch
             {
-                CalendarEvent ev => ev.WishlistEnableClaiming,
-                AppUser u => u.WishlistEnableClaiming,
-                _ => true,
+                CalendarEvent ev => ev.WishlistClaimMode,
+                AppUser u => u.WishlistClaimMode,
+                _ => WishlistClaimMode.LimitedQuantities,
             };
-            if (!enabled) return BadRequest("Claiming is disabled for this wishlist.");
+            if (mode == WishlistClaimMode.Disabled) return BadRequest("Claiming is disabled for this wishlist.");
+            modeByItem[item.Id] = mode;
         }
 
         var created = new List<WishlistClaim>();
         foreach (var line in dto.Items)
         {
             if (!itemsById.TryGetValue(line.ItemId, out var item)) continue;
-            var alreadyClaimed = item.Claims.Sum(c => c.Quantity);
-            var remaining = item.WishedQuantity - alreadyClaimed;
-            var qty = Math.Min(Math.Max(1, line.Quantity), Math.Max(0, remaining));
+            var mode = modeByItem[item.Id];
+            var requested = Math.Max(1, line.Quantity);
+            int qty;
+            if (mode == WishlistClaimMode.LimitedQuantities)
+            {
+                var alreadyClaimed = item.Claims.Sum(c => c.Quantity);
+                var remaining = item.WishedQuantity - alreadyClaimed;
+                qty = Math.Min(requested, Math.Max(0, remaining));
+            }
+            else
+            {
+                qty = requested;
+            }
             if (qty <= 0) continue;
             var claim = new WishlistClaim
             {
@@ -267,14 +280,12 @@ public class WishlistController : ControllerBase
         if (owner is CalendarEvent ev)
         {
             ev.WishlistPixKey = pix;
-            if (dto.ShowQuantities is bool sq) ev.WishlistShowQuantities = sq;
-            if (dto.EnableClaiming is bool ec) ev.WishlistEnableClaiming = ec;
+            if (dto.ClaimMode is WishlistClaimMode cm) ev.WishlistClaimMode = cm;
         }
         else if (owner is AppUser u)
         {
             u.WishlistPixKey = pix;
-            if (dto.ShowQuantities is bool sq) u.WishlistShowQuantities = sq;
-            if (dto.EnableClaiming is bool ec) u.WishlistEnableClaiming = ec;
+            if (dto.ClaimMode is WishlistClaimMode cm) u.WishlistClaimMode = cm;
         }
         await _db.SaveChangesAsync();
 
@@ -326,17 +337,11 @@ public class WishlistController : ControllerBase
             AppUser u => u.WishlistPixKey,
             _ => string.Empty,
         };
-        var showQty = owner switch
+        var claimMode = owner switch
         {
-            CalendarEvent ev => ev.WishlistShowQuantities,
-            AppUser u => u.WishlistShowQuantities,
-            _ => true,
-        };
-        var enableClaim = owner switch
-        {
-            CalendarEvent ev => ev.WishlistEnableClaiming,
-            AppUser u => u.WishlistEnableClaiming,
-            _ => true,
+            CalendarEvent ev => ev.WishlistClaimMode,
+            AppUser u => u.WishlistClaimMode,
+            _ => WishlistClaimMode.LimitedQuantities,
         };
         return new WishlistViewDto(
             ownerEventId,
@@ -344,8 +349,7 @@ public class WishlistController : ControllerBase
             ownerDisplay,
             canEdit,
             pixKey ?? string.Empty,
-            showQty,
-            enableClaim,
+            claimMode,
             items.Select(i => WishlistItemDto.From(i, canEdit, currentUid)).ToList());
     }
 
@@ -374,8 +378,7 @@ public sealed record WishlistViewDto(
     string OwnerDisplayName,
     bool CanEdit,
     string PixKey,
-    bool ShowQuantities,
-    bool EnableClaiming,
+    WishlistClaimMode ClaimMode,
     List<WishlistItemDto> Items);
 
 public sealed record WishlistItemDto(
@@ -460,8 +463,7 @@ public sealed class WishlistOptionsDto
     public int? EventId { get; set; }
     public string? OwnerUserId { get; set; }
     [MaxLength(200)] public string? PixKey { get; set; }
-    public bool? ShowQuantities { get; set; }
-    public bool? EnableClaiming { get; set; }
+    public WishlistClaimMode? ClaimMode { get; set; }
 }
 
 public sealed class ClaimCartDto

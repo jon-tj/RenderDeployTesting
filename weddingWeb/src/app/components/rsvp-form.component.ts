@@ -14,10 +14,11 @@ type OptionSource = EventDetail | ChildEvent;
   imports: [FormsModule],
   template: `
     @if (state().error) { <p class="error">{{ state().error }}</p> }
-    @if (state().savedAt) { <p class="saved">{{ s('thankYou') }}</p> }
+    @if (state().savedAt && state().status !== 'Pending') { <p class="saved">{{ s('thankYou') }}</p> }
     <div [class]="isWedding() ? 'rsvp-grid' : 'grid'">
       <label>{{ s('attending') }}
         <select [name]="'st-' + suffix()" [(ngModel)]="state().status">
+          @if (state().status === 'Pending') { <option value="Pending" disabled>—</option> }
           @for (st of statuses; track st) { <option [value]="st">{{ statusLabel(st) }}</option> }
         </select>
       </label>
@@ -39,7 +40,7 @@ type OptionSource = EventDetail | ChildEvent;
       }
     </div>
     <div [class]="isWedding() ? 'rsvp-actions' : 'action-row'">
-      <button type="button" [class]="buttonClass()" (click)="save.emit()" [disabled]="state().saving">
+      <button type="button" [class]="buttonClass()" (click)="save.emit()" [disabled]="state().saving || state().status === 'Pending'">
         {{ state().saving ? s('saving') : s('reply') }}
       </button>
     </div>
@@ -56,7 +57,7 @@ export class RsvpFormComponent {
   readonly variant = input<'standard' | 'wedding' | 'wedding-big'>('standard');
   readonly save = output<void>();
 
-  protected readonly statuses = RSVP_STATUSES;
+  protected readonly statuses = RSVP_STATUSES.filter(s => s !== 'Pending');
   protected isWedding() { return this.variant() !== 'standard'; }
   protected s(k: Parameters<typeof t>[0]) { return t(k, this.lang()); }
   protected statusLabel(st: typeof RSVP_STATUSES[number]) { return translateStatus(st, this.lang()); }

@@ -52,9 +52,12 @@ export abstract class EventViewBase {
 
   readonly parentRsvp = signal<ChildRsvpState>(emptyRsvp());
   protected readonly childStates = signal(new Map<number, ChildRsvpState>());
+  private lastHydratedEventId: number | null = null;
   childState(id: number) { return this.childStates().get(id); }
 
   protected hydrateRsvp(ev: EventDetail): void {
+    const sameEvent = this.lastHydratedEventId === ev.id;
+    this.lastHydratedEventId = ev.id;
     const prevParent = this.parentRsvp();
     const parent = emptyRsvp();
     if (ev.myInvite) {
@@ -62,12 +65,12 @@ export abstract class EventViewBase {
       parent.mealChoice = ev.myInvite.mealChoice ?? '';
       parent.drinkChoice = ev.myInvite.drinkChoice ?? '';
     }
-    parent.savedAt = prevParent.savedAt;
+    if (sameEvent) parent.savedAt = prevParent.savedAt;
     this.parentRsvp.set(parent);
     const prevChildren = this.childStates();
     const next = new Map<number, ChildRsvpState>();
     for (const c of ev.children) {
-      const prev = prevChildren.get(c.id);
+      const prev = sameEvent ? prevChildren.get(c.id) : undefined;
       next.set(c.id, {
         ...emptyRsvp(),
         status: c.myInvite?.status ?? 'Pending',

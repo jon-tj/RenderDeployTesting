@@ -3,7 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
 import { HubApi } from '../services/hub-api.service';
-import { EventSummary, WishlistOwnerHit } from '../models';
+import { SearchHit } from '../models';
 
 @Component({
   selector: 'app-navbar',
@@ -35,19 +35,19 @@ import { EventSummary, WishlistOwnerHit } from '../models';
                   <span class="material-icons">event</span>
                   <div class="meta">
                     <strong>{{ e.title || '(untitled)' }}</strong>
-                    <span class="muted small">{{ e.location || formatDate(e.startUtc) }}</span>
+                    <span class="muted small">{{ e.subtitle }}</span>
                   </div>
                 </button>
               }
             }
             @if (wishlists().length) {
               <div class="group-label">Wishlists</div>
-              @for (w of wishlists(); track wishlistKey(w)) {
-                <button type="button" class="row" (click)="goWishlistOwner(w)">
+              @for (w of wishlists(); track w.id) {
+                <button type="button" class="row" (click)="goWishlist(w)">
                   <span class="material-icons">redeem</span>
                   <div class="meta">
-                    <strong>{{ w.displayName }}</strong>
-                    <span class="muted small">{{ w.eventId ? 'Event wishlist' : 'Personal wishlist' }}</span>
+                    <strong>{{ w.title }}</strong>
+                    <span class="muted small">{{ w.subtitle }}</span>
                   </div>
                 </button>
               }
@@ -98,14 +98,13 @@ export class NavbarComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected query = '';
-  protected readonly events = signal<EventSummary[]>([]);
-  protected readonly wishlists = signal<WishlistOwnerHit[]>([]);
+  protected readonly hits = signal<SearchHit[]>([]);
+  protected readonly events = computed(() => this.hits().filter(h => h.kind === 'Event'));
+  protected readonly wishlists = computed(() => this.hits().filter(h => h.kind === 'Wishlist'));
   protected readonly loading = signal(false);
   protected readonly open = signal(false);
   protected readonly searched = signal(false);
-  protected readonly hasResults = computed(
-    () => this.events().length > 0 || this.wishlists().length > 0,
-  );
+  protected readonly hasResults = computed(() => this.hits().length > 0);
 
   protected readonly showLogout = computed(
     () => this.auth.me() !== null || this.auth.getAccessToken() !== null
@@ -119,8 +118,7 @@ export class NavbarComponent {
     this.open.set(true);
     const q = (value ?? '').trim();
     if (q.length < 2) {
-      this.events.set([]);
-      this.wishlists.set([]);
+      this.hits.set([]);
       this.searched.set(false);
       this.loading.set(false);
       return;
@@ -131,8 +129,7 @@ export class NavbarComponent {
       try {
         const r = await this.api.search(q);
         if (seq !== this.requestSeq) return;
-        this.events.set(r.events ?? []);
-        this.wishlists.set(r.wishlists ?? []);
+        this.hits.set(r ?? []);
         this.searched.set(true);
       } finally {
         if (seq === this.requestSeq) this.loading.set(false);
@@ -156,30 +153,18 @@ export class NavbarComponent {
   private resetSearch(): void {
     this.close();
     this.query = '';
-    this.events.set([]);
-    this.wishlists.set([]);
+    this.hits.set([]);
     this.searched.set(false);
   }
 
-  goEvent(e: EventSummary): void {
+  goEvent(e: SearchHit): void {
     this.resetSearch();
     this.router.navigate(['/event', e.id]);
   }
 
-  async goWishlistOwner(w: WishlistOwnerHit): Promise<void> {
+  goWishlist(w: SearchHit): void {
     this.resetSearch();
-    try {
-      const v = w.eventId != null
-        ? await this.api.resolveWishlistForEvent(w.eventId)
-        : w.ownerUserId
-          ? await this.api.resolveWishlistForUser(w.ownerUserId)
-          : null;
-      if (v) this.router.navigate(['/wishlist', v.id]);
-    } catch { /* ignore */ }
-  }
-
-  wishlistKey(w: WishlistOwnerHit): string {
-    return w.eventId != null ? `e:${w.eventId}` : `u:${w.ownerUserId}`;
+    this.router.navigate(['/wishlist', w.id]);
   }
 
   formatDate(iso: string): string {

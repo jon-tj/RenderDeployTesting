@@ -226,13 +226,12 @@ export interface WishlistView {
   items: WishlistItem[];
 }
 
-export interface WishlistOwnerHit {
-  eventId: number | null;
-  ownerUserId: string | null;
-  displayName: string;
-}
+export type SearchableKind = 'Event' | 'Wishlist';
 
-export interface SearchResults {
-  events: EventSummary[];
-  wishlists: WishlistOwnerHit[];
+export interface SearchHit {
+  kind: SearchableKind;
+  id: number;
+  title: string;
+  subtitle: string | null;
+  iconImageId: number | null;
 }

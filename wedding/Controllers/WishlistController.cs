@@ -1,265 +1,226 @@
+using System.ComponentModel.DataAnnotations;
 using FamilyHub.Data;
 using FamilyHub.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations;
 
 namespace FamilyHub.Controllers;
 
-[ApiController]
-[Route("api/wishlist")]
-public class WishlistController : ControllerBase
+[ApiController, Route("api/wishlist")]
+public class WishlistController(AppDbContext db, UserManager<AppUser> users) : ControllerBase
 {
-    // Fixed conversion rates chosen by the owners: 1 BRL = 2 NOK = 20 USD.
+    // Fixed conversion rates: 1 BRL = 2 NOK = 20 USD.
     private static readonly Dictionary<WishlistCurrency, decimal> ToBrl = new()
     {
         [WishlistCurrency.BRL] = 1m,
-        [WishlistCurrency.NOK] = 0.5m,    // 2 NOK == 1 BRL
-        [WishlistCurrency.USD] = 0.05m,   // 20 USD == 1 BRL
+        [WishlistCurrency.NOK] = 0.5m,
+        [WishlistCurrency.USD] = 0.05m,
     };
 
-    private readonly AppDbContext _db;
-    private readonly UserManager<AppUser> _users;
+    string? Uid => users.GetUserId(User);
 
-    public WishlistController(AppDbContext db, UserManager<AppUser> users)
+    IQueryable<Wishlist> WishlistWithItems() => db.Wishlists
+        .Include(w => w.Items).ThenInclude(i => i.Claims);
+
+    Task<Wishlist?> Load(int id) => WishlistWithItems().FirstOrDefaultAsync(w => w.Id == id);
+
+    async Task<IAssetOwner?> LoadOwner(Wishlist w)
     {
-        _db = db;
-        _users = users;
+        if (w.EventId is int eid)
+            return await db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eid);
+        return string.IsNullOrEmpty(w.OwnerUserId) ? null : await users.FindByIdAsync(w.OwnerUserId);
     }
 
-    // ----- Read -----
+    static bool CanEdit(IAssetOwner owner, string uid) => owner.EditorUserIds.Contains(uid);
 
-    // Canonical wishlist URL: by id, no owner in the path.
-    [HttpGet("{id:int}")]
-    [AllowAnonymous]
+    // Loads the item plus the auth info needed by every item endpoint.
+    async Task<(WishlistItem? item, IAssetOwner? owner, ActionResult? err)> LoadItemForEdit(int id)
+    {
+        var item = await db.WishlistItems.Include(i => i.Claims).Include(i => i.Wishlist)
+            .FirstOrDefaultAsync(i => i.Id == id);
+        var uid = Uid;
+        if (uid is null) return (null, null, Unauthorized());
+        if (item is null || item.Wishlist is null) return (null, null, NotFound());
+        var owner = await LoadOwner(item.Wishlist);
+        if (owner is null || !CanEdit(owner, uid)) return (null, null, Forbid());
+        return (item, owner, null);
+    }
+
+    [HttpGet("{id:int}"), AllowAnonymous]
     public async Task<ActionResult<WishlistViewDto>> Get(int id)
     {
-        var wishlist = await _db.Wishlists
-            .Include(w => w.Items).ThenInclude(i => i.Claims)
-            .FirstOrDefaultAsync(w => w.Id == id);
-        if (wishlist is null) return NotFound();
-        var owner = await LoadOwnerAsync(wishlist.EventId, wishlist.OwnerUserId);
-        if (owner is null) return NotFound();
-        return BuildView(wishlist, owner);
+        var w = await Load(id);
+        if (w is null) return NotFound();
+        var owner = await LoadOwner(w);
+        return owner is null ? NotFound() : BuildView(w, owner);
     }
 
-    // Resolver: "I have an event, give me its wishlist". Creates the
-    // wishlist if it doesn't exist yet so callers always get a real id back.
-    [HttpGet("for-event/{eventId:int}")]
-    [AllowAnonymous]
+    [HttpGet("for-event/{eventId:int}"), AllowAnonymous]
     public async Task<ActionResult<WishlistViewDto>> GetForEvent(int eventId)
     {
-        var ev = await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eventId);
+        var ev = await db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eventId);
         if (ev is null) return NotFound();
-        var wishlist = await GetOrCreateForEventAsync(eventId);
-        return BuildView(wishlist, ev);
+        var w = await WishlistWithItems().FirstOrDefaultAsync(x => x.EventId == eventId)
+            ?? await Create(new Wishlist { EventId = eventId });
+        return BuildView(w, ev);
     }
 
-    // Resolver: same idea for a user's personal wishlist.
-    [HttpGet("for-user/{userId}")]
-    [AllowAnonymous]
+    [HttpGet("for-user/{userId}"), AllowAnonymous]
     public async Task<ActionResult<WishlistViewDto>> GetForUser(string userId)
     {
-        var owner = await _users.FindByIdAsync(userId);
+        var owner = await users.FindByIdAsync(userId);
         if (owner is null) return NotFound();
-        var wishlist = await GetOrCreateForUserAsync(userId);
-        return BuildView(wishlist, owner);
+        var w = await WishlistWithItems().FirstOrDefaultAsync(x => x.OwnerUserId == userId)
+            ?? await Create(new Wishlist { OwnerUserId = userId });
+        return BuildView(w, owner);
     }
 
-    [HttpGet("mine")]
-    [Authorize]
-    public async Task<ActionResult<WishlistViewDto>> GetMine()
+    [HttpGet("mine"), Authorize]
+    public Task<ActionResult<WishlistViewDto>> GetMine() => GetForUser(Uid!);
+
+    async Task<Wishlist> Create(Wishlist fresh)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        return await GetForUser(uid);
+        db.Wishlists.Add(fresh);
+        await db.SaveChangesAsync();
+        return fresh;
     }
 
-    [HttpGet("rates")]
-    [AllowAnonymous]
-    public ActionResult<Dictionary<string, decimal>> GetRates()
-        => ToBrl.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
+    [HttpGet("rates"), AllowAnonymous]
+    public ActionResult<Dictionary<string, decimal>> GetRates() =>
+        ToBrl.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
 
-    // ----- Items -----
-
-    [HttpPost("{wishlistId:int}/items")]
-    [Authorize]
+    [HttpPost("{wishlistId:int}/items"), Authorize]
     public async Task<ActionResult<WishlistItemDto>> CreateItem(int wishlistId, [FromBody] WishlistItemWriteDto dto)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Name is required.");
-
-        var wishlist = await _db.Wishlists.FirstOrDefaultAsync(w => w.Id == wishlistId);
-        if (wishlist is null) return NotFound();
-        var owner = await LoadOwnerAsync(wishlist.EventId, wishlist.OwnerUserId);
+        var w = await db.Wishlists.FirstOrDefaultAsync(x => x.Id == wishlistId);
+        if (w is null) return NotFound();
+        var owner = await LoadOwner(w);
+        var uid = Uid;
+        if (uid is null) return Unauthorized();
         if (owner is null || !CanEdit(owner, uid)) return Forbid();
 
         var item = new WishlistItem
         {
-            WishlistId = wishlist.Id,
+            WishlistId = w.Id,
             Name = dto.Name.Trim(),
-            Description = (dto.Description ?? string.Empty).Trim(),
-            Url = (dto.Url ?? string.Empty).Trim(),
-            ImageUrl = (dto.ImageUrl ?? string.Empty).Trim(),
+            Description = (dto.Description ?? "").Trim(),
+            Url = (dto.Url ?? "").Trim(),
+            ImageUrl = (dto.ImageUrl ?? "").Trim(),
             PriceMinor = Math.Max(0, dto.PriceMinor ?? 0),
             Currency = dto.Currency ?? WishlistCurrency.BRL,
             WishedQuantity = Math.Max(1, dto.WishedQuantity ?? 1),
         };
-        _db.WishlistItems.Add(item);
-        await _db.SaveChangesAsync();
-        return WishlistItemDto.From(item, canEdit: true, uid);
+        db.WishlistItems.Add(item);
+        await db.SaveChangesAsync();
+        return WishlistItemDto.From(item, true, uid);
     }
 
-    [HttpPut("items/{id:int}")]
-    [Authorize]
+    [HttpPut("items/{id:int}"), Authorize]
     public async Task<ActionResult<WishlistItemDto>> UpdateItem(int id, [FromBody] WishlistItemWriteDto dto)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var item = await _db.WishlistItems.Include(i => i.Claims).Include(i => i.Wishlist).FirstOrDefaultAsync(i => i.Id == id);
-        if (item is null) return NotFound();
-        if (!await CanEditItemAsync(item, uid)) return Forbid();
+        var (item, _, err) = await LoadItemForEdit(id);
+        if (err is not null) return err;
         if (dto.Name is not null)
         {
             var n = dto.Name.Trim();
-            if (string.IsNullOrEmpty(n)) return BadRequest("Name is required.");
-            item.Name = n;
+            if (n.Length == 0) return BadRequest("Name is required.");
+            item!.Name = n;
         }
-        if (dto.Description is not null) item.Description = dto.Description.Trim();
-        if (dto.Url is not null) item.Url = dto.Url.Trim();
-        if (dto.ImageUrl is not null) item.ImageUrl = dto.ImageUrl.Trim();
-        if (dto.PriceMinor.HasValue) item.PriceMinor = Math.Max(0, dto.PriceMinor.Value);
-        if (dto.Currency.HasValue) item.Currency = dto.Currency.Value;
-        if (dto.WishedQuantity.HasValue) item.WishedQuantity = Math.Max(1, dto.WishedQuantity.Value);
-        await _db.SaveChangesAsync();
-        return WishlistItemDto.From(item, canEdit: true, uid);
+        if (dto.Description is not null) item!.Description = dto.Description.Trim();
+        if (dto.Url is not null) item!.Url = dto.Url.Trim();
+        if (dto.ImageUrl is not null) item!.ImageUrl = dto.ImageUrl.Trim();
+        if (dto.PriceMinor is { } p) item!.PriceMinor = Math.Max(0, p);
+        if (dto.Currency is { } c) item!.Currency = c;
+        if (dto.WishedQuantity is { } q) item!.WishedQuantity = Math.Max(1, q);
+        await db.SaveChangesAsync();
+        return WishlistItemDto.From(item!, true, Uid);
     }
 
-    [HttpDelete("items/{id:int}")]
-    [Authorize]
+    [HttpDelete("items/{id:int}"), Authorize]
     public async Task<IActionResult> DeleteItem(int id)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var item = await _db.WishlistItems.Include(i => i.Wishlist).FirstOrDefaultAsync(i => i.Id == id);
-        if (item is null) return NotFound();
-        if (!await CanEditItemAsync(item, uid)) return Forbid();
-        _db.WishlistItems.Remove(item);
-        await _db.SaveChangesAsync();
+        var (item, _, err) = await LoadItemForEdit(id);
+        if (err is not null) return err;
+        db.WishlistItems.Remove(item!);
+        await db.SaveChangesAsync();
         return NoContent();
     }
 
-    [HttpPost("items/{id:int}/image")]
-    [Authorize]
-    [RequestSizeLimit(10_000_000)]
+    [HttpPost("items/{id:int}/image"), Authorize, RequestSizeLimit(10_000_000)]
     public async Task<ActionResult<WishlistItemDto>> UploadImage(int id, [FromForm] WishlistImageUploadDto dto)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var item = await _db.WishlistItems.Include(i => i.Claims).Include(i => i.Wishlist).FirstOrDefaultAsync(i => i.Id == id);
-        if (item is null) return NotFound();
-        if (!await CanEditItemAsync(item, uid)) return Forbid();
+        var (item, _, err) = await LoadItemForEdit(id);
+        if (err is not null) return err;
         if (dto.File is null || dto.File.Length == 0) return BadRequest("File is required.");
         if (!dto.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             return BadRequest("File must be an image.");
         using var ms = new MemoryStream();
         await dto.File.CopyToAsync(ms);
-        item.ImageData = ms.ToArray();
+        item!.ImageData = ms.ToArray();
         item.ImageContentType = dto.File.ContentType;
-        await _db.SaveChangesAsync();
-        return WishlistItemDto.From(item, canEdit: true, uid);
+        await db.SaveChangesAsync();
+        return WishlistItemDto.From(item, true, Uid);
     }
 
-    [HttpDelete("items/{id:int}/image")]
-    [Authorize]
+    [HttpDelete("items/{id:int}/image"), Authorize]
     public async Task<ActionResult<WishlistItemDto>> DeleteImage(int id)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var item = await _db.WishlistItems.Include(i => i.Claims).Include(i => i.Wishlist).FirstOrDefaultAsync(i => i.Id == id);
-        if (item is null) return NotFound();
-        if (!await CanEditItemAsync(item, uid)) return Forbid();
-        item.ImageData = null;
-        item.ImageContentType = string.Empty;
-        await _db.SaveChangesAsync();
-        return WishlistItemDto.From(item, canEdit: true, uid);
+        var (item, _, err) = await LoadItemForEdit(id);
+        if (err is not null) return err;
+        item!.ImageData = null;
+        item.ImageContentType = "";
+        await db.SaveChangesAsync();
+        return WishlistItemDto.From(item, true, Uid);
     }
 
-    [HttpGet("items/{id:int}/image")]
-    [AllowAnonymous]
+    [HttpGet("items/{id:int}/image"), AllowAnonymous]
     public async Task<IActionResult> GetImage(int id)
     {
-        var item = await _db.WishlistItems.FirstOrDefaultAsync(i => i.Id == id);
-        if (item is null || item.ImageData is null || item.ImageData.Length == 0) return NotFound();
-        return File(item.ImageData, string.IsNullOrEmpty(item.ImageContentType) ? "application/octet-stream" : item.ImageContentType);
+        var item = await db.WishlistItems.FirstOrDefaultAsync(i => i.Id == id);
+        if (item?.ImageData is not { Length: > 0 } data) return NotFound();
+        return File(data, string.IsNullOrEmpty(item.ImageContentType) ? "application/octet-stream" : item.ImageContentType);
     }
 
-    // ----- Options -----
-
-    [HttpPut("{id:int}/options")]
-    [Authorize]
+    [HttpPut("{id:int}/options"), Authorize]
     public async Task<ActionResult<WishlistViewDto>> UpdateOptions(int id, [FromBody] WishlistOptionsDto dto)
     {
-        var uid = _users.GetUserId(User);
+        var w = await Load(id);
+        if (w is null) return NotFound();
+        var owner = await LoadOwner(w);
+        var uid = Uid;
         if (uid is null) return Unauthorized();
-        var wishlist = await _db.Wishlists
-            .Include(w => w.Items).ThenInclude(i => i.Claims)
-            .FirstOrDefaultAsync(w => w.Id == id);
-        if (wishlist is null) return NotFound();
-        var owner = await LoadOwnerAsync(wishlist.EventId, wishlist.OwnerUserId);
         if (owner is null || !CanEdit(owner, uid)) return Forbid();
-
-        if (dto.PixKey is not null) wishlist.PixKey = dto.PixKey.Trim();
-        if (dto.ClaimMode is WishlistClaimMode cm) wishlist.ClaimMode = cm;
-        await _db.SaveChangesAsync();
-        return BuildView(wishlist, owner);
+        if (dto.PixKey is not null) w.PixKey = dto.PixKey.Trim();
+        if (dto.ClaimMode is { } cm) w.ClaimMode = cm;
+        await db.SaveChangesAsync();
+        return BuildView(w, owner);
     }
 
-    // ----- Claims -----
-
-    // Cart-style claim. Anonymous claimants pass a label so the owner can
-    // attribute the gift.
-    [HttpPost("claim")]
-    [AllowAnonymous]
+    [HttpPost("claim"), AllowAnonymous]
     public async Task<ActionResult<List<ClaimDto>>> Claim([FromBody] ClaimCartDto dto)
     {
         if (dto.Items is null || dto.Items.Count == 0) return BadRequest("Cart is empty.");
-        var uid = _users.GetUserId(User);
-        var label = (dto.ClaimantLabel ?? string.Empty).Trim();
-        if (uid is null && string.IsNullOrEmpty(label))
-            return BadRequest("Anonymous claims need a name.");
+        var uid = Uid;
+        var label = (dto.ClaimantLabel ?? "").Trim();
 
         var ids = dto.Items.Select(i => i.ItemId).Distinct().ToList();
-        var items = await _db.WishlistItems
-            .Where(i => ids.Contains(i.Id))
-            .Include(i => i.Claims)
-            .Include(i => i.Wishlist)
-            .ToListAsync();
-        var itemsById = items.ToDictionary(i => i.Id);
-
+        var items = await db.WishlistItems.Where(i => ids.Contains(i.Id))
+            .Include(i => i.Claims).Include(i => i.Wishlist).ToListAsync();
         if (items.Any(i => i.Wishlist?.ClaimMode == WishlistClaimMode.Disabled))
             return BadRequest("Claiming is disabled for this wishlist.");
+        var itemsById = items.ToDictionary(i => i.Id);
 
         var created = new List<WishlistClaim>();
         foreach (var line in dto.Items)
         {
             if (!itemsById.TryGetValue(line.ItemId, out var item)) continue;
-            var mode = item.Wishlist?.ClaimMode ?? WishlistClaimMode.LimitedQuantities;
             var requested = Math.Max(1, line.Quantity);
-            int qty;
-            if (mode == WishlistClaimMode.LimitedQuantities)
-            {
-                var alreadyClaimed = item.Claims.Sum(c => c.Quantity);
-                var remaining = item.WishedQuantity - alreadyClaimed;
-                qty = Math.Min(requested, Math.Max(0, remaining));
-            }
-            else
-            {
-                qty = requested;
-            }
+            var qty = item.Wishlist?.ClaimMode == WishlistClaimMode.LimitedQuantities
+                ? Math.Min(requested, Math.Max(0, item.WishedQuantity - item.Claims.Sum(c => c.Quantity)))
+                : requested;
             if (qty <= 0) continue;
             var claim = new WishlistClaim
             {
@@ -268,172 +229,90 @@ public class WishlistController : ControllerBase
                 ClaimantLabel = label,
                 Quantity = qty,
             };
-            _db.WishlistClaims.Add(claim);
+            db.WishlistClaims.Add(claim);
             created.Add(claim);
         }
-        await _db.SaveChangesAsync();
+        await db.SaveChangesAsync();
         return created.Select(c => ClaimDto.From(c, uid)).ToList();
     }
 
-    [HttpDelete("claim/{claimId:int}")]
-    [Authorize]
+    [HttpDelete("claim/{claimId:int}"), Authorize]
     public async Task<IActionResult> ReleaseClaim(int claimId)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var claim = await _db.WishlistClaims.Include(c => c.Item).FirstOrDefaultAsync(c => c.Id == claimId);
-        if (claim is null) return NotFound();
-        var isClaimant = claim.ClaimantUserId == uid;
-        var canEdit = claim.Item is not null && await CanEditItemAsync(claim.Item, uid);
-        if (!canEdit && !isClaimant) return Forbid();
-        _db.WishlistClaims.Remove(claim);
-        await _db.SaveChangesAsync();
+        var (claim, canEdit, err) = await LoadClaimForOwnerOrClaimant(claimId);
+        if (err is not null) return err;
+        db.WishlistClaims.Remove(claim!);
+        await db.SaveChangesAsync();
         return NoContent();
     }
 
-    [HttpPost("claim/{claimId:int}/complete")]
-    [Authorize]
+    [HttpPost("claim/{claimId:int}/complete"), Authorize]
     public async Task<IActionResult> CompleteClaim(int claimId)
     {
-        var uid = _users.GetUserId(User);
-        if (uid is null) return Unauthorized();
-        var claim = await _db.WishlistClaims.Include(c => c.Item).FirstOrDefaultAsync(c => c.Id == claimId);
-        if (claim is null || claim.Item is null) return NotFound();
-        if (!await CanEditItemAsync(claim.Item, uid)) return Forbid();
-
-        claim.Item.WishedQuantity = Math.Max(0, claim.Item.WishedQuantity - claim.Quantity);
-        _db.WishlistClaims.Remove(claim);
-        if (claim.Item.WishedQuantity == 0)
-            _db.WishlistItems.Remove(claim.Item);
-        await _db.SaveChangesAsync();
+        var (claim, canEdit, err) = await LoadClaimForOwnerOrClaimant(claimId);
+        if (err is not null) return err;
+        if (!canEdit) return Forbid();
+        claim!.Item!.WishedQuantity = Math.Max(0, claim.Item.WishedQuantity - claim.Quantity);
+        db.WishlistClaims.Remove(claim);
+        if (claim.Item.WishedQuantity == 0) db.WishlistItems.Remove(claim.Item);
+        await db.SaveChangesAsync();
         return NoContent();
     }
 
-    // ----- Helpers -----
-
-    private WishlistViewDto BuildView(Wishlist wishlist, IAssetOwner owner)
+    async Task<(WishlistClaim? claim, bool canEdit, ActionResult? err)> LoadClaimForOwnerOrClaimant(int claimId)
     {
-        var currentUid = _users.GetUserId(User);
-        var canEdit = currentUid is not null && CanEdit(owner, currentUid);
+        var uid = Uid;
+        if (uid is null) return (null, false, Unauthorized());
+        var claim = await db.WishlistClaims.Include(c => c.Item).ThenInclude(i => i!.Wishlist)
+            .FirstOrDefaultAsync(c => c.Id == claimId);
+        if (claim?.Item is null) return (null, false, NotFound());
+        var owner = claim.Item.Wishlist is null ? null : await LoadOwner(claim.Item.Wishlist);
+        var canEdit = owner is not null && CanEdit(owner, uid);
+        if (!canEdit && claim.ClaimantUserId != uid) return (null, false, Forbid());
+        return (claim, canEdit, null);
+    }
+
+    WishlistViewDto BuildView(Wishlist w, IAssetOwner owner)
+    {
+        var uid = Uid;
+        var canEdit = uid is not null && CanEdit(owner, uid);
         var display = owner switch
         {
             CalendarEvent ev => ev.Title,
             AppUser u => u.DisplayName,
-            _ => string.Empty,
+            _ => "",
         };
-        var items = (wishlist.Items ?? new())
-            .OrderBy(i => i.CreatedAtUtc)
-            .Select(i => WishlistItemDto.From(i, canEdit, currentUid))
-            .ToList();
-        return new WishlistViewDto(
-            wishlist.Id,
-            wishlist.EventId,
-            wishlist.OwnerUserId,
-            display,
-            canEdit,
-            wishlist.PixKey ?? string.Empty,
-            wishlist.ClaimMode,
-            items);
-    }
-
-    private async Task<IAssetOwner?> LoadOwnerAsync(int? eventId, string? userId)
-    {
-        if (eventId is int eid)
-            return await _db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eid);
-        if (!string.IsNullOrEmpty(userId))
-            return await _users.FindByIdAsync(userId);
-        return null;
-    }
-
-    private async Task<Wishlist> GetOrCreateForEventAsync(int eventId)
-    {
-        var existing = await _db.Wishlists
-            .Include(w => w.Items).ThenInclude(i => i.Claims)
-            .FirstOrDefaultAsync(w => w.EventId == eventId);
-        if (existing is not null) return existing;
-        var fresh = new Wishlist { EventId = eventId };
-        _db.Wishlists.Add(fresh);
-        await _db.SaveChangesAsync();
-        return fresh;
-    }
-
-    private async Task<Wishlist> GetOrCreateForUserAsync(string userId)
-    {
-        var existing = await _db.Wishlists
-            .Include(w => w.Items).ThenInclude(i => i.Claims)
-            .FirstOrDefaultAsync(w => w.OwnerUserId == userId);
-        if (existing is not null) return existing;
-        var fresh = new Wishlist { OwnerUserId = userId };
-        _db.Wishlists.Add(fresh);
-        await _db.SaveChangesAsync();
-        return fresh;
-    }
-
-    private async Task<bool> CanEditItemAsync(WishlistItem item, string uid)
-    {
-        var wishlist = item.Wishlist
-            ?? await _db.Wishlists.FirstOrDefaultAsync(w => w.Id == item.WishlistId);
-        if (wishlist is null) return false;
-        var owner = await LoadOwnerAsync(wishlist.EventId, wishlist.OwnerUserId);
-        return owner is not null && CanEdit(owner, uid);
-    }
-
-    private static bool CanEdit(IAssetOwner owner, string uid)
-        => owner.EditorUserIds.Contains(uid);
-}
-
-public sealed record WishlistViewDto(
-    int Id,
-    int? EventId,
-    string? OwnerUserId,
-    string OwnerDisplayName,
-    bool CanEdit,
-    string PixKey,
-    WishlistClaimMode ClaimMode,
-    List<WishlistItemDto> Items);
-
-public sealed record WishlistItemDto(
-    int Id,
-    int WishlistId,
-    string Name,
-    string Description,
-    string Url,
-    string ImageUrl,
-    bool HasUploadedImage,
-    long PriceMinor,
-    WishlistCurrency Currency,
-    int WishedQuantity,
-    int ClaimedQuantity,
-    List<ClaimDto> Claims,
-    bool CanEdit)
-{
-    public static WishlistItemDto From(WishlistItem i, bool canEdit, string? currentUid)
-    {
-        var claimed = (i.Claims ?? new()).Sum(c => c.Quantity);
-        var visible = (i.Claims ?? new())
-            .Where(c => !canEdit || c.ClaimantUserId == currentUid)
-            .Select(c => ClaimDto.From(c, currentUid))
-            .ToList();
-        return new(
-            i.Id, i.WishlistId, i.Name, i.Description, i.Url, i.ImageUrl,
-            i.ImageData is { Length: > 0 },
-            i.PriceMinor, i.Currency,
-            i.WishedQuantity, claimed, visible, canEdit);
+        var items = (w.Items ?? new()).OrderBy(i => i.CreatedAtUtc)
+            .Select(i => WishlistItemDto.From(i, canEdit, uid)).ToList();
+        return new(w.Id, w.EventId, w.OwnerUserId, display, canEdit,
+            w.PixKey ?? "", w.ClaimMode, items);
     }
 }
 
-public sealed record ClaimDto(
-    int Id,
-    int ItemId,
-    string? ClaimantUserId,
-    string ClaimantLabel,
-    int Quantity,
-    DateTime CreatedAtUtc,
-    bool IsMine)
+public sealed record WishlistViewDto(int Id, int? EventId, string? OwnerUserId, string OwnerDisplayName,
+    bool CanEdit, string PixKey, WishlistClaimMode ClaimMode, List<WishlistItemDto> Items);
+
+public sealed record WishlistItemDto(int Id, int WishlistId, string Name, string Description,
+    string Url, string ImageUrl, bool HasUploadedImage, long PriceMinor, WishlistCurrency Currency,
+    int WishedQuantity, int ClaimedQuantity, List<ClaimDto> Claims, bool CanEdit)
 {
-    public static ClaimDto From(WishlistClaim c, string? currentUid) => new(
+    public static WishlistItemDto From(WishlistItem i, bool canEdit, string? uid)
+    {
+        var claims = i.Claims ?? new();
+        var visible = claims.Where(c => !canEdit || c.ClaimantUserId == uid)
+            .Select(c => ClaimDto.From(c, uid)).ToList();
+        return new(i.Id, i.WishlistId, i.Name, i.Description, i.Url, i.ImageUrl,
+            i.ImageData is { Length: > 0 }, i.PriceMinor, i.Currency,
+            i.WishedQuantity, claims.Sum(c => c.Quantity), visible, canEdit);
+    }
+}
+
+public sealed record ClaimDto(int Id, int ItemId, string? ClaimantUserId, string ClaimantLabel,
+    int Quantity, DateTime CreatedAtUtc, bool IsMine)
+{
+    public static ClaimDto From(WishlistClaim c, string? uid) => new(
         c.Id, c.ItemId, c.ClaimantUserId, c.ClaimantLabel, c.Quantity, c.CreatedAtUtc,
-        currentUid is not null && c.ClaimantUserId == currentUid);
+        uid is not null && c.ClaimantUserId == uid);
 }
 
 public sealed class WishlistItemWriteDto
@@ -447,10 +326,7 @@ public sealed class WishlistItemWriteDto
     public int? WishedQuantity { get; set; }
 }
 
-public sealed class WishlistImageUploadDto
-{
-    [Required] public IFormFile File { get; set; } = default!;
-}
+public sealed class WishlistImageUploadDto { [Required] public IFormFile File { get; set; } = default!; }
 
 public sealed class WishlistOptionsDto
 {

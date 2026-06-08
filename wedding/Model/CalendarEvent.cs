@@ -19,7 +19,7 @@ public enum EventVisibility
     Private = 2,
 }
 
-public class CalendarEvent : IAssetOwner
+public class CalendarEvent : IAssetOwner, ISearchable
 {
     public int Id { get; set; }
 
@@ -115,4 +115,18 @@ public class CalendarEvent : IAssetOwner
             return ids;
         }
     }
+
+    // ISearchable: events surface as their title; matches against title or
+    // location. Visibility filtering happens at the controller layer because
+    // it depends on the calling user.
+    public SearchableKind SearchableKind => SearchableKind.Event;
+    public int SearchableId => Id;
+    public string SearchableTitle => Title;
+    public string? SearchableSubtitle => string.IsNullOrEmpty(Location) ? null : Location;
+    public int? SearchableIconImageId
+        => Images?.FirstOrDefault(i => i.Role == ImageRole.Icon)?.Id;
+
+    public bool MatchesSearch(string needle)
+        => SearchMatch.Contains(Title, needle)
+            || SearchMatch.Contains(Location, needle);
 }

@@ -1,162 +1,94 @@
+using System.ComponentModel.DataAnnotations;
 using FamilyHub.Data;
 using FamilyHub.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.ComponentModel.DataAnnotations;
 
 namespace FamilyHub.Controllers;
 
-[ApiController]
-[Route("api/users")]
-[Authorize]
-public class UsersController : ControllerBase
+[ApiController, Route("api/users"), Authorize]
+public class UsersController(AppDbContext db, UserManager<AppUser> users) : ControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly UserManager<AppUser> _users;
+    static UserSummaryDto Summary(AppUser u) => new(u.Id, u.DisplayName, u.Email ?? "");
+    static ActionResult Errors(IdentityResult r) => new BadRequestObjectResult(string.Join("; ", r.Errors.Select(e => e.Description)));
 
-    public UsersController(AppDbContext db, UserManager<AppUser> users)
-    {
-        _db = db;
-        _users = users;
-    }
-
-    // Lightweight search for invite pickers. Matches against display name and
-    // email; intentionally narrow result count so an autocomplete stays snappy.
     [HttpGet("search")]
     public async Task<ActionResult<List<UserSummaryDto>>> Search([FromQuery] string q)
     {
-        q = (q ?? string.Empty).Trim();
+        q = (q ?? "").Trim();
         if (q.Length < 2) return new List<UserSummaryDto>();
-
-        var matches = await _db.Users
-            .Where(u => EF.Functions.Like(u.DisplayName, $"%{q}%")
-                     || EF.Functions.Like(u.Email!, $"%{q}%"))
-            .OrderBy(u => u.DisplayName)
-            .Take(15)
-            .Select(u => new UserSummaryDto(u.Id, u.DisplayName, u.Email ?? string.Empty))
+        return await db.Users
+            .Where(u => EF.Functions.Like(u.DisplayName, $"%{q}%") || EF.Functions.Like(u.Email!, $"%{q}%"))
+            .OrderBy(u => u.DisplayName).Take(15)
+            .Select(u => new UserSummaryDto(u.Id, u.DisplayName, u.Email ?? ""))
             .ToListAsync();
-
-        return matches;
     }
 
-    // Creates a placeholder account for an invitee who hasn't signed up yet.
-    // The user has no password and must register through the normal flow with
-    // the same email to claim the account. Returns existing user if email
-    // already matches.
+    // Placeholder account for an invitee. They claim it via the normal
+    // registration flow with the same email.
     [HttpPost("invite-stub")]
     public async Task<ActionResult<UserSummaryDto>> CreateInviteStub([FromBody] CreateInviteStubDto dto)
     {
-        var email = (dto.Email ?? string.Empty).Trim().ToLowerInvariant();
-        if (!new EmailAddressAttribute().IsValid(email))
-            return BadRequest("Invalid email.");
-
-        var existing = await _users.FindByEmailAsync(email);
-        if (existing is not null)
-            return new UserSummaryDto(existing.Id, existing.DisplayName, existing.Email ?? string.Empty);
+        var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+        if (!new EmailAddressAttribute().IsValid(email)) return BadRequest("Invalid email.");
+        if (await users.FindByEmailAsync(email) is { } existing) return Summary(existing);
 
         var user = new AppUser
         {
-            UserName = email,
-            Email = email,
+            UserName = email, Email = email,
             DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? email : dto.DisplayName.Trim(),
             PreferredLanguage = LanguageCodes.Normalize(dto.Language),
-            DietaryPreferences = new DietaryPreferences()
+            DietaryPreferences = new DietaryPreferences(),
         };
-
-        var result = await _users.CreateAsync(user);
-        if (!result.Succeeded)
-            return BadRequest(string.Join("; ", result.Errors.Select(e => e.Description)));
-
-        return new UserSummaryDto(user.Id, user.DisplayName, user.Email ?? string.Empty);
+        var r = await users.CreateAsync(user);
+        return r.Succeeded ? Summary(user) : Errors(r);
     }
 
-    // Public lookup used by the onboarding page. Returns the email + display
-    // name so the form can prefill, and whether the account already has a
-    // password (i.e. has been onboarded). Intentionally permissive: anyone who
-    // knows the GUID can read these two non-sensitive fields.
-    [AllowAnonymous]
-    [HttpGet("{id}/onboarding-status")]
+    [AllowAnonymous, HttpGet("{id}/onboarding-status")]
     public async Task<ActionResult<OnboardingStatusDto>> OnboardingStatus(string id)
     {
-        var user = await _users.FindByIdAsync(id);
+        var user = await users.FindByIdAsync(id);
         if (user is null) return NotFound();
-
-        var hasPassword = await _users.HasPasswordAsync(user);
-        return new OnboardingStatusDto(
-            user.Id,
-            user.Email ?? string.Empty,
-            user.DisplayName,
-            hasPassword);
+        return new OnboardingStatusDto(user.Id, user.Email ?? "", user.DisplayName, await users.HasPasswordAsync(user));
     }
 
-    // Claim an invite-stub account: set the password and (optionally) the
-    // display name. Refuses once a password is set, so a real user can never
-    // be hijacked by re-running this with the same GUID.
-    [AllowAnonymous]
-    [HttpPost("{id}/onboard")]
+    // Claim an invite-stub account. Refuses once the account has a password
+    // so a real user can't be hijacked by replaying this with their id.
+    [AllowAnonymous, HttpPost("{id}/onboard")]
     public async Task<ActionResult> Onboard(string id, [FromBody] OnboardDto dto)
     {
-        var user = await _db.Users
-            .Include(u => u.DietaryPreferences)
-            .FirstOrDefaultAsync(u => u.Id == id);
+        var user = await db.Users.Include(u => u.DietaryPreferences).FirstOrDefaultAsync(u => u.Id == id);
         if (user is null) return NotFound();
+        if (await users.HasPasswordAsync(user)) return Conflict("This account has already been set up.");
 
-        if (await _users.HasPasswordAsync(user))
-            return Conflict("This account has already been set up.");
-
-        if (!string.IsNullOrWhiteSpace(dto.DisplayName))
-            user.DisplayName = dto.DisplayName.Trim();
-        if (!string.IsNullOrWhiteSpace(dto.Language))
-            user.PreferredLanguage = LanguageCodes.Normalize(dto.Language);
-        if (dto.Dietary is not null)
-        {
-            user.DietaryPreferences ??= new DietaryPreferences { UserId = user.Id };
-            user.DietaryPreferences.Preference = dto.Dietary.Preference;
-            user.DietaryPreferences.Allergens = dto.Dietary.Allergens?.Distinct().ToList() ?? new();
-            user.DietaryPreferences.CustomAllergens = dto.Dietary.CustomAllergens ?? string.Empty;
-            user.DietaryPreferences.Notes = dto.Dietary.Notes ?? string.Empty;
-        }
+        if (!string.IsNullOrWhiteSpace(dto.DisplayName)) user.DisplayName = dto.DisplayName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Language)) user.PreferredLanguage = LanguageCodes.Normalize(dto.Language);
+        if (dto.Dietary is not null) MeController.ApplyDietary(user, dto.Dietary);
         user.EmailConfirmed = true;
-        var updateResult = await _users.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-            return BadRequest(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
 
-        var addPw = await _users.AddPasswordAsync(user, dto.Password);
-        if (!addPw.Succeeded)
-            return BadRequest(string.Join("; ", addPw.Errors.Select(e => e.Description)));
-
-        return NoContent();
+        var update = await users.UpdateAsync(user);
+        if (!update.Succeeded) return Errors(update);
+        var pw = await users.AddPasswordAsync(user, dto.Password);
+        return pw.Succeeded ? NoContent() : Errors(pw);
     }
 }
 
 public sealed record UserSummaryDto(string Id, string DisplayName, string Email);
-
 public sealed record OnboardingStatusDto(string Id, string Email, string DisplayName, bool IsOnboarded);
 
 public sealed class CreateInviteStubDto
 {
-    [Required, EmailAddress, MaxLength(256)]
-    public string Email { get; set; } = string.Empty;
-
-    [MaxLength(120)]
-    public string? DisplayName { get; set; }
-
-    [MaxLength(10)]
-    public string? Language { get; set; }
+    [Required, EmailAddress, MaxLength(256)] public string Email { get; set; } = "";
+    [MaxLength(120)] public string? DisplayName { get; set; }
+    [MaxLength(10)] public string? Language { get; set; }
 }
 
 public sealed class OnboardDto
 {
-    [Required, MinLength(8), MaxLength(256)]
-    public string Password { get; set; } = string.Empty;
-
-    [MaxLength(120)]
-    public string? DisplayName { get; set; }
-
-    [MaxLength(10)]
-    public string? Language { get; set; }
-
+    [Required, MinLength(8), MaxLength(256)] public string Password { get; set; } = "";
+    [MaxLength(120)] public string? DisplayName { get; set; }
+    [MaxLength(10)] public string? Language { get; set; }
     public DietaryDto? Dietary { get; set; }
 }

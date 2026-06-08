@@ -1,5 +1,6 @@
 using FamilyHub.Data;
 using FamilyHub.Model;
+using FamilyHub.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -7,15 +8,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FamilyHub.Controllers;
 
-// Unified "go to" search used by the navbar. Returns matching events
-// (filtered by effective visibility for the caller) and wishlist items so
-// the user can jump to either an event page or the host wishlist.
+// Unified "go to" search used by the navbar. Iterates every ISearchable in
+// the database and returns a single flat hit list. Per-kind access control
+// (currently: only event visibility) is applied before adding a hit.
 [ApiController]
 [Route("api/search")]
 [Authorize]
 public class SearchController : ControllerBase
 {
+    private const int MaxHits = 16;
     private const int MaxPerKind = 8;
+    private const int MinNeedleLength = 2;
 
     private readonly AppDbContext _db;
     private readonly UserManager<AppUser> _users;
@@ -27,11 +30,10 @@ public class SearchController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<SearchResultsDto>> Search([FromQuery] string? q)
+    public async Task<ActionResult<List<SearchHitDto>>> Search([FromQuery] string? q)
     {
         var needle = (q ?? string.Empty).Trim();
-        if (needle.Length < 2)
-            return new SearchResultsDto(new(), new());
+        if (needle.Length < MinNeedleLength) return new List<SearchHitDto>();
 
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
@@ -41,96 +43,58 @@ public class SearchController : ControllerBase
             .Include(e => e.Images)
             .Include(e => e.CoOwners)
             .ToListAsync();
-        var byId = allEvents.ToDictionary(e => e.Id);
+        var eventsById = allEvents.ToDictionary(e => e.Id);
 
-        var events = allEvents
-            .Where(e => Contains(e.Title, needle) || Contains(e.Location, needle))
-            .Where(e => IsEffectivelyVisible(e, uid, byId, new HashSet<int>()))
-            .OrderBy(e => e.StartUtc)
-            .Take(MaxPerKind)
-            .Select(e => new EventSummaryDto(
-                e.Id, e.Type, e.Title, e.StartUtc, e.EndUtc, e.Location,
-                e.EditorUserIds.Contains(uid),
-                e.Images.FirstOrDefault(i => i.Role == ImageRole.Icon)?.Id))
-            .ToList();
-
-        // Normalize the needle so partial typing like "jon w", "jons w",
-        // "jon's wishl" all match the same owner. We strip apostrophes and
-        // collapse any "s " into a single space on both sides, then append
-        // " wishlist" to each owner's display name / event title so the
-        // query can substring-match against the combined form.
-        var normalizedNeedle = NormalizeOwnerKey(needle);
-
-        // Whole-wishlist hits: events and users with a wishlist row,
-        // matched by the owner's display name / event title. Item contents
-        // are intentionally not searched.
-        var wishlists = await _db.Wishlists
+        var allWishlists = await _db.Wishlists
             .Include(w => w.Event)
             .Include(w => w.Owner)
             .ToListAsync();
 
-        var wishlistOwners = new List<WishlistOwnerHitDto>();
-        foreach (var w in wishlists)
+        // Funnel everything through ISearchable. Adding a new searchable
+        // entity is now just: implement the interface + include it here.
+        IEnumerable<ISearchable> candidates = allEvents.Cast<ISearchable>().Concat(allWishlists);
+
+        var hits = new List<SearchHitDto>();
+        var perKind = new Dictionary<SearchableKind, int>();
+        foreach (var item in candidates)
         {
-            if (w.Event is { } ev && MatchesOwner(ev.Title, needle, normalizedNeedle))
-            {
-                wishlistOwners.Add(new WishlistOwnerHitDto(ev.Id, null, ev.Title));
-            }
-            else if (w.Owner is { } u && MatchesOwner(u.DisplayName, needle, normalizedNeedle))
-            {
-                wishlistOwners.Add(new WishlistOwnerHitDto(null, u.Id, u.DisplayName));
-            }
+            if (!item.MatchesSearch(needle)) continue;
+            if (!IsAccessible(item, uid, eventsById)) continue;
+
+            perKind.TryGetValue(item.SearchableKind, out var taken);
+            if (taken >= MaxPerKind) continue;
+            perKind[item.SearchableKind] = taken + 1;
+
+            hits.Add(SearchHitDto.From(item));
+            if (hits.Count >= MaxHits) break;
         }
-        wishlistOwners = wishlistOwners
-            .OrderBy(h => h.DisplayName)
-            .Take(MaxPerKind)
-            .ToList();
-
-        return new SearchResultsDto(events, wishlistOwners);
+        return hits;
     }
 
-    private static bool Contains(string? haystack, string needle)
-        => !string.IsNullOrEmpty(haystack)
-           && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
-
-    private static bool MatchesOwner(string? name, string needle, string normalizedNeedle)
-    {
-        if (string.IsNullOrEmpty(name)) return false;
-        if (name.Contains(needle, StringComparison.OrdinalIgnoreCase)) return true;
-        var key = NormalizeOwnerKey(name + " wishlist");
-        return key.Contains(normalizedNeedle, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeOwnerKey(string s)
-        => s.Replace("'", "")
-            .Replace("\u2019", "")
-            .Replace("s ", " ", StringComparison.OrdinalIgnoreCase);
-
-    // Mirrors EventsController.IsEffectivelyVisible — kept private here so
-    // the search has its own copy without exposing an internal helper.
-    private static bool IsEffectivelyVisible(
-        CalendarEvent ev,
+    // Per-kind access rules. Events use the shared visibility helper;
+    // wishlists are public (anyone with the link can browse them anyway).
+    private static bool IsAccessible(
+        ISearchable item,
         string uid,
-        IReadOnlyDictionary<int, CalendarEvent> byId,
-        HashSet<int> seen)
+        IReadOnlyDictionary<int, CalendarEvent> eventsById) => item switch
     {
-        if (!seen.Add(ev.Id)) return false;
-        if (ev.EditorUserIds.Contains(uid)) return true;
-        if (ev.Visibility == EventVisibility.Private) return false;
-        if (ev.Visibility == EventVisibility.Open) return true;
-        if (ev.Invites.Any(i => i.InviteeId == uid)) return true;
-        if (ev.InheritParentInvites && ev.ParentEventId.HasValue
-            && byId.TryGetValue(ev.ParentEventId.Value, out var parent))
-            return IsEffectivelyVisible(parent, uid, byId, seen);
-        return false;
-    }
+        CalendarEvent ev => EventAccess.IsVisibleTo(ev, uid, eventsById),
+        Wishlist => true,
+        _ => false,
+    };
 }
 
-public sealed record SearchResultsDto(
-    List<EventSummaryDto> Events,
-    List<WishlistOwnerHitDto> Wishlists);
-
-public sealed record WishlistOwnerHitDto(
-    int? EventId,
-    string? OwnerUserId,
-    string DisplayName);
+public sealed record SearchHitDto(
+    SearchableKind Kind,
+    int Id,
+    string Title,
+    string? Subtitle,
+    int? IconImageId)
+{
+    public static SearchHitDto From(ISearchable s) => new(
+        s.SearchableKind,
+        s.SearchableId,
+        s.SearchableTitle,
+        s.SearchableSubtitle,
+        s.SearchableIconImageId);
+}

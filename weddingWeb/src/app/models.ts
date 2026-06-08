@@ -199,8 +199,7 @@ export interface WishlistClaimDto {
 
 export interface WishlistItem {
   id: number;
-  eventId: number | null;
-  ownerUserId: string | null;
+  wishlistId: number;
   name: string;
   description: string;
   url: string;
@@ -208,7 +207,6 @@ export interface WishlistItem {
   hasUploadedImage: boolean;
   priceMinor: number;
   currency: WishlistCurrency;
-  pixKey?: string;
   wishedQuantity: number;
   claimedQuantity: number;
   claims: WishlistClaimDto[];
@@ -218,6 +216,7 @@ export interface WishlistItem {
 export type WishlistClaimMode = 'Disabled' | 'LimitedQuantities' | 'UnlimitedQuantities';
 
 export interface WishlistView {
+  id: number;
   eventId: number | null;
   ownerUserId: string | null;
   ownerDisplayName: string;

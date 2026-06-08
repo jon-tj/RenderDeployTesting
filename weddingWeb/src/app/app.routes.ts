@@ -32,11 +32,7 @@ export const routes: Routes = [
     loadComponent: () => import('./components/settings.component').then(m => m.SettingsComponent),
   },
   {
-    path: 'wishlist/event/:eventId',
-    loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
-  },
-  {
-    path: 'wishlist/user/:userId',
+    path: 'wishlist/:id',
     loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
   },
   {

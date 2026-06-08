@@ -4,19 +4,15 @@ using System.ComponentModel.DataAnnotations;
 
 public enum WishlistCurrency { BRL = 0, NOK = 1, USD = 2 }
 
-// A single thing on a wishlist. The wishlist itself belongs to an
-// IAssetOwner — either an event (any event owner/co-owner can edit) or a
-// user (only that user can edit). Exactly one of EventId / OwnerUserId
-// must be set.
+// A single thing on a wishlist. The wishlist itself carries the owner
+// (event or user) and all wishlist-level settings; items just point back
+// to it via WishlistId.
 public class WishlistItem
 {
     public int Id { get; set; }
 
-    public int? EventId { get; set; }
-    public CalendarEvent? Event { get; set; }
-
-    public string? OwnerUserId { get; set; }
-    public AppUser? Owner { get; set; }
+    public int WishlistId { get; set; }
+    public Wishlist? Wishlist { get; set; }
 
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     [MaxLength(2000)] public string Description { get; set; } = string.Empty;
@@ -32,10 +28,8 @@ public class WishlistItem
     public long PriceMinor { get; set; }
     public WishlistCurrency Currency { get; set; } = WishlistCurrency.BRL;
 
-    // Optional Pix key for BRL-denominated items so guests can pay directly.
-    [MaxLength(200)] public string PixKey { get; set; } = string.Empty;
-
-    // How many of this item the owner wants. Claims sum up against this.
+    // How many of this item the owner wants. Claims sum up against this
+    // when the wishlist's ClaimMode is LimitedQuantities.
     public int WishedQuantity { get; set; } = 1;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -20,7 +20,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
 @Component({
   selector: 'app-wishlist',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavbarComponent, DatePipe, RouterLink],
+  imports: [CommonModule, FormsModule, NavbarComponent, RouterLink],
   template: `
     <app-navbar></app-navbar>
     <main class="page">
@@ -467,22 +467,13 @@ export class WishlistComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     const params = this.route.snapshot.paramMap;
-    // Routes: /wishlist/event/:eventId, /wishlist/user/:userId
     try {
       this.rates = await this.api.getWishlistRates();
     } catch { /* fallback already set */ }
     try {
-      let view: WishlistView;
-      if (params.has('eventId')) {
-        const eid = Number(params.get('eventId'));
-        if (!Number.isFinite(eid) || eid <= 0) { this.notFound.set(true); return; }
-        view = await this.api.getEventWishlist(eid);
-      } else if (params.has('userId')) {
-        view = await this.api.getUserWishlist(params.get('userId')!);
-      } else {
-        this.notFound.set(true);
-        return;
-      }
+      const id = Number(params.get('id'));
+      if (!Number.isFinite(id) || id <= 0) { this.notFound.set(true); return; }
+      const view = await this.api.getWishlist(id);
       this.view.set(view);
       this.syncOptionDrafts(view);
     } catch {
@@ -524,10 +515,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
   async share(): Promise<void> {
     const v = this.view();
     if (!v) return;
-    let path = '/wishlist';
-    if (v.eventId) path = `/wishlist/event/${v.eventId}`;
-    else if (v.ownerUserId) path = `/wishlist/user/${encodeURIComponent(v.ownerUserId)}`;
-    const url = `${window.location.origin}${path}`;
+    const url = `${window.location.origin}/wishlist/${v.id}`;
     try {
       await navigator.clipboard.writeText(url);
       this.shareLabel.set(this.t('wishlist.linkCopied'));
@@ -544,9 +532,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
     this.pixSaving.set(true);
     this.pixError.set('');
     try {
-      const updated = await this.api.updateWishlistPayment({
-        eventId: v.eventId ?? undefined,
-        ownerUserId: v.ownerUserId ?? undefined,
+      const updated = await this.api.updateWishlistOptions(v.id, {
         pixKey: this.pixDraft.trim(),
         claimMode: this.claimModeDraft,
       });
@@ -582,13 +568,9 @@ export class WishlistComponent implements OnInit, OnDestroy {
   private async reloadView(): Promise<void> {
     const v = this.view();
     if (!v) return;
-    let fresh: WishlistView | null = null;
-    if (v.eventId) fresh = await this.api.getEventWishlist(v.eventId);
-    else if (v.ownerUserId) fresh = await this.api.getUserWishlist(v.ownerUserId);
-    if (fresh) {
-      this.view.set(fresh);
-      this.syncOptionDrafts(fresh);
-    }
+    const fresh = await this.api.getWishlist(v.id);
+    this.view.set(fresh);
+    this.syncOptionDrafts(fresh);
   }
 
   protected itemById(id: number): WishlistItem | undefined {
@@ -658,9 +640,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
     this.saving.set(true);
     this.addError.set('');
     try {
-      let item = await this.api.createWishlistItem({
-        eventId: v.eventId ?? undefined,
-        ownerUserId: v.ownerUserId ?? undefined,
+      let item = await this.api.createWishlistItem(v.id, {
         name: this.draftName.trim(),
         priceMinor: Math.round((this.draftPrice ?? 0) * 100),
         currency: this.draftCurrency,

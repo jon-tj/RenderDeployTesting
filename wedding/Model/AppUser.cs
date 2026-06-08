@@ -22,15 +22,6 @@ public class AppUser : IdentityUser, IAssetOwner
 
     public DietaryPreferences DietaryPreferences { get; set; } = new();
 
-    // Pix key shown at the bottom of this user's personal wishlist so guests
-    // know where to send the money. Owned by the wishlist as a whole rather
-    // than by individual items.
-    [MaxLength(200)]
-    public string WishlistPixKey { get; set; } = string.Empty;
-
-    // Whether/how guests can claim items on this user's personal wishlist.
-    public WishlistClaimMode WishlistClaimMode { get; set; } = WishlistClaimMode.LimitedQuantities;
-
     // IAssetOwner: only the user themselves can edit their own assets.
     public IReadOnlyCollection<string> EditorUserIds => new[] { Id };
 }

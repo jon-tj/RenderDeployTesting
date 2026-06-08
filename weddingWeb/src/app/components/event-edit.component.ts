@@ -35,7 +35,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
           <h1>{{ ev.isOwner ? 'Edit event' : ev.title }}</h1>
           <div class="head-actions">
             <a class="ghost" [routerLink]="['/event', ev.id]">View</a>
-            <a class="ghost" [routerLink]="['/wishlist/event', ev.id]">Wishlist</a>
+            <a class="ghost" href="javascript:void(0)" (click)="openWishlist(ev.id)">Wishlist</a>
             @if (ev.isOwner) {
               <button type="button" class="danger" (click)="remove()">Delete</button>
             }
@@ -530,6 +530,14 @@ export class EventEditComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+
+  // Navigate to this event's wishlist, creating it if it doesn't exist yet.
+  async openWishlist(eventId: number): Promise<void> {
+    try {
+      const v = await this.api.resolveWishlistForEvent(eventId);
+      this.router.navigate(['/wishlist', v.id]);
+    } catch { /* ignore */ }
+  }
 
   protected readonly event = signal<EventDetail | null>(null);
   protected readonly loading = signal(true);

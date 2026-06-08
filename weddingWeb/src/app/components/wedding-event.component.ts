@@ -225,7 +225,7 @@ interface ChildRsvpState {
         }
 
         <section class="wishlist-link">
-          <a [routerLink]="['/wishlist/event', ev.id]" class="wl-btn">
+          <a href="javascript:void(0)" (click)="openWishlist(ev.id)" class="wl-btn">
             <span class="material-icons">card_giftcard</span>
             {{ s('wishlist') }}
           </a>
@@ -421,6 +421,13 @@ export class WeddingEventComponent implements OnChanges {
 
   protected openAlbum(img: EventImage): void {
     this.router.navigate(['/event', this.event().id, 'album', img.id]);
+  }
+
+  protected async openWishlist(eventId: number): Promise<void> {
+    try {
+      const v = await this.api.resolveWishlistForEvent(eventId);
+      this.router.navigate(['/wishlist', v.id]);
+    } catch { /* ignore */ }
   }
 
   protected mapsUrl(location: string): string {

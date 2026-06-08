@@ -14,6 +14,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<EventImage> Images => Set<EventImage>();
     public DbSet<EventOwner> EventOwners => Set<EventOwner>();
     public DbSet<InviteGroup> InviteGroups => Set<InviteGroup>();
+    public DbSet<Wishlist> Wishlists => Set<Wishlist>();
     public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
     public DbSet<WishlistClaim> WishlistClaims => Set<WishlistClaim>();
 
@@ -162,16 +163,33 @@ public class AppDbContext : IdentityDbContext<AppUser>
             .HasForeignKey(i => i.InviteGroupId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        b.Entity<WishlistItem>()
+        b.Entity<Wishlist>()
             .HasOne(w => w.Event)
             .WithMany()
             .HasForeignKey(w => w.EventId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        b.Entity<WishlistItem>()
+        b.Entity<Wishlist>()
             .HasOne(w => w.Owner)
             .WithMany()
             .HasForeignKey(w => w.OwnerUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // At most one wishlist per event and per user.
+        b.Entity<Wishlist>()
+            .HasIndex(w => w.EventId)
+            .IsUnique()
+            .HasFilter("\"EventId\" IS NOT NULL");
+
+        b.Entity<Wishlist>()
+            .HasIndex(w => w.OwnerUserId)
+            .IsUnique()
+            .HasFilter("\"OwnerUserId\" IS NOT NULL");
+
+        b.Entity<WishlistItem>()
+            .HasOne(i => i.Wishlist)
+            .WithMany(w => w.Items)
+            .HasForeignKey(i => i.WishlistId)
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<WishlistClaim>()

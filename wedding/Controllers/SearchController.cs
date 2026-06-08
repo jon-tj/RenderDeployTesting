@@ -54,8 +54,6 @@ public class SearchController : ControllerBase
                 e.Images.FirstOrDefault(i => i.Role == ImageRole.Icon)?.Id))
             .ToList();
 
-        var pattern = $"%{needle}%";
-
         // Normalize the needle so partial typing like "jon w", "jons w",
         // "jon's wishl" all match the same owner. We strip apostrophes and
         // collapse any "s " into a single space on both sides, then append
@@ -63,41 +61,30 @@ public class SearchController : ControllerBase
         // query can substring-match against the combined form.
         var normalizedNeedle = NormalizeOwnerKey(needle);
 
-        // Whole-wishlist hits: events and users with at least one wishlist
-        // item, matched by the owner's display name / event title. Item
-        // contents are intentionally not searched.
-        var eventWishlistOwnerIds = await _db.WishlistItems
-            .Where(w => w.EventId != null)
-            .Select(w => w.EventId!.Value)
-            .Distinct()
+        // Whole-wishlist hits: events and users with a wishlist row,
+        // matched by the owner's display name / event title. Item contents
+        // are intentionally not searched.
+        var wishlists = await _db.Wishlists
+            .Include(w => w.Event)
+            .Include(w => w.Owner)
             .ToListAsync();
-        var userWishlistOwnerIds = (await _db.WishlistItems
-            .Where(w => w.OwnerUserId != null)
-            .Select(w => w.OwnerUserId!)
-            .Distinct()
-            .ToListAsync());
 
         var wishlistOwners = new List<WishlistOwnerHitDto>();
-        foreach (var ev in allEvents)
+        foreach (var w in wishlists)
         {
-            if (!eventWishlistOwnerIds.Contains(ev.Id)) continue;
-            if (!MatchesOwner(ev.Title, needle, normalizedNeedle)) continue;
-            wishlistOwners.Add(new WishlistOwnerHitDto(ev.Id, null, ev.Title));
-        }
-        if (userWishlistOwnerIds.Count > 0)
-        {
-            var candidates = await _db.Users
-                .Where(u => userWishlistOwnerIds.Contains(u.Id))
-                .OrderBy(u => u.DisplayName)
-                .Select(u => new { u.Id, u.DisplayName })
-                .ToListAsync();
-            foreach (var u in candidates)
+            if (w.Event is { } ev && MatchesOwner(ev.Title, needle, normalizedNeedle))
             {
-                if (!MatchesOwner(u.DisplayName, needle, normalizedNeedle)) continue;
+                wishlistOwners.Add(new WishlistOwnerHitDto(ev.Id, null, ev.Title));
+            }
+            else if (w.Owner is { } u && MatchesOwner(u.DisplayName, needle, normalizedNeedle))
+            {
                 wishlistOwners.Add(new WishlistOwnerHitDto(null, u.Id, u.DisplayName));
             }
         }
-        wishlistOwners = wishlistOwners.Take(MaxPerKind).ToList();
+        wishlistOwners = wishlistOwners
+            .OrderBy(h => h.DisplayName)
+            .Take(MaxPerKind)
+            .ToList();
 
         return new SearchResultsDto(events, wishlistOwners);
     }

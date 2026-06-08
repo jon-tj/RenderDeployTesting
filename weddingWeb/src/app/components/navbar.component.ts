@@ -166,13 +166,16 @@ export class NavbarComponent {
     this.router.navigate(['/event', e.id]);
   }
 
-  goWishlistOwner(w: WishlistOwnerHit): void {
+  async goWishlistOwner(w: WishlistOwnerHit): Promise<void> {
     this.resetSearch();
-    if (w.eventId != null) {
-      this.router.navigate(['/wishlist/event', w.eventId]);
-    } else if (w.ownerUserId) {
-      this.router.navigate(['/wishlist/user', w.ownerUserId]);
-    }
+    try {
+      const v = w.eventId != null
+        ? await this.api.resolveWishlistForEvent(w.eventId)
+        : w.ownerUserId
+          ? await this.api.resolveWishlistForUser(w.ownerUserId)
+          : null;
+      if (v) this.router.navigate(['/wishlist', v.id]);
+    } catch { /* ignore */ }
   }
 
   wishlistKey(w: WishlistOwnerHit): string {

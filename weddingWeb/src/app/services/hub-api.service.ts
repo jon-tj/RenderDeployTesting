@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ApiConfig } from './api-config.service';
-import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, UserSummary, WishlistCurrency, WishlistItem, WishlistView } from '../models';
+import { Dietary, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, ImageRole, Invite, InviteGroup, InviteStatus, LanguageCode, OnboardingStatus, SearchResults, UserSummary, WishlistCurrency, WishlistItem, WishlistView } from '../models';
 
 @Injectable({ providedIn: 'root' })
 export class HubApi {
@@ -115,6 +115,14 @@ export class HubApi {
     return firstValueFrom(this.http.delete<void>(this.api.url(`/api/wishlist/claim/${claimId}`)));
   }
 
+  completeWishlistClaim(claimId: number): Promise<void> {
+    return firstValueFrom(this.http.post<void>(this.api.url(`/api/wishlist/claim/${claimId}/complete`), {}));
+  }
+
+  updateWishlistPayment(payload: { eventId?: number; ownerUserId?: string; pixKey: string }): Promise<WishlistView> {
+    return firstValueFrom(this.http.put<WishlistView>(this.api.url('/api/wishlist/payment'), payload));
+  }
+
   getWishlistRates(): Promise<Record<WishlistCurrency, number>> {
     return firstValueFrom(this.http.get<Record<WishlistCurrency, number>>(this.api.url('/api/wishlist/rates')));
   }
@@ -165,6 +173,12 @@ export class HubApi {
     if (q.trim().length < 2) return Promise.resolve([]);
     const params = new HttpParams().set('q', q);
     return firstValueFrom(this.http.get<UserSummary[]>(this.api.url('/api/users/search'), { params }));
+  }
+
+  search(q: string): Promise<SearchResults> {
+    if (q.trim().length < 2) return Promise.resolve({ events: [], wishlists: [] });
+    const params = new HttpParams().set('q', q);
+    return firstValueFrom(this.http.get<SearchResults>(this.api.url('/api/search'), { params }));
   }
 
   createInviteStub(email: string, displayName?: string, language?: LanguageCode): Promise<UserSummary> {

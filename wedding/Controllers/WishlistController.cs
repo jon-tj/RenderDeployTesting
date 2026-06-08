@@ -237,6 +237,49 @@ public class WishlistController : ControllerBase
         return File(item.ImageData, string.IsNullOrEmpty(item.ImageContentType) ? "application/octet-stream" : item.ImageContentType);
     }
 
+    // Wishlist-level payment options. Stored on the owner (event or user)
+    // because the Pix key applies to the wishlist as a whole.
+    [HttpPut("payment")]
+    [Authorize]
+    public async Task<ActionResult<WishlistViewDto>> UpdatePayment([FromBody] WishlistPaymentDto dto)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var owner = await LoadOwnerAsync(dto.EventId, dto.OwnerUserId);
+        if (owner is null) return BadRequest("Owner not found.");
+        if (!CanEdit(owner, uid)) return Forbid();
+
+        var pix = (dto.PixKey ?? string.Empty).Trim();
+        if (owner is CalendarEvent ev) ev.WishlistPixKey = pix;
+        else if (owner is AppUser u) u.WishlistPixKey = pix;
+        await _db.SaveChangesAsync();
+
+        if (dto.EventId is int eid)
+            return await BuildViewAsync(owner, w => w.EventId == eid, ((CalendarEvent)owner).Title, eid, null);
+        return await BuildViewAsync(owner, w => w.OwnerUserId == ((AppUser)owner).Id, ((AppUser)owner).DisplayName, null, ((AppUser)owner).Id);
+    }
+
+    // Owner marks a claim as fulfilled: deduct the claim's quantity from the
+    // wished total and remove the claim. The item disappears from the active
+    // list once wishedQuantity hits zero.
+    [HttpPost("claim/{claimId:int}/complete")]
+    [Authorize]
+    public async Task<IActionResult> CompleteClaim(int claimId)
+    {
+        var uid = _users.GetUserId(User);
+        if (uid is null) return Unauthorized();
+        var claim = await _db.WishlistClaims.Include(c => c.Item).FirstOrDefaultAsync(c => c.Id == claimId);
+        if (claim is null || claim.Item is null) return NotFound();
+        if (!await CanEditItemAsync(claim.Item, uid)) return Forbid();
+
+        claim.Item.WishedQuantity = Math.Max(0, claim.Item.WishedQuantity - claim.Quantity);
+        _db.WishlistClaims.Remove(claim);
+        if (claim.Item.WishedQuantity == 0)
+            _db.WishlistItems.Remove(claim.Item);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ----- Helpers -----
 
     private async Task<WishlistViewDto> BuildViewAsync(
@@ -253,11 +296,18 @@ public class WishlistController : ControllerBase
             .ToListAsync();
         var currentUid = _users.GetUserId(User);
         var canEdit = currentUid is not null && CanEdit(owner, currentUid);
+        var pixKey = owner switch
+        {
+            CalendarEvent ev => ev.WishlistPixKey,
+            AppUser u => u.WishlistPixKey,
+            _ => string.Empty,
+        };
         return new WishlistViewDto(
             ownerEventId,
             ownerUserId,
             ownerDisplay,
             canEdit,
+            pixKey ?? string.Empty,
             items.Select(i => WishlistItemDto.From(i, canEdit, currentUid)).ToList());
     }
 
@@ -285,6 +335,7 @@ public sealed record WishlistViewDto(
     string? OwnerUserId,
     string OwnerDisplayName,
     bool CanEdit,
+    string PixKey,
     List<WishlistItemDto> Items);
 
 public sealed record WishlistItemDto(
@@ -362,6 +413,13 @@ public sealed class WishlistItemWriteDto
 public sealed class WishlistImageUploadDto
 {
     [Required] public IFormFile File { get; set; } = default!;
+}
+
+public sealed class WishlistPaymentDto
+{
+    public int? EventId { get; set; }
+    public string? OwnerUserId { get; set; }
+    [MaxLength(200)] public string? PixKey { get; set; }
 }
 
 public sealed class ClaimCartDto

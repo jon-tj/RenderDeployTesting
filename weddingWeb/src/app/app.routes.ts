@@ -40,11 +40,6 @@ export const routes: Routes = [
     loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
   },
   {
-    path: 'wishlist',
-    canActivate: [authGuard],
-    loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
-  },
-  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./components/home.component').then(m => m.HomeComponent),

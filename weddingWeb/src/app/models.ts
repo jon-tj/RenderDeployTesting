@@ -208,7 +208,7 @@ export interface WishlistItem {
   hasUploadedImage: boolean;
   priceMinor: number;
   currency: WishlistCurrency;
-  pixKey: string;
+  pixKey?: string;
   wishedQuantity: number;
   claimedQuantity: number;
   claims: WishlistClaimDto[];
@@ -220,5 +220,17 @@ export interface WishlistView {
   ownerUserId: string | null;
   ownerDisplayName: string;
   canEdit: boolean;
+  pixKey?: string;
   items: WishlistItem[];
+}
+
+export interface WishlistOwnerHit {
+  eventId: number | null;
+  ownerUserId: string | null;
+  displayName: string;
+}
+
+export interface SearchResults {
+  events: EventSummary[];
+  wishlists: WishlistOwnerHit[];
 }

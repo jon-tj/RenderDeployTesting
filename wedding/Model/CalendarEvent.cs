@@ -91,6 +91,11 @@ public class CalendarEvent : IAssetOwner
     // Controls who can view this event. See EventVisibility.
     public EventVisibility Visibility { get; set; } = EventVisibility.Closed;
 
+    // Pix key shown at the bottom of this event's wishlist. Belongs to the
+    // wishlist (the event), not to individual items.
+    [MaxLength(200)]
+    public string WishlistPixKey { get; set; } = string.Empty;
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();

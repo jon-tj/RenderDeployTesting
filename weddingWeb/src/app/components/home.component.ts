@@ -126,7 +126,9 @@ export class HomeComponent implements OnInit {
 
   openMyWishlist(): void {
     this.menuOpen.set(false);
-    this.router.navigate(['/wishlist']);
+    const me = this.auth.me();
+    if (!me) return;
+    this.router.navigate(['/wishlist/user', me.id]);
   }
 
   async createOnDay(date: Date): Promise<void> {

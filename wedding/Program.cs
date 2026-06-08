@@ -113,6 +113,8 @@ using (var scope = app.Services.CreateScope())
     // Migration: wishlists were originally owned by users. Adding nullable
     // EventId here lets old rows survive as orphans (controller hides them).
     await EnsureColumnAsync(db, "WishlistItems", "EventId", "INTEGER NULL REFERENCES Events(Id) ON DELETE CASCADE");
+    await EnsureColumnAsync(db, "Events", "WishlistPixKey", "TEXT NOT NULL DEFAULT ''");
+    await EnsureColumnAsync(db, "AspNetUsers", "WishlistPixKey", "TEXT NOT NULL DEFAULT ''");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");

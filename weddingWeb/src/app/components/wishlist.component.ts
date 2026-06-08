@@ -45,6 +45,25 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
 
         @if (v.canEdit) {
           <section class="card">
+            <h2>Payment options</h2>
+            <p class="muted small">Shown to guests so they can pay you back for what they claim.</p>
+            <form class="add-form" (ngSubmit)="savePixKey()">
+              <label class="field span-2">
+                <span class="field-label">Pix key</span>
+                <input type="text" name="pix" placeholder="email, CPF, phone or random key" [(ngModel)]="pixDraft" />
+              </label>
+              <div class="form-actions span-2">
+                <button type="submit" [disabled]="pixSaving() || pixDraft.trim() === (v.pixKey ?? '').trim()">
+                  {{ pixSaving() ? 'Saving…' : 'Save' }}
+                </button>
+              </div>
+            </form>
+            @if (pixError()) { <p class="error small">{{ pixError() }}</p> }
+          </section>
+        }
+
+        @if (v.canEdit) {
+          <section class="card">
             <h2>Add an item</h2>
             <form class="add-form" (ngSubmit)="addItem()">
               <label class="field span-2">
@@ -93,45 +112,57 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
           </section>
         }
 
-        <section class="card">
-          <div class="cart-header">
-            <h2>Items</h2>
-            @if (!v.canEdit) {
-              <label class="muted small">
-                Show totals in
-                <select [(ngModel)]="displayCurrency" name="dispcur">
-                  @for (c of currencies; track c) {
-                    <option [value]="c">{{ c }}</option>
-                  }
-                </select>
-              </label>
-            }
+        @if (!v.canEdit && v.items.length) {
+          <div class="items-toolbar">
+            <label class="muted small">
+              Show totals in
+              <select [(ngModel)]="displayCurrency" name="dispcur">
+                @for (c of currencies; track c) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
+            </label>
           </div>
-          @if (!v.items.length) {
-            <p class="muted">No items yet.</p>
-          } @else {
-            <ul class="items">
+        }
+        @if (!v.items.length) {
+          <p class="muted">No items yet.</p>
+        } @else {
+          <ul class="items">
               @for (i of v.items; track i.id) {
                 @let remaining = i.wishedQuantity - i.claimedQuantity;
+                @let inCart = cart().get(i.id) ?? 0;
                 <li class="item" [class.taken]="remaining <= 0">
                   @if (itemImageSrc(i); as src) {
-                    <img class="item-img" [src]="src" alt="" />
+                    <div class="item-img-wrap">
+                      <img class="item-img" [src]="src" alt="" />
+                      @if (v.canEdit) {
+                        <label class="img-edit" title="Change image">
+                          <span class="material-icons">edit</span>
+                          <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
+                        </label>
+                      }
+                    </div>
+                  } @else if (v.canEdit) {
+                    <label class="item-img-wrap empty" title="Upload image">
+                      <span class="material-icons big-plus">add_a_photo</span>
+                      <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
+                    </label>
+                  } @else {
+                    <div class="item-img-wrap placeholder"></div>
                   }
-                  <div class="item-main">
+                  <div class="item-body">
                     <div class="item-name">
                       @if (i.url) {
                         <a [href]="i.url" target="_blank" rel="noopener">{{ i.name }}</a>
                       } @else {
                         <strong>{{ i.name }}</strong>
                       }
-                      @if (i.priceMinor > 0) {
-                        <span class="muted small"> · {{ formatPrice(i.priceMinor, i.currency) }}</span>
-                      }
                     </div>
-                    @if (i.description) { <p class="muted small">{{ i.description }}</p> }
-                    <p class="muted small">
-                      {{ i.claimedQuantity }} / {{ i.wishedQuantity }} claimed
-                    </p>
+                    <div class="item-meta muted small">
+                      @if (i.priceMinor > 0) { <span>{{ formatPrice(i.priceMinor, i.currency) }}</span> }
+                      <span>{{ i.claimedQuantity }} / {{ i.wishedQuantity }} claimed</span>
+                    </div>
+                    @if (i.description) { <p class="muted small desc">{{ i.description }}</p> }
                     @if (v.canEdit && i.claims.length) {
                       <ul class="claims">
                         @for (c of i.claims; track c.id) {
@@ -144,22 +175,10 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     }
                   </div>
                   <div class="item-actions">
-                    @if (v.canEdit) {
-                      <label class="ghost small file-btn">
-                        {{ i.hasUploadedImage ? 'Change image' : 'Upload image' }}
-                        <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
-                      </label>
-                      @if (i.hasUploadedImage) {
-                        <button type="button" class="ghost small" (click)="removeItemImage(i)">Remove image</button>
-                      }
-                      <button type="button" class="ghost small" (click)="deleteItem(i)">Remove</button>
-                    }
                     @if (remaining > 0) {
-                      @let inCart = cart().get(i.id) ?? 0;
                       @if (inCart === 0) {
-                        <button type="button" (click)="adjustCart(i.id, 1, remaining)">
+                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, 1, remaining)" title="Add to cart" aria-label="Add to cart">
                           <span class="material-icons">add_shopping_cart</span>
-                          Add to cart
                         </button>
                       } @else {
                         <div class="cart-controls">
@@ -171,25 +190,15 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     } @else {
                       <span class="muted small">Fully claimed</span>
                     }
+                    @if (v.canEdit) {
+                      <button type="button" class="remove-btn" (click)="deleteItem(i)" title="Remove from wishlist" aria-label="Remove">
+                        <span class="material-icons">delete_outline</span>
+                      </button>
+                    }
                   </div>
                 </li>
               }
             </ul>
-          }
-        </section>
-
-        @if (v.canEdit) {
-          <section class="card">
-            <h2>Payment options</h2>
-            <p class="muted small">Shown at the bottom of your wishlist so guests can pay you back.</p>
-            <div class="row">
-              <input type="text" placeholder="Pix key" name="pix" [(ngModel)]="pixDraft" />
-              <button type="button" (click)="savePixKey()" [disabled]="pixSaving() || pixDraft.trim() === (v.pixKey ?? '').trim()">
-                {{ pixSaving() ? 'Saving…' : 'Save' }}
-              </button>
-            </div>
-            @if (pixError()) { <p class="error small">{{ pixError() }}</p> }
-          </section>
         }
 
         <section #cartSummary class="card cart-summary" [class.empty]="cartCount() === 0">
@@ -264,19 +273,37 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
       .add-form { grid-template-columns:1fr; }
       .add-form .span-2 { grid-column:1; }
     }
-    ul.items { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.6rem; }
-    .item { display:flex; gap:.75rem; align-items:flex-start; padding:.65rem .75rem; background:#faf7f0; border-radius:.4rem; }
-    .item-img { width:64px; height:64px; object-fit:cover; border-radius:.35rem; flex:0 0 auto; background:#eee; }
-    .file-pick { display:flex; align-items:center; gap:.4rem; flex-basis:100%; }
-    .item-actions { display:flex; flex-direction:column; gap:.3rem; align-items:flex-end; }
-    .item-actions button { display:inline-flex; align-items:center; gap:.3rem; }
-    .file-btn { cursor:pointer; }
-    .item-main { flex:1; min-width:0; }
+    ul.items { list-style:none; margin:1rem 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:.6rem; }
+    .items-toolbar { display:flex; justify-content:flex-end; margin:1rem 0 .35rem; }
+    .item { display:flex; flex-direction:column; padding:0; background:#fff; border-radius:.5rem; overflow:hidden; border:1px solid #eee3c8; box-shadow:0 1px 2px rgba(0,0,0,.05); position:relative; }
+    .item-img-wrap { position:relative; width:100%; aspect-ratio:1/1; background:#eee; display:flex; align-items:center; justify-content:center; cursor:default; }
+    .item-img-wrap.empty, .item-img-wrap.placeholder { background:#f1e7cd; }
+    .item-img-wrap.empty { cursor:pointer; color:#8a6f3a; border-bottom:1px dashed #d9cfb8; }
+    .item-img-wrap.empty:hover { background:#e9dab2; }
+    .big-plus { font-size:3rem !important; opacity:.7; }
+    .item-img { width:100%; height:100%; object-fit:cover; display:block; }
+    .img-edit { position:absolute; bottom:.35rem; right:.35rem; background:rgba(255,255,255,.92); border-radius:50%; width:1.85rem; height:1.85rem; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.2); color:#5a5347; }
+    .img-edit:hover { background:#fff; }
+    .img-edit .material-icons { font-size:1.05rem; }
+    .item-body { padding:.7rem .85rem .45rem; display:flex; flex-direction:column; gap:.3rem; flex:1; min-width:0; }
+    .item-name { font-size:.95rem; line-height:1.2; overflow-wrap:anywhere; }
     .item-name a { color:#8a6f3a; text-decoration:none; }
     .item-name a:hover { text-decoration:underline; }
+    .item-meta { display:flex; flex-wrap:wrap; gap:.5rem; }
+    .item-body .desc { margin:.15rem 0 0; }
     .item.taken .item-name { text-decoration:line-through; opacity:.55; }
-    .cart-controls { display:flex; align-items:center; gap:.4rem; }
-    .qty { min-width:1.4rem; text-align:center; }
+    .item-actions { padding:.5rem .85rem .85rem; display:flex; flex-direction:column; gap:.4rem; align-items:stretch; }
+    .item-actions .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; height:2.15rem; padding:0 .6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:999px; cursor:pointer; font:inherit; font-weight:600; box-sizing:border-box; }
+    .item-actions .primary-btn:disabled { opacity:.6; cursor:default; }
+    .item-actions button { display:inline-flex; align-items:center; justify-content:center; gap:.3rem; }
+    .remove-btn { position:absolute; top:.4rem; left:.4rem; width:1.85rem; height:1.85rem; padding:0; background:rgba(255,255,255,.92); border:0; border-radius:50%; color:#9b6b6b; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.2); z-index:2; }
+    .remove-btn:hover { background:#fff; color:#b03030; }
+    .remove-btn .material-icons { font-size:1.1rem; }
+    .cart-controls { display:flex; align-items:center; justify-content:space-between; gap:.4rem; height:2.15rem; box-sizing:border-box; background:#f5f5f5; border:0; border-radius:999px; padding:.15rem .35rem; }
+    .cart-controls button { flex:0 0 auto; width:1.85rem; height:1.85rem; padding:0; border:0; background:transparent; color:#5a5347; border-radius:50%; cursor:pointer; font-size:1.05rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+    .cart-controls button:hover:not(:disabled) { background:rgba(0,0,0,.06); }
+    .cart-controls button:disabled { opacity:.35; cursor:default; }
+    .qty { min-width:1.4rem; text-align:center; font-weight:600; }
     .cart-header { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; }
     .cart-summary { background:#fff8e6; }
     .cart-summary.empty { background:#faf7f0; }
@@ -315,6 +342,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected readonly shareLabel = signal('Share');
   protected readonly shareCopied = signal(false);
   protected readonly cartInView = signal(true);
+  protected readonly imageVersions = signal<Map<number, number>>(new Map());
 
   protected readonly cartSummaryRef = viewChild<ElementRef<HTMLElement>>('cartSummary');
 
@@ -554,9 +582,19 @@ export class WishlistComponent implements OnInit, OnDestroy {
   }
 
   protected itemImageSrc(i: WishlistItem): string | null {
-    if (i.hasUploadedImage) return this.api.wishlistImageUrl(i.id);
+    if (i.hasUploadedImage) {
+      const v = this.imageVersions().get(i.id);
+      const base = this.api.wishlistImageUrl(i.id);
+      return v ? `${base}?v=${v}` : base;
+    }
     if (i.imageUrl) return i.imageUrl;
     return null;
+  }
+
+  private bumpImageVersion(itemId: number): void {
+    const next = new Map(this.imageVersions());
+    next.set(itemId, Date.now());
+    this.imageVersions.set(next);
   }
 
   async onItemImage(ev: Event, item: WishlistItem): Promise<void> {
@@ -566,6 +604,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
     if (!file) return;
     try {
       const updated = await this.api.uploadWishlistImage(item.id, file);
+      this.bumpImageVersion(updated.id);
       this.replaceItem(updated);
     } catch {
       this.addError.set('Could not upload image.');
@@ -575,6 +614,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
   async removeItemImage(item: WishlistItem): Promise<void> {
     try {
       const updated = await this.api.deleteWishlistImage(item.id);
+      this.bumpImageVersion(updated.id);
       this.replaceItem(updated);
     } catch {
       this.addError.set('Could not remove image.');

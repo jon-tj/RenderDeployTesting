@@ -94,7 +94,7 @@ public class EventBackupController(AppDbContext db, UserManager<AppUser> users) 
     }
 
     [HttpPost("import"), RequestSizeLimit(200 * 1024 * 1024)]
-    public async Task<ActionResult<int>> Import(IFormFile file)
+    public async Task<ActionResult<int>> Import(IFormFile file, [FromQuery] bool force = false)
     {
         if (file is null || file.Length == 0) return BadRequest("Missing file.");
         var uid = Uid;
@@ -112,6 +112,29 @@ public class EventBackupController(AppDbContext db, UserManager<AppUser> users) 
         if (backup.Version > BackupVersion) return BadRequest($"Backup version {backup.Version} is newer than supported ({BackupVersion}).");
 
         if (!CanCreate(user, backup.Event.Type)) return Forbid();
+
+        // Duplicate check: same owner (current user) already has an event
+        // with matching title and start. Caller can override with ?force=true.
+        if (!force)
+        {
+            var title = backup.Event.Title ?? "";
+            var startUtc = backup.Event.StartUtc;
+            var dup = await db.Events
+                .Where(e => e.CreatedById == uid && e.ParentEventId == null
+                    && e.Title == title && e.StartUtc == startUtc)
+                .Select(e => new { e.Id, e.Title, e.StartUtc })
+                .FirstOrDefaultAsync();
+            if (dup is not null)
+            {
+                return Conflict(new
+                {
+                    duplicate = true,
+                    existingId = dup.Id,
+                    title = dup.Title,
+                    startUtc = dup.StartUtc,
+                });
+            }
+        }
 
         // Per-import cache so each email is resolved (and possibly created)
         // exactly once across invites, co-owners, and wishlist claims.

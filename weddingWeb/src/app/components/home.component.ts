@@ -146,12 +146,27 @@ export class HomeComponent implements OnInit {
     this.error.set('');
     this.importing.set(true);
     try {
-      const newId = await this.api.importEvent(file);
-      this.router.navigate(['/event', newId, 'edit']);
+      const newId = await this.tryImport(file, false);
+      if (newId !== null) this.router.navigate(['/event', newId, 'edit']);
     } catch {
       this.error.set('Could not import backup. Make sure it is a ZIP exported from this app.');
     } finally {
       this.importing.set(false);
+    }
+  }
+
+  private async tryImport(file: File, force: boolean): Promise<number | null> {
+    try {
+      return await this.api.importEvent(file, force);
+    } catch (e: any) {
+      if (e?.status === 409 && e?.error?.duplicate) {
+        const t = e.error.title || 'an existing event';
+        const when = e.error.startUtc ? new Date(e.error.startUtc).toLocaleString() : '';
+        const msg = `You already own an event "${t}"${when ? ' on ' + when : ''}. Importing will create a duplicate. Continue?`;
+        if (!confirm(msg)) return null;
+        return await this.api.importEvent(file, true);
+      }
+      throw e;
     }
   }
 

@@ -1,5 +1,4 @@
 import { Component, ElementRef, OnDestroy, OnInit, computed, effect, inject, signal, viewChild } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
@@ -20,7 +19,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
 @Component({
   selector: 'app-wishlist',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavbarComponent, RouterLink],
+  imports: [FormsModule, NavbarComponent, RouterLink],
   template: `
     <app-navbar></app-navbar>
     <main class="page">
@@ -71,7 +70,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                 </select>
               </label>
               <div class="form-actions span-2">
-                <button type="submit" [disabled]="pixSaving() || !optionsDirty(v)">
+                <button type="submit" class="primary" [disabled]="pixSaving() || !optionsDirty(v)">
                   {{ pixSaving() ? 'Saving…' : 'Save' }}
                 </button>
               </div>
@@ -125,7 +124,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                 </label>
               </div>
               <div class="form-actions span-2">
-                <button type="submit" [disabled]="!draftName.trim() || saving()">{{ saving() ? 'Saving…' : 'Add item' }}</button>
+                <button type="submit" class="primary" [disabled]="!draftName.trim() || saving()">{{ saving() ? 'Saving…' : 'Add item' }}</button>
               </div>
             </form>
             @if (addError()) { <p class="error small">{{ addError() }}</p> }
@@ -282,107 +281,57 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     }
   `,
   styles: [`
-    .page { max-width:780px; margin:0 auto; padding:1rem; padding-bottom:5rem; }
-    .page-head h1 { margin:0 0 .25rem; }
+    .page { max-width:780px; padding-bottom:5rem; }
     .head-row { display:flex; align-items:center; gap:.75rem; justify-content:space-between; flex-wrap:wrap; }
-    .head-actions { display:inline-flex; align-items:center; gap:.4rem; }
-    .primary { background:#6f7a5b; color:#faf5ea; border:0; padding:.5rem .9rem; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
-    .primary:disabled { opacity:.6; cursor:default; }
-    .icon-btn { padding:.35rem; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
-    .icon-btn .material-icons { font-size:1.25rem; }
-    .card { background:#fff; border-radius:.6rem; padding:1rem 1.1rem; margin-top:1rem; box-shadow:0 1px 2px rgba(0,0,0,.06); }
-    .card h2 { margin:0 0 .6rem; font-size:1.1rem; }
-    .row { display:flex; gap:.5rem; flex-wrap:wrap; }
-    .row input, .row select { flex:1; min-width:120px; }
-    .row button { flex:0 0 auto; }
     .add-form { display:grid; grid-template-columns:1fr 1fr; gap:.6rem .75rem; }
     .add-form .span-2 { grid-column:1 / -1; }
     .add-form .field-row { display:grid; grid-template-columns:1fr auto 1fr; gap:.5rem; }
     .add-form .field-row.no-qty { grid-template-columns:1fr auto; }
-    .add-form .field { display:flex; flex-direction:column; gap:.25rem; margin:0; }
-    .add-form .field-label { font-size:.8rem; color:#5a5347; font-weight:500; }
-    .add-form input, .add-form select { width:100%; box-sizing:border-box; padding:.45rem .55rem; border:1px solid #e4e4e4; border-radius:.35rem; background:#fafafa; font:inherit; }
-    .add-form input:focus, .add-form select:focus { outline:none; border-color:#c9b88a; background:#fff; }
-    .file-drop { display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem; border:1px dashed #d9cfb8; border-radius:.4rem; background:#faf7f0; cursor:pointer; color:#5a5347; }
-    .file-drop:hover { background:#f1e7cd; }
+    .add-form .field { display:flex; flex-direction:column; gap:.25rem; }
+    .add-form .field-label { font-size:.8rem; color:var(--ink-soft); }
+    .add-form input:not([type=checkbox]), .add-form select { width:100%; box-sizing:border-box; padding:.45rem .55rem; border:1px solid var(--rule-soft); border-radius:.35rem; background:var(--bg); font:inherit; }
+    .file-drop { display:flex; align-items:center; gap:.5rem; padding:.55rem .75rem; border:1px dashed var(--rule-soft); border-radius:var(--r); background:var(--bg); cursor:pointer; color:var(--ink-soft); }
     .form-actions { display:flex; justify-content:flex-end; }
-    @media (max-width:520px) {
-      .add-form { grid-template-columns:1fr; }
-      .add-form .span-2 { grid-column:1; }
-    }
-    ul.items { list-style:none; margin:1rem 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:.6rem; }
+    @media (max-width:520px) { .add-form, .add-form .span-2 { grid-template-columns:1fr; grid-column:1; } }
+
+    ul.items { list-style:none; margin:1rem 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:.6rem; }
     .items-toolbar { display:flex; justify-content:flex-end; margin:1rem 0 .35rem; }
-    .currency-toggle { position:relative; display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .55rem .35rem .65rem; background:#fff; border:1px solid #e3d6b3; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.04); color:#6b5a32; font-size:.85rem; line-height:1; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
-    .currency-toggle:hover, .currency-toggle:focus-within { border-color:#c9b87a; box-shadow:0 2px 6px rgba(0,0,0,.08); }
-    .currency-toggle .material-icons { font-size:1rem; color:#8a6f3a; }
-    .currency-toggle .chev { margin-left:-.15rem; }
-    .currency-toggle-label { color:#6b5a32; }
-    .currency-value { color:#3b2f10; font-weight:600; }
-    .currency-toggle select { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; margin:0; font:inherit; }
-    .item { display:flex; flex-direction:column; padding:0; background:#fff; border-radius:.5rem; overflow:hidden; border:1px solid #eee3c8; box-shadow:0 1px 2px rgba(0,0,0,.05); position:relative; }
-    .item-img-wrap { position:relative; width:100%; aspect-ratio:1/1; background:#eee; display:flex; align-items:center; justify-content:center; cursor:default; }
-    .item-img-wrap.empty, .item-img-wrap.placeholder { background:#f1e7cd; }
-    .item-img-wrap.empty { cursor:pointer; color:#8a6f3a; border-bottom:1px dashed #d9cfb8; }
-    .item-img-wrap.empty:hover { background:#e9dab2; }
+    .currency-toggle { position:relative; display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .65rem; background:var(--bg-card); border:1px solid var(--gold-pale); border-radius:999px; color:var(--gold); font-size:.85rem; cursor:pointer; }
+    .currency-toggle select { position:absolute; inset:0; opacity:0; cursor:pointer; border:0; font:inherit; }
+    .currency-value { color:var(--ink); font-weight:600; }
+
+    .item { display:flex; flex-direction:column; background:var(--bg-card); border-radius:.5rem; overflow:hidden; border:1px solid var(--gold-pale); position:relative; }
+    .item-img-wrap { position:relative; width:100%; aspect-ratio:1/1; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; }
+    .item-img-wrap.empty { cursor:pointer; color:var(--gold); }
     .big-plus { font-size:3rem !important; opacity:.7; }
-    .item-img { width:100%; height:100%; object-fit:cover; display:block; }
-    .img-edit { position:absolute; bottom:.35rem; right:.35rem; background:rgba(255,255,255,.92); border-radius:50%; width:1.85rem; height:1.85rem; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.2); color:#5a5347; }
-    .img-edit:hover { background:#fff; }
-    .img-edit .material-icons { font-size:1.05rem; }
-    .item-body { padding:.7rem .85rem .45rem; display:flex; flex-direction:column; gap:.3rem; flex:1; min-width:0; }
-    .item-name { font-size:.95rem; line-height:1.2; overflow-wrap:anywhere; }
-    .item-name a { color:#8a6f3a; text-decoration:none; }
-    .item-name a:hover { text-decoration:underline; }
+    .item-img { width:100%; height:100%; object-fit:cover; }
+    .img-edit { position:absolute; bottom:.35rem; right:.35rem; background:rgba(255,255,255,.92); border-radius:50%; width:1.85rem; height:1.85rem; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft); }
+    .item-body { padding:.7rem .85rem .45rem; display:flex; flex-direction:column; gap:.3rem; flex:1; }
+    .item-name a { color:var(--gold); text-decoration:none; }
     .item-meta { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .item-body .desc { margin:.15rem 0 0; }
     .item.taken .item-name { text-decoration:line-through; opacity:.55; }
-    .item-actions { padding:.5rem .85rem .85rem; display:flex; flex-direction:column; gap:.4rem; align-items:stretch; }
-    .item-actions .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; height:2.15rem; padding:0 .6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:999px; cursor:pointer; font:inherit; font-weight:600; box-sizing:border-box; }
-    .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; }
+    .item-actions { padding:.5rem .85rem .85rem; display:flex; flex-direction:column; gap:.4rem; }
+    .primary-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1rem; background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px; cursor:pointer; font:inherit; font-weight:600; }
     .primary-btn:disabled { opacity:.6; cursor:default; }
+
     .cart-lines { list-style:none; margin:0 0 .5rem; padding:0; display:flex; flex-direction:column; gap:.3rem; }
-    .cart-lines li { display:grid; grid-template-columns:2.25rem 1fr auto; gap:.5rem; align-items:baseline; padding:.25rem 0; }
-    .cart-qty { font-weight:600; color:#6f7a5b; text-align:right; }
-    .cart-name { overflow-wrap:anywhere; }
-    .cart-total-row { display:flex; justify-content:space-between; align-items:baseline; padding:.55rem .25rem .25rem; border-top:1px dashed #e4d8b5; margin-top:.25rem; font-size:1.05rem; }
-    .pix-pill { display:flex; align-items:center; gap:.6rem; padding:.55rem .75rem; background:#fff; border:1px dashed #d9cfb8; border-radius:.4rem; margin:.5rem 0; }
-    .pix-pill .material-icons { font-size:1.8rem; color:#6f7a5b; }
-    .pix-pill code { background:transparent; padding:0; font-size:.95rem; }
-    .cart-form { margin-top:.25rem; }
-    .item-actions .primary-btn:disabled { opacity:.6; cursor:default; }
-    .item-actions button { display:inline-flex; align-items:center; justify-content:center; gap:.3rem; }
-    .remove-btn { position:absolute; top:.4rem; left:.4rem; width:1.85rem; height:1.85rem; padding:0; background:rgba(255,255,255,.92); border:0; border-radius:50%; color:#9b6b6b; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.2); z-index:2; }
-    .remove-btn:hover { background:#fff; color:#b03030; }
-    .remove-btn .material-icons { font-size:1.1rem; }
-    .cart-controls { display:flex; align-items:center; justify-content:space-between; gap:.4rem; height:2.15rem; box-sizing:border-box; background:#f5f5f5; border:0; border-radius:999px; padding:.15rem .35rem; }
-    .cart-controls button { flex:0 0 auto; width:1.85rem; height:1.85rem; padding:0; border:0; background:transparent; color:#5a5347; border-radius:50%; cursor:pointer; font-size:1.05rem; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
-    .cart-controls button:hover:not(:disabled) { background:rgba(0,0,0,.06); }
+    .cart-lines li { display:grid; grid-template-columns:2.25rem 1fr auto; gap:.5rem; align-items:baseline; }
+    .cart-qty { font-weight:600; color:var(--accent); text-align:right; }
+    .cart-total-row { display:flex; justify-content:space-between; padding:.55rem .25rem .25rem; border-top:1px dashed var(--rule-soft); margin-top:.25rem; }
+    .pix-pill { display:flex; align-items:center; gap:.6rem; padding:.55rem .75rem; background:var(--bg-card); border:1px dashed var(--rule-soft); border-radius:var(--r); margin:.5rem 0; }
+    .pix-pill .material-icons { font-size:1.8rem; color:var(--accent); }
+
+    .remove-btn { position:absolute; top:.4rem; left:.4rem; width:1.85rem; height:1.85rem; padding:0; background:rgba(255,255,255,.92); border:0; border-radius:50%; color:#9b6b6b; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; z-index:2; }
+
+    .cart-controls { display:flex; align-items:center; justify-content:space-between; gap:.4rem; height:2.15rem; background:var(--bg); border-radius:999px; padding:.15rem .35rem; }
+    .cart-controls button { flex:0 0 auto; width:1.85rem; height:1.85rem; padding:0; border:0; background:transparent; color:var(--ink-soft); border-radius:50%; cursor:pointer; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
     .cart-controls button:disabled { opacity:.35; cursor:default; }
     .qty { min-width:1.4rem; text-align:center; font-weight:600; }
-    .cart-header { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; }
-    .cart-summary { background:#fff; }
-    .cart-summary.empty { background:#fff; }
-    .field { display:flex; flex-direction:column; gap:.2rem; margin:.5rem 0; }
-    .check { display:flex; align-items:center; gap:.5rem; margin:0; padding:.25rem 0; cursor:pointer; }
-    .check input[type="checkbox"] { width:auto; margin:0; }
     .cart-form .form-actions { justify-content:center; }
-    @media (max-width:520px) {
-      .cart-form .form-actions { justify-content:stretch; }
-      .cart-form .form-actions .primary-btn { width:100%; }
-    }
-    .claims { list-style:disc; margin:.25rem 0 0 1.25rem; padding:0; }
-    .claim-row { display:flex; align-items:center; gap:.5rem; justify-content:space-between; }
-    .error { color:#b03030; }
-    .small { font-size:.85rem; }
-    .muted { color:#6b6450; }
-    code { background:#eee; padding:0 .25rem; border-radius:.2rem; }
-    .cart-fab { position:fixed; right:1rem; bottom:1rem; display:inline-flex; align-items:center; gap:.5rem; padding:.7rem 1.2rem; background:#8a6f3a; color:#fff; border:0; border-radius:2rem; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.18); z-index:60; white-space:nowrap; }
-    .cart-fab:hover { background:#6f5a2f; }
-    .fab-count { background:#fff; color:#8a6f3a; min-width:1.3rem; height:1.3rem; padding:0 .35rem; border-radius:1rem; display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; }
-    .fab-total { white-space:nowrap; }
-    @media (max-width:600px) {
-      .cart-fab { left:50%; right:auto; transform:translateX(-50%); }
-    }
+
+    .cart-fab { position:fixed; right:1rem; bottom:1rem; display:inline-flex; align-items:center; gap:.5rem; padding:.7rem 1.2rem; background:var(--gold); color:#fff; border:0; border-radius:2rem; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.18); z-index:60; }
+    .fab-count { background:#fff; color:var(--gold); min-width:1.3rem; padding:0 .35rem; border-radius:1rem; display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; }
+    @media (max-width:600px) { .cart-fab { left:50%; right:auto; transform:translateX(-50%); } }
   `],
 })
 export class WishlistComponent implements OnInit, OnDestroy {
@@ -439,7 +388,6 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected draftCurrency: WishlistCurrency = 'BRL';
   protected draftQty = 1;
   protected draftUrl = '';
-  protected draftPix = '';
   protected draftImageUrl = '';
   protected draftFile: File | null = null;
   protected claimantLabel = '';
@@ -555,15 +503,6 @@ export class WishlistComponent implements OnInit, OnDestroy {
     this.claimModeDraft = v.claimMode;
   }
 
-  async completeClaim(claimId: number): Promise<void> {
-    if (!confirm('Mark this claim as complete? The claimed quantity will be removed from your wishlist.')) return;
-    try {
-      await this.api.completeWishlistClaim(claimId);
-      await this.reloadView();
-    } catch {
-      this.addError.set('Could not mark the claim as complete.');
-    }
-  }
 
   private async reloadView(): Promise<void> {
     const v = this.view();
@@ -587,45 +526,37 @@ export class WishlistComponent implements OnInit, OnDestroy {
     this.cart.set(next);
   }
 
-  protected formatPrice(minor: number, currency: WishlistCurrency): string {
-    return `${(minor / 100).toFixed(2)} ${currency}`;
-  }
-
   protected formatPriceIn(minor: number, source: WishlistCurrency, target: WishlistCurrency): string {
-    const major = minor / 100;
-    if (source === target) return `${major.toFixed(2)} ${target}`;
-    const srcRate = this.rates[source] ?? 1;
-    const tgtRate = this.rates[target] ?? 1;
-    const brl = major * srcRate;
-    const amount = tgtRate === 0 ? brl : brl / tgtRate;
-    return `${amount.toFixed(2)} ${target}`;
+    if (source === target) return this.fmt(minor / 100, target);
+    const brl = (minor / 100) * (this.rates[source] ?? 1);
+    return this.fmt(this.fromBrl(brl, target), target);
   }
 
   protected cartTotalBrl(): number {
     let total = 0;
     for (const [itemId, qty] of this.cart()) {
       const it = this.itemById(itemId);
-      if (!it) continue;
-      const rate = this.rates[it.currency] ?? 1;
-      total += (it.priceMinor / 100) * qty * rate;
+      if (it) total += (it.priceMinor / 100) * qty * (this.rates[it.currency] ?? 1);
     }
     return total;
   }
 
-  protected formatTotal(brlAmount: number, target: WishlistCurrency): string {
-    const factor = this.rates[target] ?? 1;
-    // rates table maps source->BRL; to convert BRL->target we divide.
-    const amount = factor === 0 ? brlAmount : brlAmount / factor;
-    return `${amount.toFixed(2)} ${target}`;
+  protected formatTotal(brl: number, target: WishlistCurrency): string {
+    return this.fmt(this.fromBrl(brl, target), target);
   }
 
-  protected formatTotalCompact(brlAmount: number, target: WishlistCurrency): string {
-    const factor = this.rates[target] ?? 1;
-    const amount = factor === 0 ? brlAmount : brlAmount / factor;
-    const rounded = Math.round(amount);
-    const text = Math.abs(amount - rounded) < 0.005 ? `${rounded}` : amount.toFixed(2);
+  protected formatTotalCompact(brl: number, target: WishlistCurrency): string {
+    const a = this.fromBrl(brl, target);
+    const r = Math.round(a);
+    const text = Math.abs(a - r) < 0.005 ? `${r}` : a.toFixed(2);
     return `${text} ${target}`;
   }
+
+  private fromBrl(brl: number, target: WishlistCurrency): number {
+    const f = this.rates[target] ?? 1;
+    return f === 0 ? brl : brl / f;
+  }
+  private fmt(amount: number, cur: WishlistCurrency): string { return `${amount.toFixed(2)} ${cur}`; }
 
   protected canSubmit(): boolean {
     if (this.cartCount() === 0) return false;
@@ -695,16 +626,6 @@ export class WishlistComponent implements OnInit, OnDestroy {
       this.replaceItem(updated);
     } catch {
       this.addError.set('Could not upload image.');
-    }
-  }
-
-  async removeItemImage(item: WishlistItem): Promise<void> {
-    try {
-      const updated = await this.api.deleteWishlistImage(item.id);
-      this.bumpImageVersion(updated.id);
-      this.replaceItem(updated);
-    } catch {
-      this.addError.set('Could not remove image.');
     }
   }
 

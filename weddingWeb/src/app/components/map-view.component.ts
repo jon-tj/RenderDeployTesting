@@ -27,7 +27,7 @@ const cache = new Map<string, GeocodeResult | null>();
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"
           title="Map of {{ location() }}"></iframe>
-        <span class="footer-cover" aria-hidden="true">{{ location() }}</span>
+        <span class="footer-cover" aria-hidden="true">{{ label() || location() }}</span>
         <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">{{ t('openInMaps', lang()) }}</a>
       </div>
     } @else {
@@ -50,6 +50,7 @@ export class MapViewComponent {
   private readonly sanitizer = inject(DomSanitizer);
 
   readonly location = input.required<string>();
+  readonly label = input<string>('');
   readonly lang = input<LanguageCode>(DEFAULT_LANGUAGE);
 
   protected readonly t = t;

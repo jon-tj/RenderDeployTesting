@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HubApi } from '../services/hub-api.service';
-import { EventSummary } from '../models';
+import { EventSummary, EventType } from '../models';
 
 @Component({
   selector: 'app-child-picker',
@@ -48,23 +48,21 @@ import { EventSummary } from '../models';
   `,
   styles: [`
     .picker { display:flex; flex-direction:column; gap:.5rem; }
-    input { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    ul.results { list-style:none; margin:0; padding:.25rem; display:flex; flex-direction:column; gap:.15rem; background:#faf7f0; border-radius:.4rem; }
-    button.pick { display:block; width:100%; text-align:left; padding:.4rem .55rem; background:transparent; border:0; border-radius:.3rem; cursor:pointer; }
-    button.pick:hover { background:#f1e0c2; }
+    ul.results { list-style:none; margin:0; padding:.25rem; display:flex; flex-direction:column; gap:.15rem; background:var(--bg); border-radius:var(--r); }
+    button.pick { display:block; width:100%; text-align:left; padding:.4rem .55rem; background:transparent; border:0; border-radius:.3rem; cursor:pointer; font:inherit; }
+    button.pick:hover { background:var(--accent-soft); }
     button.pick:disabled { opacity:.6; cursor:wait; }
-    .create { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
+    .create { background:var(--bg); padding:.6rem .75rem; border-radius:var(--r); display:flex; flex-direction:column; gap:.5rem; }
     .row { display:grid; grid-template-columns:1fr auto; gap:.5rem; }
-    .row button { padding:.5rem .8rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; }
+    .row button { padding:.5rem .8rem; background:var(--accent); color:var(--accent-ink); border:0; border-radius:var(--r); cursor:pointer; font:inherit; }
     .row button[disabled] { opacity:.6; cursor:wait; }
-    .muted { color:#8b8273; margin:0; }
-    .error { color:#a23; margin:0; }
   `],
 })
 export class ChildPickerComponent {
   private readonly api = inject(HubApi);
 
   readonly parentId = input.required<number>();
+  readonly parentType = input<EventType | null>(null);
   readonly added = output<EventSummary>();
 
   protected query = '';
@@ -115,7 +113,7 @@ export class ChildPickerComponent {
     if (!title) return;
     this.busy.set(true);
     try {
-      const created = await this.api.createEvent({ title, parentEventId: this.parentId() });
+      const created = await this.api.createEvent({ title, parentEventId: this.parentId(), type: this.parentType() ?? undefined });
       const summary: EventSummary = {
         id: created.id,
         type: created.type,

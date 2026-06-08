@@ -62,7 +62,7 @@ type StringKey =
   | 'withLove'
   | 'loading' | 'eventNotFound' | 'back' | 'edit'
   | 'whenAndWhere' | 'start' | 'end' | 'location' | 'dressCode' | 'hostedBy'
-  | 'album' | 'noAlbumImages' | 'descriptionOptional' | 'uploading' | 'addToAlbum'
+  | 'album' | 'noAlbumImages' | 'descriptionOptional' | 'uploading' | 'addToAlbum' | 'cancel'
   | 'yourRsvp' | 'attending' | 'saveRsvp' | 'saved' | 'responseAppliesToAll'
   | 'invitees' | 'noInvitees' | 'mealLabel' | 'drinkLabel'
   | 'statusPending' | 'statusAccepted' | 'statusDeclined' | 'statusMaybe'
@@ -107,6 +107,7 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   descriptionOptional:  { 'en': 'Description (optional)',  'nb': 'Beskrivelse (valgfritt)',  'pt-BR': 'Descrição (opcional)' },
   uploading:            { 'en': 'Uploading…',              'nb': 'Laster opp…',              'pt-BR': 'Enviando…' },
   addToAlbum:           { 'en': 'Add to album',            'nb': 'Legg til i albumet',       'pt-BR': 'Adicionar ao álbum' },
+  cancel:               { 'en': 'Cancel',                  'nb': 'Avbryt',                   'pt-BR': 'Cancelar' },
   yourRsvp:             { 'en': 'Your RSVP',               'nb': 'Ditt svar',                'pt-BR': 'Sua confirmação' },
   attending:            { 'en': 'Attending',               'nb': 'Deltar',                   'pt-BR': 'Presença' },
   saveRsvp:             { 'en': 'Save RSVP',               'nb': 'Lagre svar',               'pt-BR': 'Salvar confirmação' },

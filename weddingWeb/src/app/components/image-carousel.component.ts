@@ -12,9 +12,11 @@ import { EventImageComponent } from './event-image.component';
   imports: [EventImageComponent],
   template: `
     @if (images().length) {
-      <div class="carousel">
-        <button type="button" class="nav prev" (click)="shift(-1)"
-          [disabled]="images().length < 2 || isAnimating()">‹</button>
+      <div class="carousel" [class.wedding]="variant() === 'wedding'">
+        @if (variant() !== 'wedding') {
+          <button type="button" class="nav prev" (click)="shift(-1)"
+            [disabled]="images().length < 2 || isAnimating()">‹</button>
+        }
         <div class="slide">
           <div class="image-stack" (click)="emitOpen(current())">
             @if (outgoing(); as out) {
@@ -31,18 +33,27 @@ import { EventImageComponent } from './event-image.component';
                   (loaded)="onIncomingLoaded()" />
               </div>
             }
-            <div class="image-tools" (click)="$event.stopPropagation()">
-              <button type="button" class="tool" title="Download" (click)="download()" [disabled]="!current()">⬇</button>
-              <button type="button" class="tool" title="Expand" (click)="emitOpen(images()[0])" [disabled]="!images().length">⛶</button>
-            </div>
+            @if (variant() === 'wedding') {
+              <button type="button" class="edge prev" (click)="$event.stopPropagation(); shift(-1)"
+                [disabled]="images().length < 2 || isAnimating()" aria-label="Previous">‹</button>
+              <button type="button" class="edge next" (click)="$event.stopPropagation(); shift(1)"
+                [disabled]="images().length < 2 || isAnimating()" aria-label="Next">›</button>
+            } @else {
+              <div class="image-tools" (click)="$event.stopPropagation()">
+                <button type="button" class="tool" title="Download" (click)="download()" [disabled]="!current()">⬇</button>
+                <button type="button" class="tool" title="Expand" (click)="emitOpen(images()[0])" [disabled]="!images().length">⛶</button>
+              </div>
+            }
           </div>
           @if (current(); as cur) {
             @if (cur.description) { <p class="caption">{{ cur.description }}</p> }
             <p class="caption muted small">{{ index() + 1 }} / {{ images().length }}</p>
           }
         </div>
-        <button type="button" class="nav next" (click)="shift(1)"
-          [disabled]="images().length < 2 || isAnimating()">›</button>
+        @if (variant() !== 'wedding') {
+          <button type="button" class="nav next" (click)="shift(1)"
+            [disabled]="images().length < 2 || isAnimating()">›</button>
+        }
       </div>
     }
   `,
@@ -52,9 +63,12 @@ import { EventImageComponent } from './event-image.component';
     .carousel .nav:disabled { opacity:.4; cursor:default; }
     .carousel .slide { flex:1; display:flex; flex-direction:column; align-items:center; gap:.35rem; }
     .carousel .image-stack { position:relative; width:100%; height:360px; cursor:pointer; }
+    .carousel.wedding .image-stack { background:#000; border-radius:.4rem; overflow:hidden; }
     .carousel .slide-image { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
     .carousel .slide-image ::ng-deep app-event-image { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
     .carousel .slide-image ::ng-deep img { max-height:100%; max-width:100%; width:auto; height:auto; border-radius:.4rem; object-fit:contain; }
+    .carousel.wedding .slide-image ::ng-deep app-event-image,
+    .carousel.wedding .slide-image ::ng-deep img { width:100%; height:100%; max-width:none; max-height:none; object-fit:cover; border-radius:0; }
     /* Stacking: outgoing fades + drifts left on top; incoming sits below it,
        hidden until decoded so the swap reveals the new image as the old one
        slides away. */
@@ -70,6 +84,14 @@ import { EventImageComponent } from './event-image.component';
     .tool { background:rgba(0,0,0,.55); color:#fff; border:0; width:2rem; height:2rem; border-radius:.3rem; cursor:pointer; font-size:.95rem; line-height:1; }
     .tool:hover:not(:disabled) { background:rgba(0,0,0,.75); }
     .tool:disabled { opacity:.4; cursor:default; }
+    .edge { position:absolute; top:0; bottom:0; width:2.5rem; border:0; background:rgba(0,0,0,.15); color:#fff;
+      font-size:2rem; line-height:1; cursor:pointer; z-index:3; display:flex; align-items:center; justify-content:center; padding:0;
+      transition: background .2s ease; }
+    @media (hover: hover) {
+      .edge:hover { background:rgba(0,0,0,.4); }
+    }
+    .edge.prev { left:0; border-radius:.4rem 0 0 .4rem; }
+    .edge.next { right:0; border-radius:0 .4rem .4rem 0; }
     .caption { margin:0; text-align:center; }
     .muted { color:#8b8273; }
     .small { font-size:.8rem; }
@@ -80,6 +102,7 @@ export class ImageCarouselComponent {
 
   readonly eventId = input.required<number>();
   readonly images = input.required<EventImage[]>();
+  readonly variant = input<'default' | 'wedding'>('default');
   readonly open = output<EventImage>();
 
   protected readonly index = signal(0);

@@ -9,7 +9,7 @@ import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
 import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, InviteGroup, LANGUAGES, LanguageCode, UserSummary } from '../models';
-import { localizedOption, localizedTitle, t } from '../utils/i18n';
+import { printDiningPlan } from '../utils/dining-plan';
 
 @Component({
   selector: 'app-event-edit',
@@ -57,7 +57,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             </label>
             <label>Title
               <div class="with-lang">
-                <input name="title" [ngModel]="titleText()" (ngModelChange)="setTitleText($event)"
+                <input name="title" [ngModel]="getText('title')" (ngModelChange)="setText('title', $event)"
                   [disabled]="!ev.isOwner" (blur)="save()" />
                 @if (enableTranslations) {
                   <select class="lang-pill" [(ngModel)]="titleLang" name="titleLang" title="Editing language">
@@ -76,7 +76,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             </label>
             <label>Dress code
               <div class="with-lang">
-                <input name="dressCode" [ngModel]="dressCodeText()" (ngModelChange)="setDressCodeText($event)"
+                <input name="dressCode" [ngModel]="getText('dressCode')" (ngModelChange)="setText('dressCode', $event)"
                   [disabled]="!ev.isOwner" (blur)="save()" placeholder="Optional" />
                 @if (enableTranslations) {
                   <select class="lang-pill" [(ngModel)]="dressLang" name="dressLang" title="Editing language">
@@ -94,7 +94,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
               <input type="datetime-local" name="end" [(ngModel)]="endLocal" [disabled]="!ev.isOwner" (change)="save()" />
             </label>
             <label>Visibility
-              <select name="visibility" [(ngModel)]="visibility" [disabled]="!ev.isOwner" (change)="saveVisibility()">
+              <select name="visibility" [(ngModel)]="visibility" [disabled]="!ev.isOwner" (change)="savePatch({ visibility: this.visibility }, 'Could not update visibility setting.')">
                 @for (v of allVisibilities; track v) {
                   <option [value]="v">{{ visibilityLabel(v) }}</option>
                 }
@@ -114,7 +114,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
           }
           <label class="block">Description
             <div class="with-lang">
-              <textarea name="description" rows="4" [ngModel]="descriptionText()" (ngModelChange)="setDescriptionText($event)"
+              <textarea name="description" rows="4" [ngModel]="getText('description')" (ngModelChange)="setText('description', $event)"
                 [disabled]="!ev.isOwner" (blur)="save()"></textarea>
               @if (enableTranslations) {
                 <select class="lang-pill" [(ngModel)]="descLang" name="descLang" title="Editing language">
@@ -253,7 +253,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             <label class="check">
               <input type="checkbox" name="showInvitees"
                 [(ngModel)]="showInviteesToGuests"
-                (change)="saveShowInviteesToGuests()" />
+                (change)="savePatch({ showInviteesToGuests: this.showInviteesToGuests }, 'Could not update invitee visibility setting.')" />
               Show invitee list to participants
             </label>
             <p class="muted small">When off, only you (the owner) can see who else is invited. Participants still see their own RSVP.</p>
@@ -350,20 +350,20 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
               <input type="checkbox" name="inherit"
                 [(ngModel)]="inheritParentInvites"
                 [disabled]="!ev.isOwner"
-                (change)="saveInheritance()" />
+                (change)="savePatch({ inheritParentInvites: this.inheritParentInvites }, 'Could not update inheritance.')" />
               Inherit invites from parent event
             </label>
             <p class="muted small">When on, anyone invited to the parent (and its ancestors that opt in) can see this event too.</p>
           } @else {
             @if (ev.isOwner) {
-              <app-child-picker [parentId]="ev.id" (added)="onChildAdded($event)" />
+              <app-child-picker [parentId]="ev.id" [parentType]="ev.type" (added)="onChildAdded($event)" />
             }
             @if (ev.children.length) {
               <label class="check">
                 <input type="checkbox" name="collect"
                   [(ngModel)]="collectChildRsvps"
                   [disabled]="!ev.isOwner"
-                  (change)="saveCollectChildRsvps()" />
+                  (change)="savePatch({ collectChildRsvps: this.collectChildRsvps }, 'Could not update RSVP collection.')" />
                 Collect RSVPs across all child events
               </label>
               <p class="muted small">When on, invitees give one RSVP on this event and it applies to every child. When off, the view page hides this event's RSVP and asks for one per child event.</p>
@@ -394,7 +394,7 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
             <label class="check">
               <input type="checkbox" name="guestAlbum"
                 [(ngModel)]="allowGuestAlbumUploads"
-                (change)="saveAllowGuestAlbumUploads()" />
+                (change)="savePatch({ allowGuestAlbumUploads: this.allowGuestAlbumUploads }, 'Could not update album upload setting.')" />
               Let invitees upload to the album
             </label>
             <p class="muted small">When on, anyone who can see this event can add to the album. Banner and icon are always owner-only.</p>
@@ -466,26 +466,6 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
     </main>
   `,
   styles: [`
-    .shell { max-width:900px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
-    .head { display:flex; align-items:center; gap:1rem; }
-    .head h1 { flex:1; margin:0; }
-    .head-actions { display:flex; gap:.5rem; }
-    .card { background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.75rem; }
-    .card h2 { margin:0 0 .25rem; font-size:1.05rem; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:.75rem; }
-    label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:#5a5347; }
-    label.block { display:flex; flex-direction:column; gap:.25rem; }
-    input, select, textarea { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    .ghost { background:transparent; border:1px solid #c9b88a; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; font:inherit; text-decoration:none; color:#2d2a24; display:inline-flex; align-items:center; }
-    .ghost:hover { background:#f1e0c2; }
-    .ghost.small { padding:.25rem .6rem; font-size:.8rem; }
-    .danger { background:#a23; color:#fff; border:0; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; }
-    .error { color:#a23; }
-    .saved { color:#3a7a3a; }
-    .muted { color:#8b8273; }
-    ul.invites { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
-    ul.invites li { display:flex; align-items:center; gap:.75rem; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
-    ul.invites li > div { flex:1; }
     .invites-actions { margin-top:.6rem; display:flex; justify-content:flex-end; }
     .group-row { flex-direction:column; align-items:stretch; gap:.5rem !important; }
     .group-fields { display:flex; gap:.75rem; flex-wrap:wrap; }
@@ -494,32 +474,24 @@ import { localizedOption, localizedTitle, t } from '../utils/i18n';
     .group-actions { display:flex; gap:.5rem; justify-content:flex-end; }
     .group-create { margin-top:.75rem; display:flex; gap:.5rem; }
     .group-create input { flex:1; }
-    ul.children { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.4rem; }
-    ul.children li { display:flex; align-items:center; gap:.75rem; padding:.4rem .65rem; background:#faf7f0; border-radius:.4rem; }
-    a.child-link { flex:1; color:#2d2a24; text-decoration:none; }
+    a.child-link { flex:1; color:var(--ink); text-decoration:none; }
     a.child-link:hover { text-decoration:underline; }
-    .warn { color:#a23; margin:0; font-weight:600; }
-    .check { flex-direction:row; align-items:center; gap:.5rem; font-size:.9rem; color:#2d2a24; }
-    .check input { width:auto; }
-    .small { font-size:.8rem; }
-    .badge { background:#dfe6cf; padding:.15rem .5rem; border-radius:.25rem; font-size:.75rem; }
-    .badge.warn { background:#f4d8a8; color:#6b4a17; }
     .upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end; }
     .upload .grow { flex:1; min-width:180px; }
     ul.images { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
-    ul.images li { display:flex; gap:.75rem; align-items:flex-start; padding:.5rem .65rem; background:#faf7f0; border-radius:.4rem; }
-    ul.images .thumb { width:96px; height:72px; flex:0 0 96px; overflow:hidden; border-radius:.3rem; background:#fff; display:flex; align-items:center; justify-content:center; }
+    ul.images li { display:flex; gap:.75rem; align-items:flex-start; padding:.5rem .65rem; background:var(--bg); border-radius:var(--r); }
+    ul.images .thumb { width:96px; height:72px; flex:0 0 96px; overflow:hidden; border-radius:.3rem; background:var(--bg-card); display:flex; align-items:center; justify-content:center; }
     ul.images .thumb ::ng-deep img { width:100%; height:100%; object-fit:cover; }
     ul.images .meta { flex:1; display:flex; flex-direction:column; gap:.3rem; }
     ul.images .meta .row { display:flex; gap:.5rem; align-items:center; }
     .with-lang { position:relative; }
     .with-lang input, .with-lang textarea { width:100%; box-sizing:border-box; padding-right:3.5rem; }
-    .with-lang .lang-pill { position:absolute; bottom:.25rem; right:.25rem; padding:.1rem .35rem; font-size:.7rem; background:#faf7f0; border:1px solid #d8cfb8; border-radius:.3rem; color:#5a5347; }
-    .opt-trans { margin-top:.5rem; padding-top:.75rem; border-top:1px dashed #e6e1d4; display:flex; flex-direction:column; gap:.75rem; }
+    .with-lang .lang-pill { position:absolute; bottom:.25rem; right:.25rem; padding:.1rem .35rem; font-size:.7rem; background:var(--bg); border:1px solid var(--rule-soft); border-radius:.3rem; color:var(--ink-soft); }
+    .opt-trans { margin-top:.5rem; padding-top:.75rem; border-top:1px dashed var(--rule); display:flex; flex-direction:column; gap:.75rem; }
     .opt-trans-head { display:flex; align-items:center; gap:.5rem; }
-    .opt-trans-block h3 { margin:0 0 .35rem; font-size:.9rem; color:#5a5347; }
+    .opt-trans-block h3 { margin:0 0 .35rem; font-size:.9rem; color:var(--ink-soft); }
     .opt-row { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:.5rem; align-items:center; margin-bottom:.35rem; }
-    .opt-row .opt-src { font-size:.85rem; color:#5a5347; }
+    .opt-row .opt-src { font-size:.85rem; color:var(--ink-soft); }
     .dining-plan-actions { display:flex; gap:.5rem; align-items:center; margin-top:.75rem; flex-wrap:wrap; }
     .dining-plan-actions select { padding:.25rem .5rem; font-size:.8rem; }
     .dining-plan-actions button { flex:1; justify-content:center; }
@@ -650,55 +622,19 @@ export class EventEditComponent implements OnInit {
     this.translations = { ...(ev.translations ?? {}) };
   }
 
-  protected titleText(): string {
-    if (this.titleLang === DEFAULT_LANGUAGE) return this.title;
-    return this.translations[this.titleLang]?.title ?? '';
+  private langFor(f: 'title' | 'description' | 'dressCode'): LanguageCode {
+    return f === 'title' ? this.titleLang : f === 'description' ? this.descLang : this.dressLang;
   }
-
-  protected setTitleText(value: string): void {
-    if (this.titleLang === DEFAULT_LANGUAGE) {
-      this.title = value;
-      return;
-    }
-    const cur = this.translations[this.titleLang] ?? { title: '', description: '' };
-    this.translations = {
-      ...this.translations,
-      [this.titleLang]: { ...cur, title: value },
-    };
+  protected getText(f: 'title' | 'description' | 'dressCode'): string {
+    const l = this.langFor(f);
+    if (l === DEFAULT_LANGUAGE) return this[f];
+    return (this.translations[l]?.[f] as string) ?? '';
   }
-
-  protected descriptionText(): string {
-    if (this.descLang === DEFAULT_LANGUAGE) return this.description;
-    return this.translations[this.descLang]?.description ?? '';
-  }
-
-  protected setDescriptionText(value: string): void {
-    if (this.descLang === DEFAULT_LANGUAGE) {
-      this.description = value;
-      return;
-    }
-    const cur = this.translations[this.descLang] ?? { title: '', description: '' };
-    this.translations = {
-      ...this.translations,
-      [this.descLang]: { ...cur, description: value },
-    };
-  }
-
-  protected dressCodeText(): string {
-    if (this.dressLang === DEFAULT_LANGUAGE) return this.dressCode;
-    return this.translations[this.dressLang]?.dressCode ?? '';
-  }
-
-  protected setDressCodeText(value: string): void {
-    if (this.dressLang === DEFAULT_LANGUAGE) {
-      this.dressCode = value;
-      return;
-    }
-    const cur = this.translations[this.dressLang] ?? { title: '', description: '' };
-    this.translations = {
-      ...this.translations,
-      [this.dressLang]: { ...cur, dressCode: value },
-    };
+  protected setText(f: 'title' | 'description' | 'dressCode', v: string): void {
+    const l = this.langFor(f);
+    if (l === DEFAULT_LANGUAGE) { this[f] = v; return; }
+    const cur = this.translations[l] ?? { title: '', description: '' };
+    this.translations = { ...this.translations, [l]: { ...cur, [f]: v } };
   }
 
   protected mealOptionsList(): string[] {
@@ -730,94 +666,8 @@ export class EventEditComponent implements OnInit {
     };
   }
 
-  protected tr(key: Parameters<typeof t>[0], ...args: string[]): string {
-    return t(key, this.planLang, ...args);
-  }
-
   protected printDiningPlan(ev: EventDetail): void {
-    const lang = this.planLang;
-    const accepted = ev.invites.filter(i => i.status === 'Accepted');
-    const acceptedCount = accepted.length;
-    const buildSection = (kind: 'meal' | 'drink', options: string[]): string => {
-      if (!options.length) return '';
-      const counts = new Map<string, number>();
-      options.forEach(o => counts.set(o, 0));
-      let unspecified = 0;
-      for (const inv of accepted) {
-        const raw = (kind === 'meal' ? inv.mealChoice : inv.drinkChoice)?.trim() ?? '';
-        if (raw && counts.has(raw)) counts.set(raw, counts.get(raw)! + 1);
-        else unspecified += 1;
-      }
-      const specifiedTotal = options.reduce((s, o) => s + counts.get(o)!, 0);
-      // Largest-remainder allocation so the "to order" column sums to acceptedCount.
-      const toOrder = new Map<string, number>();
-      const remainders: { opt: string; rem: number }[] = [];
-      let assigned = 0;
-      for (const o of options) {
-        const requested = counts.get(o)!;
-        const share = specifiedTotal > 0
-          ? unspecified * (requested / specifiedTotal)
-          : unspecified / options.length;
-        const raw = requested + share;
-        const floor = Math.floor(raw);
-        toOrder.set(o, floor);
-        remainders.push({ opt: o, rem: raw - floor });
-        assigned += floor;
-      }
-      let leftover = Math.max(0, acceptedCount - assigned);
-      remainders.sort((a, b) => b.rem - a.rem);
-      for (const r of remainders) {
-        if (leftover <= 0) break;
-        toOrder.set(r.opt, toOrder.get(r.opt)! + 1);
-        leftover -= 1;
-      }
-      const heading = this.tr(kind === 'meal' ? 'meal' : 'drink');
-      const rows = options.map(o => {
-        const label = escapeHtml(localizedOption(ev, lang, kind, o));
-        return `<tr><td>${label}</td><td class="num">${counts.get(o)}</td><td class="num">${toOrder.get(o)}</td></tr>`;
-      }).join('');
-      const unspecRow = `<tr class="unspec"><td>${escapeHtml(this.tr('unspecified'))}</td><td class="num">${unspecified}</td><td class="num">0</td></tr>`;
-      const totalOrdered = options.reduce((s, o) => s + toOrder.get(o)!, 0);
-      const totalReq = specifiedTotal + unspecified;
-      const totalRow = `<tr class="total"><td>${escapeHtml(this.tr('total'))}</td><td class="num">${totalReq}</td><td class="num">${totalOrdered}</td></tr>`;
-      return `<section><h2>${escapeHtml(heading)}</h2><table>
-        <thead><tr><th>${escapeHtml(this.tr('option'))}</th><th class="num">${escapeHtml(this.tr('requested'))}</th><th class="num">${escapeHtml(this.tr('toOrder'))}</th></tr></thead>
-        <tbody>${rows}${unspecRow}${totalRow}</tbody></table></section>`;
-    };
-    const evTitle = escapeHtml(localizedTitle(ev, lang));
-    const heading = escapeHtml(this.tr('diningPlan'));
-    const sub = acceptedCount === 0
-      ? escapeHtml(this.tr('noAcceptedInvitees'))
-      : escapeHtml(this.tr('basedOnAccepted', String(acceptedCount)));
-    const meals = buildSection('meal', this.mealOptionsList());
-    const drinks = buildSection('drink', this.drinkOptionsList());
-    const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
-      <title>${heading} — ${evTitle}</title>
-      <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#222; padding:2rem; max-width:720px; margin:0 auto; }
-        h1 { margin:0 0 .25rem; font-size:1.5rem; }
-        h2 { margin:1.5rem 0 .5rem; font-size:1.1rem; }
-        .sub { color:#666; margin:0 0 1rem; font-size:.9rem; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { padding:.45rem .6rem; border-bottom:1px solid #ddd; text-align:left; }
-        th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; }
-        tr.unspec td { color:#666; font-style:italic; }
-        tr.total td { font-weight:600; border-top:2px solid #222; border-bottom:none; }
-        .toolbar { display:flex; justify-content:flex-end; margin-bottom:1rem; }
-        .toolbar button { font:inherit; padding:.5rem 1rem; border:1px solid #222; background:#222; color:#fff; border-radius:.4rem; cursor:pointer; }
-        .toolbar button:hover { background:#000; }
-        @media print { body { padding:0; } .toolbar { display:none; } }
-      </style></head><body>
-      <div class="toolbar"><button type="button" onclick="window.print()">Print dining plan</button></div>
-      <h1>${heading}</h1>
-      <p class="sub">${evTitle} · ${sub}</p>
-      ${meals}${drinks}
-      </body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) return;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+    printDiningPlan(ev, this.planLang, this.mealOptionsList(), this.drinkOptionsList());
   }
 
   async save(): Promise<void> {
@@ -1057,29 +907,15 @@ export class EventEditComponent implements OnInit {
     }
   }
 
-  async saveInheritance(): Promise<void> {
+  protected async savePatch(patch: Record<string, unknown>, errorMsg: string): Promise<void> {
     const ev = this.event();
     if (!ev || !ev.isOwner) return;
     try {
-      const updated = await this.api.updateEvent(ev.id, { inheritParentInvites: this.inheritParentInvites });
-      this.apply(updated);
+      this.apply(await this.api.updateEvent(ev.id, patch as any));
       this.savedAt.set(Date.now());
-    } catch (e: any) {
-      this.error.set('Could not update inheritance.');
-    }
+    } catch { this.error.set(errorMsg); }
   }
 
-  async saveCollectChildRsvps(): Promise<void> {
-    const ev = this.event();
-    if (!ev || !ev.isOwner) return;
-    try {
-      const updated = await this.api.updateEvent(ev.id, { collectChildRsvps: this.collectChildRsvps });
-      this.apply(updated);
-      this.savedAt.set(Date.now());
-    } catch (e: any) {
-      this.error.set('Could not update RSVP collection.');
-    }
-  }
 
   protected formatDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -1094,42 +930,6 @@ export class EventEditComponent implements OnInit {
       this.router.navigate(['/']);
     } catch (e: any) {
       this.error.set('Could not delete event.');
-    }
-  }
-
-  async saveAllowGuestAlbumUploads(): Promise<void> {
-    const ev = this.event();
-    if (!ev || !ev.isOwner) return;
-    try {
-      const updated = await this.api.updateEvent(ev.id, { allowGuestAlbumUploads: this.allowGuestAlbumUploads });
-      this.apply(updated);
-      this.savedAt.set(Date.now());
-    } catch (e: any) {
-      this.error.set('Could not update album upload setting.');
-    }
-  }
-
-  async saveShowInviteesToGuests(): Promise<void> {
-    const ev = this.event();
-    if (!ev || !ev.isOwner) return;
-    try {
-      const updated = await this.api.updateEvent(ev.id, { showInviteesToGuests: this.showInviteesToGuests });
-      this.apply(updated);
-      this.savedAt.set(Date.now());
-    } catch (e: any) {
-      this.error.set('Could not update invitee visibility setting.');
-    }
-  }
-
-  async saveVisibility(): Promise<void> {
-    const ev = this.event();
-    if (!ev || !ev.isOwner) return;
-    try {
-      const updated = await this.api.updateEvent(ev.id, { visibility: this.visibility });
-      this.apply(updated);
-      this.savedAt.set(Date.now());
-    } catch (e: any) {
-      this.error.set('Could not update visibility setting.');
     }
   }
 
@@ -1260,8 +1060,4 @@ function parseOptionsText(text: string): string[] {
 
 function fromLocalInput(value: string): string {
   return new Date(value).toISOString();
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }

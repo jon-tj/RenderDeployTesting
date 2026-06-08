@@ -21,16 +21,6 @@ import { AuthService } from '../services/auth.service';
       </form>
     </div>
   `,
-  styles: [`
-    .auth-page { min-height:100vh; display:grid; place-items:center; background:#faf7f0; padding:1rem; }
-    .card { display:flex; flex-direction:column; gap:.9rem; width:100%; max-width:360px; padding:1.5rem; background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; }
-    h1 { margin:0 0 .25rem; }
-    label { display:flex; flex-direction:column; gap:.3rem; font-size:.9rem; color:#5a5347; }
-    input { padding:.55rem .7rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    button { padding:.6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font-weight:600; }
-    button[disabled] { opacity:.6; cursor:wait; }
-    .error { color:#a23; margin:0; }
-  `],
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);

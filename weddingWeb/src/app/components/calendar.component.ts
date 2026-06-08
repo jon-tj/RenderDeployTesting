@@ -53,19 +53,19 @@ interface DayCell {
     </div>
   `,
   styles: [`
-    .cal { background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; padding:1rem; }
+    .cal { background:var(--bg-card); border:1px solid var(--rule); border-radius:var(--r-lg); padding:1rem; }
     header { display:flex; align-items:center; gap:1rem; margin-bottom:.75rem; }
     header h2 { flex:1; text-align:center; margin:0; }
-    header button { background:#fff; border:1px solid #d8cfb8; width:2rem; height:2rem; border-radius:.4rem; cursor:pointer; }
+    header button { background:var(--bg-card); border:1px solid var(--rule-soft); width:2rem; height:2rem; border-radius:var(--r); cursor:pointer; }
     .grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
-    .head .dow { text-align:center; font-size:.8rem; color:#8b8273; padding:.25rem; }
-    .day { display:flex; flex-direction:column; gap:.15rem; min-height:96px; padding:.3rem; background:#faf7f0; border:1px solid transparent; border-radius:.35rem; text-align:left; cursor:pointer; font:inherit; }
-    .day:hover { border-color:#c9b88a; }
+    .head .dow { text-align:center; font-size:.8rem; color:var(--muted); padding:.25rem; }
+    .day { display:flex; flex-direction:column; gap:.15rem; min-height:96px; padding:.3rem; background:var(--bg); border:1px solid transparent; border-radius:.35rem; text-align:left; cursor:pointer; font:inherit; }
+    .day:hover { border-color:var(--rule-strong); }
     .day.muted { opacity:.45; }
-    .day.today .num { background:#6f7a5b; color:#faf5ea; border-radius:50%; padding:.1rem .35rem; }
-    .num { font-size:.85rem; color:#5a5347; align-self:flex-start; }
-    .evt { display:flex; align-items:center; gap:.25rem; background:#dfe6cf; color:#2d2a24; font-size:.75rem; padding:.1rem .35rem; border-radius:.25rem; white-space:nowrap; overflow:hidden; }
-    .evt.wedding { background:#f1e0c2; }
+    .day.today .num { background:var(--accent); color:var(--accent-ink); border-radius:50%; padding:.1rem .35rem; }
+    .num { font-size:.85rem; color:var(--ink-soft); align-self:flex-start; }
+    .evt { display:flex; align-items:center; gap:.25rem; background:var(--accent-pale); color:var(--ink); font-size:.75rem; padding:.1rem .35rem; border-radius:.25rem; white-space:nowrap; overflow:hidden; }
+    .evt.wedding { background:var(--accent-soft); }
     .evt:hover { filter:brightness(.95); }
     .evt-title { overflow:hidden; text-overflow:ellipsis; }
     .evt-icon { width:14px; height:14px; flex:0 0 14px; border-radius:2px; overflow:hidden; background:rgba(255,255,255,.5); }

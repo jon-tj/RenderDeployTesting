@@ -1,6 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
 import { HubApi } from '../services/hub-api.service';
 import { EventDetail, EventImage } from '../models';
 import { EventImageComponent } from './event-image.component';
@@ -11,7 +10,7 @@ import { EventImageComponent } from './event-image.component';
 // image is shareable.
 @Component({
   selector: 'app-event-album',
-  imports: [RouterLink, FormsModule, EventImageComponent],
+  imports: [RouterLink, EventImageComponent],
   template: `
     <main class="shell">
       <header class="bar">
@@ -31,19 +30,6 @@ import { EventImageComponent } from './event-image.component';
       } @else if (notFound()) {
         <p class="muted center">Album not available.</p>
       } @else {
-        @if (event(); as ev) {
-          @if (canUpload()) {
-            <div class="album-upload">
-              <input type="file" accept="image/*" (change)="onFile($event)" />
-              <input type="text" placeholder="Description (optional)" [(ngModel)]="description" name="albumDescription" />
-              <button type="button" class="ghost primary" (click)="upload()" [disabled]="!file || uploading()">
-                {{ uploading() ? 'Uploading…' : 'Add to album' }}
-              </button>
-              @if (uploadError()) { <p class="error">{{ uploadError() }}</p> }
-            </div>
-          }
-        }
-
         @if (!images().length) {
           <p class="muted center">No photos yet.</p>
         } @else {
@@ -105,14 +91,6 @@ import { EventImageComponent } from './event-image.component';
     @media (max-width: 760px) {
       .sidebar { display:none; }
     }
-
-    .album-upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; padding:.75rem 1rem; border-bottom:1px solid #1c1c1c; }
-    .album-upload input[type=text] { flex:1; min-width:200px; padding:.4rem .6rem; border:1px solid #3a352a; background:#0f0e0b; color:#f1ece1; border-radius:.4rem; font:inherit; }
-    .album-upload input[type=file] { color:#f1ece1; font:inherit; }
-    .album-upload .primary { background:#c9b88a; color:#1a1813; border-color:#c9b88a; }
-    .album-upload .primary:hover:not(:disabled) { background:#d6c79a; }
-    .album-upload .primary:disabled { opacity:.5; cursor:default; }
-    .album-upload .error { color:#e7a3a3; margin:0; flex-basis:100%; }
   `],
 })
 export class EventAlbumComponent implements OnInit {
@@ -128,17 +106,6 @@ export class EventAlbumComponent implements OnInit {
 
   protected readonly images = computed<EventImage[]>(() =>
     this.event()?.images.filter(i => i.role === 'Album') ?? []);
-
-  // Owner can always add; guests only when the event opted in.
-  protected readonly canUpload = computed<boolean>(() => {
-    const ev = this.event();
-    return !!ev && (ev.isOwner || ev.allowGuestAlbumUploads);
-  });
-
-  protected file: File | null = null;
-  protected description = '';
-  protected readonly uploading = signal(false);
-  protected readonly uploadError = signal('');
 
   protected readonly current = computed<EventImage | null>(() =>
     this.images().find(i => i.id === this.imageId()) ?? this.images()[0] ?? null);
@@ -219,31 +186,5 @@ export class EventAlbumComponent implements OnInit {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }
-
-  protected onFile(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    this.file = input.files && input.files[0] ? input.files[0] : null;
-  }
-
-  protected async upload(): Promise<void> {
-    const ev = this.event();
-    if (!ev || !this.file) return;
-    this.uploading.set(true);
-    this.uploadError.set('');
-    try {
-      const img = await this.api.uploadImage(ev.id, this.file, 'Album', this.description);
-      this.event.set({ ...ev, images: [...ev.images, img] });
-      this.file = null;
-      this.description = '';
-      const fileInput = document.querySelector<HTMLInputElement>('.album-upload input[type=file]');
-      if (fileInput) fileInput.value = '';
-      // Navigate to the newly uploaded image so the user sees it land.
-      this.router.navigate(['/event', ev.id, 'album', img.id], { replaceUrl: true });
-    } catch (e: any) {
-      this.uploadError.set(e?.error ?? 'Could not upload image.');
-    } finally {
-      this.uploading.set(false);
-    }
   }
 }

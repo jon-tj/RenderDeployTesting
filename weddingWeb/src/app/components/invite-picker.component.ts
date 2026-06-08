@@ -68,19 +68,14 @@ import { extractHttpError } from '../utils/http-error';
   `,
   styles: [`
     .picker { display:flex; flex-direction:column; gap:.5rem; }
-    input { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    ul.results { list-style:none; margin:0; padding:.25rem; display:flex; flex-direction:column; gap:.15rem; background:#faf7f0; border-radius:.4rem; }
-    button.pick { display:block; width:100%; text-align:left; padding:.4rem .55rem; background:transparent; border:0; border-radius:.3rem; cursor:pointer; }
-    button.pick:hover { background:#f1e0c2; }
-    .create { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
+    ul.results { list-style:none; margin:0; padding:.25rem; display:flex; flex-direction:column; gap:.15rem; background:var(--bg); border-radius:var(--r); }
+    button.pick { display:block; width:100%; text-align:left; padding:.4rem .55rem; background:transparent; border:0; border-radius:.3rem; cursor:pointer; font:inherit; }
+    button.pick:hover { background:var(--accent-soft); }
+    .create, .link { background:var(--bg); padding:.6rem .75rem; border-radius:var(--r); display:flex; flex-direction:column; gap:.5rem; }
     .row { display:grid; grid-template-columns:1fr 1fr auto auto; gap:.5rem; }
     .row.link-row { grid-template-columns:1fr auto; }
-    .row select { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; background:#fff; }
-    .row button { padding:.5rem .8rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; }
+    .row button { padding:.5rem .8rem; background:var(--accent); color:var(--accent-ink); border:0; border-radius:var(--r); cursor:pointer; font:inherit; }
     .row button[disabled] { opacity:.6; cursor:wait; }
-    .link { background:#faf7f0; padding:.6rem .75rem; border-radius:.4rem; display:flex; flex-direction:column; gap:.5rem; }
-    .muted { color:#8b8273; margin:0; }
-    .error { color:#a23; margin:0; }
   `],
 })
 export class InvitePickerComponent {

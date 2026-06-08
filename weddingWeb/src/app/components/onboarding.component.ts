@@ -56,22 +56,11 @@ import { LanguagePickerComponent } from './language-picker.component';
     </div>
   `,
   styles: [`
-    .auth-page { min-height:100vh; display:grid; place-items:center; background:#faf7f0; padding:1rem; }
-    .card { display:flex; flex-direction:column; gap:.9rem; width:100%; max-width:380px; padding:1.5rem; background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; }
-    h1 { margin:0; }
     form { display:flex; flex-direction:column; gap:.9rem; margin-top:.25rem; }
-    label { display:flex; flex-direction:column; gap:.3rem; font-size:.9rem; color:#5a5347; }
-    input { padding:.55rem .7rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    button { padding:.6rem; background:#6f7a5b; color:#faf5ea; border:0; border-radius:.4rem; cursor:pointer; font-weight:600; }
-    button[disabled] { opacity:.6; cursor:wait; }
-    .muted { color:#8b8273; margin:0; }
-    .small { font-size:.8rem; }
-    .error { color:#a23; margin:0; white-space:pre-wrap; }
-    .diet-card { border:1px solid #e6e1d4; border-radius:.5rem; padding:.75rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; margin:0; }
-    .diet-card legend { font-size:.8rem; color:#5a5347; padding:0 .35rem; letter-spacing:.04em; text-transform:uppercase; }
+    .diet-card { border:1px solid var(--rule); border-radius:var(--r-lg); padding:.75rem 1rem 1rem; display:flex; flex-direction:column; gap:.5rem; margin:0; }
+    .diet-card legend { font-size:.8rem; color:var(--ink-soft); padding:0 .35rem; letter-spacing:.04em; text-transform:uppercase; }
     .step-actions { display:flex; gap:.5rem; }
     .step-actions button { flex:1; }
-    .ghost { background:transparent; color:#5a5347; border:1px solid #d8cfb8; }
   `],
 })
 export class OnboardingComponent implements OnInit {

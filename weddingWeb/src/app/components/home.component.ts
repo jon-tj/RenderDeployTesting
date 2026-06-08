@@ -54,20 +54,18 @@ import { EventSummary } from '../models';
     </main>
   `,
   styles: [`
-    .shell { max-width:1100px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
+    .shell { max-width:1100px; }
     .welcome { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; }
     .welcome h1 { margin:0 0 .25rem; }
-    .welcome p { margin:0; color:#5a5347; }
+    .welcome p { margin:0; color:var(--ink-soft); }
     .create-wrap { position:relative; }
-    .create-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1rem; border:1px solid #ead9b3; background:#fff; border-radius:999px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.08); font:inherit; }
+    .create-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.6rem 1rem; border:1px solid var(--gold-pale); background:var(--bg-card); border-radius:999px; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.08); font:inherit; }
     .create-btn:hover { background:#fdf6e3; }
     .create-btn .caret { margin-left:-.25rem; }
-    .create-menu { position:absolute; right:0; top:calc(100% + .4rem); min-width:260px; background:#fff; border:1px solid #ead9b3; border-radius:.5rem; box-shadow:0 4px 12px rgba(0,0,0,.12); padding:.35rem; display:flex; flex-direction:column; z-index:10; }
+    .create-menu { position:absolute; right:0; top:calc(100% + .4rem); min-width:260px; background:var(--bg-card); border:1px solid var(--gold-pale); border-radius:var(--r-lg); box-shadow:0 4px 12px rgba(0,0,0,.12); padding:.35rem; display:flex; flex-direction:column; z-index:10; }
     .create-menu button { display:flex; align-items:center; gap:.65rem; padding:.55rem .7rem; border:none; background:none; text-align:left; cursor:pointer; border-radius:.35rem; font:inherit; }
     .create-menu button:hover { background:#faf3e1; }
-    .create-menu .muted { color:#6b6450; }
-    .create-menu .small { font-size:.8rem; display:block; }
-    .error { color:#a23; }
+    .create-menu .small { display:block; }
   `],
 })
 export class HomeComponent implements OnInit {

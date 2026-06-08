@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Router } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
@@ -9,13 +9,14 @@ import { ApiConfig } from '../services/api-config.service';
 import { Dietary, DEFAULT_LANGUAGE, LanguageCode, Me } from '../models';
 import { DietaryFormComponent, EMPTY_DIETARY } from './dietary-form.component';
 import { LanguagePickerComponent } from './language-picker.component';
+import { extractHttpError } from '../utils/http-error';
 
 @Component({
   selector: 'app-settings',
   imports: [FormsModule, NavbarComponent, DietaryFormComponent, LanguagePickerComponent],
   template: `
     <app-navbar />
-    <main class="shell">
+    <main class="shell" style="max-width:640px">
       <header class="head">
         <h1>Account settings</h1>
         <button type="button" class="ghost" (click)="back()">Back</button>
@@ -23,87 +24,46 @@ import { LanguagePickerComponent } from './language-picker.component';
 
       <section class="card">
         <h2>Profile</h2>
-        <label>Email
-          <input [value]="auth.me()?.email ?? ''" disabled />
-        </label>
-        <label>Display name
-          <input name="displayName" [(ngModel)]="displayName" />
-        </label>
-        @if (profileError()) { <p class="error">{{ profileError() }}</p> }
-        @if (profileSaved()) { <p class="ok">Saved.</p> }
-        <div class="row">
-          <button type="button" class="primary" (click)="saveProfile()" [disabled]="savingProfile()">
-            {{ savingProfile() ? 'Saving…' : 'Save profile' }}
-          </button>
-        </div>
+        <label>Email <input [value]="auth.me()?.email ?? ''" disabled /></label>
+        <label>Display name <input name="displayName" [(ngModel)]="displayName" /></label>
+        @if (msg('profile'); as m) { <p [class]="m.ok ? 'ok' : 'error'">{{ m.text }}</p> }
+        <div><button type="button" class="primary" (click)="save('profile', { displayName: displayName.trim() }, 'Display name cannot be empty.')" [disabled]="busy() === 'profile'">
+          {{ busy() === 'profile' ? 'Saving…' : 'Save profile' }}
+        </button></div>
       </section>
 
       <section class="card">
         <h2>Language</h2>
         <p class="muted small">Used to pick translated titles and descriptions when hosts provide them.</p>
         <app-language-picker [value]="language()" (valueChange)="language.set($event)" />
-        @if (languageError()) { <p class="error">{{ languageError() }}</p> }
-        @if (languageSaved()) { <p class="ok">Saved.</p> }
-        <div class="row">
-          <button type="button" class="primary" (click)="saveLanguage()" [disabled]="savingLanguage()">
-            {{ savingLanguage() ? 'Saving…' : 'Save language' }}
-          </button>
-        </div>
+        @if (msg('language'); as m) { <p [class]="m.ok ? 'ok' : 'error'">{{ m.text }}</p> }
+        <div><button type="button" class="primary" (click)="save('language', { preferredLanguage: language() })" [disabled]="busy() === 'language'">
+          {{ busy() === 'language' ? 'Saving…' : 'Save language' }}
+        </button></div>
       </section>
 
       <section class="card">
         <h2>Dietary preferences</h2>
         <p class="muted small">Hosts can use this when planning meals for events you're invited to.</p>
         <app-dietary-form [value]="dietary()" (valueChange)="dietary.set($event)" />
-        @if (dietaryError()) { <p class="error">{{ dietaryError() }}</p> }
-        @if (dietarySaved()) { <p class="ok">Saved.</p> }
-        <div class="row">
-          <button type="button" class="primary" (click)="saveDietary()" [disabled]="savingDietary()">
-            {{ savingDietary() ? 'Saving…' : 'Save dietary' }}
-          </button>
-        </div>
+        @if (msg('dietary'); as m) { <p [class]="m.ok ? 'ok' : 'error'">{{ m.text }}</p> }
+        <div><button type="button" class="primary" (click)="save('dietary', { dietary: dietary() })" [disabled]="busy() === 'dietary'">
+          {{ busy() === 'dietary' ? 'Saving…' : 'Save dietary' }}
+        </button></div>
       </section>
 
       <section class="card">
         <h2>Change password</h2>
-        <label>Current password
-          <input type="password" name="oldPassword" [(ngModel)]="oldPassword" autocomplete="current-password" />
-        </label>
-        <label>New password
-          <input type="password" name="newPassword" [(ngModel)]="newPassword" minlength="8" autocomplete="new-password" />
-        </label>
-        <label>Confirm new password
-          <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" autocomplete="new-password" />
-        </label>
-        @if (passwordError()) { <p class="error">{{ passwordError() }}</p> }
-        @if (passwordSaved()) { <p class="ok">Password updated.</p> }
-        <div class="row">
-          <button type="button" class="primary" (click)="changePassword()" [disabled]="changingPassword()">
-            {{ changingPassword() ? 'Updating…' : 'Update password' }}
-          </button>
-        </div>
+        <label>Current password <input type="password" name="oldPassword" [(ngModel)]="oldPassword" autocomplete="current-password" /></label>
+        <label>New password <input type="password" name="newPassword" [(ngModel)]="newPassword" minlength="8" autocomplete="new-password" /></label>
+        <label>Confirm new password <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" autocomplete="new-password" /></label>
+        @if (msg('password'); as m) { <p [class]="m.ok ? 'ok' : 'error'">{{ m.text }}</p> }
+        <div><button type="button" class="primary" (click)="changePassword()" [disabled]="busy() === 'password'">
+          {{ busy() === 'password' ? 'Updating…' : 'Update password' }}
+        </button></div>
       </section>
     </main>
   `,
-  styles: [`
-    .shell { max-width:640px; margin:0 auto; padding:1.25rem; display:flex; flex-direction:column; gap:1rem; }
-    .head { display:flex; align-items:center; gap:1rem; }
-    .head h1 { flex:1; margin:0; }
-    .card { background:#fff; border:1px solid #e6e1d4; border-radius:.6rem; padding:1rem 1.25rem; display:flex; flex-direction:column; gap:.75rem; }
-    .card h2 { margin:0; font-size:1.05rem; }
-    label { display:flex; flex-direction:column; gap:.25rem; font-size:.85rem; color:#5a5347; }
-    input { padding:.5rem .65rem; border:1px solid #d8cfb8; border-radius:.4rem; font:inherit; }
-    input:disabled { background:#faf7f0; color:#8b8273; }
-    .row { display:flex; gap:.5rem; }
-    .primary { background:#6f7a5b; color:#faf5ea; border:0; padding:.5rem .9rem; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; }
-    .primary:disabled { opacity:.6; cursor:wait; }
-    .ghost { background:transparent; border:1px solid #c9b88a; padding:.4rem .8rem; border-radius:.4rem; cursor:pointer; font:inherit; }
-    .ghost:hover { background:#f1e0c2; }
-    .error { color:#a23; margin:0; white-space:pre-wrap; }
-    .ok { color:#3a7a3a; margin:0; }
-    .muted { color:#8b8273; margin:0; }
-    .small { font-size:.8rem; }
-  `],
 })
 export class SettingsComponent implements OnInit {
   protected readonly auth = inject(AuthService);
@@ -119,31 +79,17 @@ export class SettingsComponent implements OnInit {
   protected newPassword = '';
   protected confirmPassword = '';
 
-  protected readonly savingProfile = signal(false);
-  protected readonly profileError = signal('');
-  protected readonly profileSaved = signal(false);
-
-  protected readonly savingDietary = signal(false);
-  protected readonly dietaryError = signal('');
-  protected readonly dietarySaved = signal(false);
-
-  protected readonly savingLanguage = signal(false);
-  protected readonly languageError = signal('');
-  protected readonly languageSaved = signal(false);
-
-  protected readonly changingPassword = signal(false);
-  protected readonly passwordError = signal('');
-  protected readonly passwordSaved = signal(false);
+  protected readonly busy = signal<string | null>(null);
+  private readonly msgs = signal<Record<string, { ok: boolean; text: string }>>({});
+  protected msg(k: string) { return this.msgs()[k]; }
+  private setMsg(k: string, ok: boolean, text: string) { this.msgs.set({ ...this.msgs(), [k]: { ok, text } }); }
 
   ngOnInit(): void {
-    this.hydrateFromMe();
-    if (!this.displayName) {
-      // /api/me may not have resolved yet on a fresh reload; pull once.
-      void this.auth.refreshMe().then(() => this.hydrateFromMe());
-    }
+    this.hydrate();
+    if (!this.displayName) void this.auth.refreshMe().then(() => this.hydrate());
   }
 
-  private hydrateFromMe(): void {
+  private hydrate(): void {
     const me = this.auth.me();
     if (!me) return;
     if (!this.displayName) this.displayName = me.displayName ?? '';
@@ -156,112 +102,32 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  async saveProfile(): Promise<void> {
-    this.profileError.set('');
-    this.profileSaved.set(false);
-    const name = this.displayName.trim();
-    if (!name) {
-      this.profileError.set('Display name cannot be empty.');
-      return;
-    }
-    this.savingProfile.set(true);
+  async save(key: string, body: Partial<Me>, emptyCheck?: string): Promise<void> {
+    if (emptyCheck && !(body as any).displayName) { this.setMsg(key, false, emptyCheck); return; }
+    this.busy.set(key);
     try {
-      const me = await firstValueFrom(
-        this.http.put<Me>(this.api.url('/api/me'), { displayName: name })
-      );
+      const me = await firstValueFrom(this.http.put<Me>(this.api.url('/api/me'), body));
       this.auth.setMe(me);
-      this.profileSaved.set(true);
+      this.setMsg(key, true, 'Saved.');
     } catch (e) {
-      this.profileError.set(extractError(e) ?? 'Could not save profile.');
-    } finally {
-      this.savingProfile.set(false);
-    }
-  }
-
-  async saveDietary(): Promise<void> {
-    this.dietaryError.set('');
-    this.dietarySaved.set(false);
-    this.savingDietary.set(true);
-    try {
-      const me = await firstValueFrom(
-        this.http.put<Me>(this.api.url('/api/me'), { dietary: this.dietary() })
-      );
-      this.auth.setMe(me);
-      this.dietarySaved.set(true);
-    } catch (e) {
-      this.dietaryError.set(extractError(e) ?? 'Could not save dietary preferences.');
-    } finally {
-      this.savingDietary.set(false);
-    }
-  }
-
-  async saveLanguage(): Promise<void> {
-    this.languageError.set('');
-    this.languageSaved.set(false);
-    this.savingLanguage.set(true);
-    try {
-      const me = await firstValueFrom(
-        this.http.put<Me>(this.api.url('/api/me'), { preferredLanguage: this.language() })
-      );
-      this.auth.setMe(me);
-      this.languageSaved.set(true);
-    } catch (e) {
-      this.languageError.set(extractError(e) ?? 'Could not save language.');
-    } finally {
-      this.savingLanguage.set(false);
-    }
+      this.setMsg(key, false, extractHttpError(e) ?? `Could not save ${key}.`);
+    } finally { this.busy.set(null); }
   }
 
   async changePassword(): Promise<void> {
-    this.passwordError.set('');
-    this.passwordSaved.set(false);
-    if (!this.oldPassword || !this.newPassword) {
-      this.passwordError.set('Both current and new password are required.');
-      return;
-    }
-    if (this.newPassword.length < 8) {
-      this.passwordError.set('New password must be at least 8 characters.');
-      return;
-    }
-    if (this.newPassword !== this.confirmPassword) {
-      this.passwordError.set('New passwords do not match.');
-      return;
-    }
-    this.changingPassword.set(true);
+    if (!this.oldPassword || !this.newPassword) return this.setMsg('password', false, 'Both current and new password are required.');
+    if (this.newPassword.length < 8) return this.setMsg('password', false, 'New password must be at least 8 characters.');
+    if (this.newPassword !== this.confirmPassword) return this.setMsg('password', false, 'New passwords do not match.');
+    this.busy.set('password');
     try {
-      // ASP.NET Core Identity API endpoint exposed by MapIdentityApi.
-      await firstValueFrom(
-        this.http.post(this.api.url('/api/auth/manage/info'), {
-          newPassword: this.newPassword,
-          oldPassword: this.oldPassword,
-        })
-      );
-      this.oldPassword = '';
-      this.newPassword = '';
-      this.confirmPassword = '';
-      this.passwordSaved.set(true);
+      await firstValueFrom(this.http.post(this.api.url('/api/auth/manage/info'),
+        { newPassword: this.newPassword, oldPassword: this.oldPassword }));
+      this.oldPassword = this.newPassword = this.confirmPassword = '';
+      this.setMsg('password', true, 'Password updated.');
     } catch (e) {
-      this.passwordError.set(extractError(e) ?? 'Could not change password.');
-    } finally {
-      this.changingPassword.set(false);
-    }
+      this.setMsg('password', false, extractHttpError(e) ?? 'Could not change password.');
+    } finally { this.busy.set(null); }
   }
 
-  back(): void {
-    this.router.navigate(['/']);
-  }
-}
-
-function extractError(e: unknown): string | null {
-  if (!(e instanceof HttpErrorResponse)) return null;
-  const body = e.error;
-  if (typeof body === 'string') return body;
-  if (body && typeof body === 'object') {
-    if (body.errors && typeof body.errors === 'object') {
-      return Object.values(body.errors).flat().join('\n');
-    }
-    if (typeof body.detail === 'string') return body.detail;
-    if (typeof body.title === 'string') return body.title;
-  }
-  return null;
+  protected back() { this.router.navigate(['/']); }
 }

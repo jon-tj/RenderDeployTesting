@@ -47,20 +47,25 @@ export abstract class EventViewBase {
   childState(id: number) { return this.childStates().get(id); }
 
   protected hydrateRsvp(ev: EventDetail): void {
+    const prevParent = this.parentRsvp();
     const parent = emptyRsvp();
     if (ev.myInvite) {
       parent.status = ev.myInvite.status;
       parent.mealChoice = ev.myInvite.mealChoice ?? '';
       parent.drinkChoice = ev.myInvite.drinkChoice ?? '';
     }
+    parent.savedAt = prevParent.savedAt;
     this.parentRsvp.set(parent);
+    const prevChildren = this.childStates();
     const next = new Map<number, ChildRsvpState>();
     for (const c of ev.children) {
+      const prev = prevChildren.get(c.id);
       next.set(c.id, {
         ...emptyRsvp(),
         status: c.myInvite?.status ?? 'Pending',
         mealChoice: c.myInvite?.mealChoice ?? '',
         drinkChoice: c.myInvite?.drinkChoice ?? '',
+        savedAt: prev?.savedAt ?? 0,
       });
     }
     this.childStates.set(next);

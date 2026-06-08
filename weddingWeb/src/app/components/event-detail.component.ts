@@ -155,7 +155,8 @@ export class EventDetailComponent extends EventViewBase implements OnInit {
 
   private async load(id: number): Promise<void> {
     if (!id) { this.notFound.set(true); this.loading.set(false); return; }
-    this.loading.set(true); this.notFound.set(false);
+    if (!this.event()) this.loading.set(true);
+    this.notFound.set(false);
     try {
       const ev = await this.api.getEvent(id);
       this.event.set(ev);

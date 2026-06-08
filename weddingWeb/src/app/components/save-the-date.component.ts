@@ -26,7 +26,7 @@ function toIsoLocal(iso: string): string {
   selector: 'app-save-the-date',
   template: `
     <div class="std" [class.compact]="compact()">
-      @if (!compact()) { <h2 class="script">{{ t('saveTheDate', lang()) }}</h2> }
+      @if (!compact()) { <p class="section-label">{{ t('saveTheDate', lang()) }}</p> }
       @else { <span class="label">{{ t('saveTheDate', lang()) }}</span> }
       <div class="row">
         <a class="btn" [href]="googleUrl()" target="_blank" rel="noopener">
@@ -42,7 +42,7 @@ function toIsoLocal(iso: string): string {
     :host { display:block; }
     .std { display:flex; flex-direction:column; gap:.6rem; align-items:center; text-align:center; }
     .std.compact { flex-direction:row; gap:.5rem; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
-    .script { font-family:var(--script); font-size:2.2rem; color:var(--gold); text-align:center; margin:0; }
+    .section-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0; }
     .label { font-family:'Georgia', serif; color:#8a7a55; letter-spacing:.08em; font-size:.8rem; white-space:nowrap; }
     .row { display:flex; gap:.5rem; flex-wrap:wrap; justify-content:center; }
     .std.compact .row { flex-wrap:nowrap; }

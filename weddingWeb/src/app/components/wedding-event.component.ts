@@ -42,7 +42,6 @@ import { EventViewBase } from './event-view.base';
               <p class="kicker">{{ s('togetherWithFamilies') }}</p>
               <h1>{{ tr(ev) }}</h1>
               @if (!perChildRsvp()) { <p class="kicker">{{ formatLong(ev.startUtc) }}</p> }
-              @if (ev.location) { <p class="where">{{ locLabel(ev) }}</p> }
             </div>
           </div>
         } @else {
@@ -50,15 +49,22 @@ import { EventViewBase } from './event-view.base';
             <p class="kicker">{{ s('togetherWithFamilies') }}</p>
             <h1>{{ tr(ev) }}</h1>
             @if (!perChildRsvp()) { <p class="kicker">{{ formatLong(ev.startUtc) }}</p> }
-            @if (ev.location) { <p class="where">{{ locLabel(ev) }}</p> }
           </header>
         }
 
+        <div class="sections">
         @if (dr(ev)) { <section class="prose"><p>{{ dr(ev) }}</p></section> }
+
+        @if (ev.dressCode) {
+          <section class="dress">
+            <p class="section-label">{{ s('dressCode') }}</p>
+            <p class="script">{{ dc(ev) }}</p>
+          </section>
+        }
 
         @if (!perChildRsvp()) {
           <section class="rsvp-big">
-            <h2 class="script">{{ s('rsvp') }}</h2>
+            <p class="section-label">{{ s('rsvp') }}</p>
             @if (ev.collectChildRsvps && ev.children.length) { <p class="note">{{ s('replyAppliesToAll') }}</p> }
             <app-rsvp-form [event]="ev" [state]="parentRsvp()" [lang]="lang()" variant="wedding-big" (save)="onSaveRsvp()" />
           </section>
@@ -66,15 +72,9 @@ import { EventViewBase } from './event-view.base';
 
         @if (ev.location) {
           <section class="map">
-            <h2 class="script">{{ s('location') }}</h2>
+            <p class="section-label">{{ s('location') }}</p>
+            <p class="loc-name">{{ locLabel(ev) }}</p>
             <app-map-view [location]="ev.location" [label]="locLabel(ev)" [lang]="lang()" />
-          </section>
-        }
-
-        @if (ev.dressCode) {
-          <section class="dress">
-            <p class="dress-label">{{ s('dressCode') }}</p>
-            <p class="script">{{ dc(ev) }}</p>
           </section>
         }
 
@@ -106,7 +106,7 @@ import { EventViewBase } from './event-view.base';
 
         @if (albumImages().length || ev.allowGuestAlbumUploads) {
           <section class="map">
-            <h2 class="script">{{ s('moments') }}</h2>
+            <p class="section-label">{{ s('moments') }}</p>
             @if (albumImages().length) {
               <app-image-carousel [eventId]="ev.id" [images]="albumImages()" variant="wedding" (open)="openAlbum($event)" />
             }
@@ -127,6 +127,15 @@ import { EventViewBase } from './event-view.base';
           </section>
         }
 
+        @if (ev.hasWishlist) {
+          <section class="wishlist-section">
+            <a href="javascript:void(0)" (click)="openWishlist(ev.id)" class="wl-btn">
+              <span class="material-icons">card_giftcard</span>{{ s('wishlist') }}
+            </a>
+          </section>
+        }
+        </div>
+
         @if (albumFile) {
           <div class="album-modal-veil" (click)="cancelAlbumUpload()">
             <div class="album-modal" (click)="$event.stopPropagation()">
@@ -142,14 +151,6 @@ import { EventViewBase } from './event-view.base';
               @if (albumError()) { <p class="error">{{ albumError() }}</p> }
             </div>
           </div>
-        }
-
-        @if (ev.hasWishlist) {
-          <section style="text-align:center;padding:1.5rem 0 0">
-            <a href="javascript:void(0)" (click)="openWishlist(ev.id)" class="wl-btn">
-              <span class="material-icons">card_giftcard</span>{{ s('wishlist') }}
-            </a>
-          </section>
         }
         <footer style="text-align:center;padding:3rem 0 0">
           <p class="script" style="font-size:1.6rem">{{ s('withLove') }}</p>
@@ -182,14 +183,19 @@ import { EventViewBase } from './event-view.base';
     .kicker { font-style:italic; color:#7a6a4a; letter-spacing:.18em; font-size:.85rem; margin:.2rem 0; }
     .where { font-style:italic; color:#5a4f37; margin:.3rem 0 0; }
 
-    .save { display:flex; justify-content:center; margin-top:1.5rem; padding:0 1rem; }
+    .save { display:flex; justify-content:center; padding:0 1rem; }
+    .sections { display:flex; flex-direction:column; gap:2rem; margin-top:2rem; }
+    .sections > section { margin:0; }
+    .wishlist-section { text-align:center; }
     .prose { padding:0 1.5rem; text-align:center; line-height:1.7; color:#4a402d; }
     .map { padding:0 1.5rem; }
-    .dress { padding:1.25rem 1.5rem 0; text-align:center; }
+    .dress { padding:0 1.5rem; text-align:center; }
     .dress-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0; }
     .dress .script { font-size:2rem; margin:.2rem 0 0; }
+    .section-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0 0 .6rem; text-align:center; }
+    .loc-name { font-style:italic; color:#5a4f37; margin:0 0 .6rem; text-align:center; }
 
-    .timeline { list-style:none; padding:0; margin:1rem 0 0; display:flex; flex-direction:column; gap:3rem; }
+    .timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:3rem; }
     .t-item { background:rgba(234,217,179,.18); border-radius:.8rem; padding:.9rem 1rem; min-width:0; overflow:hidden; }
     .t-head { display:flex; gap:1rem; align-items:flex-start; min-width:0; }
     .t-time { flex:0 0 7rem; text-align:right; padding-top:.25rem; border-right:1px solid #e0d2ad; padding-right:1rem; }

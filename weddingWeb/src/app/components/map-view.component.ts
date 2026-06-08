@@ -27,7 +27,6 @@ const cache = new Map<string, GeocodeResult | null>();
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"
           title="Map of {{ location() }}"></iframe>
-        <span class="footer-cover" aria-hidden="true">{{ label() || location() }}</span>
         <a class="open" [href]="externalUrl()" target="_blank" rel="noopener">{{ t('openInMaps', lang()) }}</a>
       </div>
     } @else {
@@ -39,7 +38,6 @@ const cache = new Map<string, GeocodeResult | null>();
     .map-skeleton { height:220px; display:flex; align-items:center; justify-content:center; background:#f6efe0; color:#8b8273; border-radius:.6rem; font-style:italic; }
     .map-wrap { position:relative; display:block; border-radius:.6rem; overflow:hidden; box-shadow:0 1px 0 rgba(0,0,0,.04); }
     iframe { width:100%; height:260px; border:0; display:block; background:#f6efe0; }
-    .footer-cover { position:absolute; left:0; right:0; bottom:0; height:22px; background:#f6efe0; pointer-events:none; display:flex; align-items:center; padding:0 .6rem; font-size:.72rem; color:#5a5347; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .open { position:absolute; bottom:.5rem; right:.5rem; background:rgba(255,255,255,.92); color:#2d2a24; padding:.25rem .6rem; border-radius:999px; font-size:.7rem; letter-spacing:.05em; text-decoration:none; box-shadow:0 1px 2px rgba(0,0,0,.15); }
     .open:hover { background:#fff; }
     .muted { color:#8b8273; }

@@ -154,6 +154,7 @@ import { EventViewBase } from './event-view.base';
         }
         <footer style="text-align:center;padding:3rem 0 0">
           <p class="script" style="font-size:1.6rem">{{ s('withLove') }}</p>
+          @if (hostNames(); as h) { <p class="hosts">{{ h }}</p> }
         </footer>
         <app-event-margin-bottom [event]="ev" />
       </div>
@@ -193,7 +194,8 @@ import { EventViewBase } from './event-view.base';
     .dress-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0; }
     .dress .script { font-size:2rem; margin:.2rem 0 0; }
     .section-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0 0 .6rem; text-align:center; }
-    .loc-name { font-style:italic; color:#5a4f37; margin:0 0 .6rem; text-align:center; }
+    .loc-name { color:#5a4f37; margin:0 0 .6rem; text-align:center; }
+    .hosts { font-style:italic; color:#7a6a4a; letter-spacing:.04em; margin:.2rem 0 0; }
 
     .timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:3rem; }
     .t-item { background:rgba(234,217,179,.18); border-radius:.8rem; padding:.9rem 1rem; min-width:0; overflow:hidden; }
@@ -254,6 +256,24 @@ export class WeddingEventComponent extends EventViewBase implements OnChanges {
   protected readonly perChildRsvp = computed(() => {
     const ev = this.event();
     return !!ev && ev.children.length > 0 && !ev.collectChildRsvps;
+  });
+
+  protected readonly hostNames = computed(() => {
+    const ev = this.event();
+    if (!ev) return '';
+    const names: string[] = [];
+    const seen = new Set<string>();
+    const push = (id: string, name: string) => {
+      const n = (name ?? '').trim();
+      if (!n || seen.has(id)) return;
+      seen.add(id); names.push(n);
+    };
+    push(ev.createdById, ev.createdByDisplayName);
+    for (const o of ev.coOwners) push(o.userId, o.displayName);
+    if (names.length === 0) return '';
+    if (names.length === 1) return names[0];
+    const and = this.s('and');
+    return `${names.slice(0, -1).join(', ')} ${and} ${names[names.length - 1]}`;
   });
 
   ngOnChanges(): void { this.hydrateRsvp(this.event()); }

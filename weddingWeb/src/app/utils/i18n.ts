@@ -59,7 +59,7 @@ type StringKey =
   | 'rsvp' | 'replyAppliesToAll' | 'thankYou'
   | 'reply' | 'meal' | 'drink' | 'noPreference'
   | 'saving' | 'sendReply' | 'saveReply' | 'willYouBeThere'
-  | 'withLove'
+  | 'withLove' | 'and'
   | 'loading' | 'eventNotFound' | 'back' | 'edit'
   | 'whenAndWhere' | 'start' | 'end' | 'location' | 'dressCode' | 'hostedBy'
   | 'album' | 'noAlbumImages' | 'descriptionOptional' | 'uploading' | 'addToAlbum' | 'cancel'
@@ -94,6 +94,7 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   saveReply:            { 'en': 'Save reply',              'nb': 'Lagre svar',               'pt-BR': 'Salvar resposta' },
   willYouBeThere:       { 'en': 'Will you be there?',      'nb': 'Kommer du?',               'pt-BR': 'Você virá?' },
   withLove:             { 'en': 'with love',               'nb': 'med kjærlighet',           'pt-BR': 'com amor' },
+  and:                  { 'en': 'and',                     'nb': 'og',                       'pt-BR': 'e' },
   loading:              { 'en': 'Loading…',                'nb': 'Laster…',                  'pt-BR': 'Carregando…' },
   eventNotFound:        { 'en': 'Event not found.',        'nb': 'Fant ikke arrangementet.', 'pt-BR': 'Evento não encontrado.' },
   back:                 { 'en': 'Back',                    'nb': 'Tilbake',                  'pt-BR': 'Voltar' },

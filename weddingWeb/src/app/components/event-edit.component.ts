@@ -438,27 +438,16 @@ import { printDiningPlan } from '../utils/dining-plan';
                 <li>
                   <div class="thumb">
                     <app-event-image [eventId]="ev.id" [imageId]="img.id" [alt]="img.description || img.fileName" />
+                    <span class="badge thumb-badge">{{ img.role }}</span>
                   </div>
                   <div class="meta">
-                    <div class="row">
-                      <span class="badge">{{ img.role }}</span>
-                      <span class="muted small">{{ img.fileName }}</span>
-                    </div>
                     @if (img.canEdit) {
-                      <input type="text"
+                      <textarea rows="3"
                         [ngModel]="img.description"
                         (ngModelChange)="setImageDescription(img, $event)"
                         (blur)="saveImageDescription(img)"
                         [name]="'imgDesc-' + img.id"
-                        placeholder="Description" />
-                      @if (ev.isOwner) {
-                        <select [ngModel]="img.role" (ngModelChange)="setImageRole(img, $event)"
-                          (change)="saveImageRole(img)" [name]="'imgRole-' + img.id">
-                          @for (r of allImageRoles; track r) {
-                            <option [value]="r">{{ r }}</option>
-                          }
-                        </select>
-                      }
+                        placeholder="Description"></textarea>
                     } @else {
                       <p class="muted small">{{ img.description || '\u2014' }}</p>
                     }
@@ -488,12 +477,19 @@ import { printDiningPlan } from '../utils/dining-plan';
     a.child-link:hover { text-decoration:underline; }
     .upload { display:flex; flex-wrap:wrap; gap:.5rem; align-items:flex-end; }
     .upload .grow { flex:1; min-width:180px; }
+    .upload label.block { min-width:0; max-width:100%; }
+    .upload input, .upload select { max-width:100%; box-sizing:border-box; }
+    .upload input[type=file] { width:100%; }
     ul.images { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.5rem; }
     ul.images li { display:flex; gap:.75rem; align-items:flex-start; padding:.5rem .65rem; background:var(--bg); border-radius:var(--r); }
-    ul.images .thumb { width:96px; height:72px; flex:0 0 96px; overflow:hidden; border-radius:.3rem; background:var(--bg-card); display:flex; align-items:center; justify-content:center; }
+    ul.images .thumb { position:relative; width:96px; height:72px; flex:0 0 96px; overflow:hidden; border-radius:.3rem; background:var(--bg-card); display:flex; align-items:center; justify-content:center; }
     ul.images .thumb ::ng-deep img { width:100%; height:100%; object-fit:cover; }
-    ul.images .meta { flex:1; display:flex; flex-direction:column; gap:.3rem; }
-    ul.images .meta .row { display:flex; gap:.5rem; align-items:center; }
+    ul.images .thumb-badge { position:absolute; top:.2rem; left:.2rem; font-size:.65rem; padding:.05rem .35rem; background:rgba(0,0,0,.55); color:#fff; border-radius:.2rem; letter-spacing:.04em; }
+    ul.images .meta { flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:.3rem; }
+    ul.images .meta .row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; min-width:0; }
+    ul.images .meta .row .muted { word-break:break-all; min-width:0; }
+    ul.images .meta input, ul.images .meta select, ul.images .meta textarea { width:100%; box-sizing:border-box; }
+    ul.images .meta textarea { resize:vertical; font:inherit; padding:.4rem .5rem; border:1px solid var(--rule-soft); border-radius:.3rem; }
     .with-lang { position:relative; }
     .with-lang input, .with-lang textarea { width:100%; box-sizing:border-box; padding-right:3.5rem; }
     .with-lang .lang-pill { position:absolute; bottom:.25rem; right:.25rem; padding:.1rem .35rem; font-size:.7rem; background:var(--bg); border:1px solid var(--rule-soft); border-radius:.3rem; color:var(--ink-soft); }
@@ -571,7 +567,6 @@ export class EventEditComponent implements OnInit {
   protected newImageFile: File | null = null;
   protected readonly imageUploading = signal(false);
   protected readonly imageError = signal('');
-  protected readonly allImageRoles = IMAGE_ROLES;
 
   async ngOnInit(): Promise<void> {
     // Subscribe so navigating between two /event/:id/edit URLs (e.g. via the
@@ -1023,15 +1018,6 @@ export class EventEditComponent implements OnInit {
     });
   }
 
-  protected setImageRole(img: EventImage, value: ImageRole): void {
-    const ev = this.event();
-    if (!ev) return;
-    this.event.set({
-      ...ev,
-      images: ev.images.map(i => i.id === img.id ? { ...i, role: value } : i),
-    });
-  }
-
   async saveImageDescription(img: EventImage): Promise<void> {
     const ev = this.event();
     if (!ev) return;
@@ -1042,26 +1028,6 @@ export class EventEditComponent implements OnInit {
       this.event.set({ ...ev, images: ev.images.map(i => i.id === img.id ? updated : i) });
     } catch (e: any) {
       this.imageError.set(e?.error ?? 'Could not update description.');
-    }
-  }
-
-  async saveImageRole(img: EventImage): Promise<void> {
-    const ev = this.event();
-    if (!ev || !ev.isOwner) return;
-    const current = ev.images.find(i => i.id === img.id);
-    if (!current) return;
-    try {
-      const updated = await this.api.updateImage(ev.id, img.id, { role: current.role });
-      // Banner and Icon are singletons — server may have evicted siblings.
-      const filtered = (updated.role === 'Banner' || updated.role === 'Icon')
-        ? ev.images.filter(i => i.id === updated.id || i.role !== updated.role)
-        : ev.images;
-      this.event.set({
-        ...ev,
-        images: filtered.map(i => i.id === updated.id ? updated : i),
-      });
-    } catch (e: any) {
-      this.imageError.set(e?.error ?? 'Could not update role.');
     }
   }
 

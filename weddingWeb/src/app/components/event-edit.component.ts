@@ -466,18 +466,13 @@ import { printDiningPlan } from '../utils/dining-plan';
 
         <section class="card">
           <h2>Backup</h2>
-          <p class="muted small">Download a full copy of this event (settings, children, images, invites, wishlist) as a ZIP. Re-upload the ZIP to recreate the event — handy if the database is wiped.</p>
+          <p class="muted small">Download a full copy of this event (settings, children, images, invites, wishlist) as a ZIP. Use the New menu on the home page to upload a backup and recreate an event.</p>
           <div class="backup-actions">
             <button type="button" class="primary" (click)="exportBackup()" [disabled]="exporting()">
               {{ exporting() ? 'Preparing\u2026' : 'Download backup (.zip)' }}
             </button>
-            <label class="ghost backup-upload">
-              <input type="file" accept=".zip,application/zip" (change)="onBackupFile($event)" hidden />
-              {{ importing() ? 'Importing\u2026' : 'Upload backup to recreate\u2026' }}
-            </label>
           </div>
           @if (backupError()) { <p class="error">{{ backupError() }}</p> }
-          @if (backupInfo()) { <p class="saved">{{ backupInfo() }}</p> }
         </section>
         }
       }
@@ -521,7 +516,6 @@ import { printDiningPlan } from '../utils/dining-plan';
     .dining-plan-actions select { padding:.25rem .5rem; font-size:.8rem; }
     .dining-plan-actions button { flex:1; justify-content:center; }
     .backup-actions { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
-    .backup-upload { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .8rem; border:1px solid var(--rule-soft); border-radius:var(--r); cursor:pointer; }
   `],
 })
 export class EventEditComponent implements OnInit {
@@ -972,15 +966,12 @@ export class EventEditComponent implements OnInit {
   }
 
   protected readonly exporting = signal(false);
-  protected readonly importing = signal(false);
   protected readonly backupError = signal('');
-  protected readonly backupInfo = signal('');
 
   protected async exportBackup(): Promise<void> {
     const ev = this.event();
     if (!ev || !ev.isOwner) return;
     this.backupError.set('');
-    this.backupInfo.set('');
     this.exporting.set(true);
     try {
       const blob = await this.api.exportEventBlob(ev.id);
@@ -998,26 +989,6 @@ export class EventEditComponent implements OnInit {
       this.backupError.set('Could not export event.');
     } finally {
       this.exporting.set(false);
-    }
-  }
-
-  protected async onBackupFile(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    if (!confirm(`Import "${file.name}" as a new event? A new copy is created — existing events are not touched.`)) return;
-    this.backupError.set('');
-    this.backupInfo.set('');
-    this.importing.set(true);
-    try {
-      const newId = await this.api.importEvent(file);
-      this.backupInfo.set('Imported. Opening the new event\u2026');
-      this.router.navigate(['/event', newId, 'edit']);
-    } catch {
-      this.backupError.set('Could not import backup. Make sure it is a ZIP exported from this app.');
-    } finally {
-      this.importing.set(false);
     }
   }
 

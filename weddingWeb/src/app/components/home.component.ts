@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { NavbarComponent } from './navbar.component';
 import { CalendarComponent } from './calendar.component';
@@ -33,6 +33,14 @@ import { EventSummary } from '../models';
                     <span class="muted small">Calendar entry, RSVPs, invites…</span>
                   </div>
                 </button>
+                <button type="button" role="menuitem" (click)="triggerImport()" [disabled]="importing()">
+                  <span class="material-icons">upload_file</span>
+                  <div>
+                    <strong>{{ importing() ? 'Importing…' : 'Upload event backup' }}</strong>
+                    <span class="muted small">Restore an event from a .zip you previously downloaded</span>
+                  </div>
+                </button>
+                <input #importInput type="file" accept=".zip,application/zip" hidden (change)="onImportFile($event)" />
                 <button type="button" role="menuitem" (click)="openMyWishlist()">
                   <span class="material-icons">card_giftcard</span>
                   <div>
@@ -76,6 +84,8 @@ export class HomeComponent implements OnInit {
   protected readonly events = signal<EventSummary[]>([]);
   protected readonly error = signal('');
   protected readonly menuOpen = signal(false);
+  protected readonly importing = signal(false);
+  @ViewChild('importInput') private importInput?: ElementRef<HTMLInputElement>;
 
   async ngOnInit(): Promise<void> {
     await this.reload();
@@ -120,6 +130,29 @@ export class HomeComponent implements OnInit {
 
   openEvent(e: EventSummary): void {
     this.router.navigate(['/event', e.id]);
+  }
+
+  protected triggerImport(): void {
+    this.importInput?.nativeElement.click();
+  }
+
+  protected async onImportFile(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    this.menuOpen.set(false);
+    if (!confirm(`Import "${file.name}" as a new event? A new copy is created — existing events are not touched.`)) return;
+    this.error.set('');
+    this.importing.set(true);
+    try {
+      const newId = await this.api.importEvent(file);
+      this.router.navigate(['/event', newId, 'edit']);
+    } catch {
+      this.error.set('Could not import backup. Make sure it is a ZIP exported from this app.');
+    } finally {
+      this.importing.set(false);
+    }
   }
 
   async openMyWishlist(): Promise<void> {

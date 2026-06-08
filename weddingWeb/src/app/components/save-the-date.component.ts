@@ -26,24 +26,34 @@ function toIsoLocal(iso: string): string {
   selector: 'app-save-the-date',
   template: `
     <div class="std" [class.compact]="compact()">
-      <span class="label">{{ t('saveTheDate', lang()) }}</span>
+      @if (!compact()) { <h2 class="script">{{ t('saveTheDate', lang()) }}</h2> }
+      @else { <span class="label">{{ t('saveTheDate', lang()) }}</span> }
       <div class="row">
-        <a class="btn google" [href]="googleUrl()" target="_blank" rel="noopener">Google</a>
-        <a class="btn outlook" [href]="outlookUrl()" target="_blank" rel="noopener">Outlook</a>
+        <a class="btn" [href]="googleUrl()" target="_blank" rel="noopener">
+          <span class="material-icons" aria-hidden="true">event</span>Google
+        </a>
+        <a class="btn" [href]="outlookUrl()" target="_blank" rel="noopener">
+          <span class="material-icons" aria-hidden="true">event</span>Outlook
+        </a>
       </div>
     </div>
   `,
   styles: [`
     :host { display:block; }
-    .std { display:flex; flex-direction:column; gap:.4rem; align-items:center; }
+    .std { display:flex; flex-direction:column; gap:.6rem; align-items:center; text-align:center; }
     .std.compact { flex-direction:row; gap:.5rem; flex-wrap:nowrap; align-items:center; justify-content:flex-start; }
-    .label { font-family:'Georgia', serif; color:#8a7a55; letter-spacing:.08em; font-size:.8rem; }
-    .std.compact .label { white-space:nowrap; }
-    .row { display:flex; gap:.3rem; flex-wrap:wrap; justify-content:center; }
+    .script { font-family:var(--script); font-size:2.2rem; color:var(--gold); text-align:center; margin:0; }
+    .label { font-family:'Georgia', serif; color:#8a7a55; letter-spacing:.08em; font-size:.8rem; white-space:nowrap; }
+    .row { display:flex; gap:.5rem; flex-wrap:wrap; justify-content:center; }
     .std.compact .row { flex-wrap:nowrap; }
-    .btn { font:inherit; font-size:.78rem; padding:.4rem .8rem; border-radius:999px; border:1px solid #d8cfb8; background:#fff; color:#4a3f2a; cursor:pointer; text-decoration:none; letter-spacing:.04em; transition:background .15s; }
+    .btn { display:inline-flex; align-items:center; gap:.35rem; font:inherit; font-size:.82rem;
+      padding:.5rem .95rem; border-radius:999px; border:1px solid #d8cfb8;
+      background:#fff; color:#4a3f2a; cursor:pointer; text-decoration:none; letter-spacing:.04em;
+      transition:background .15s; }
+    .btn .material-icons { font-size:1rem; color:#c9a960; }
+    .btn:hover { background:#fff8e7; }
     .std.compact .btn { font-size:.7rem; padding:.2rem .55rem; letter-spacing:.02em; }
-    .btn:hover { background:#faf2dd; }
+    .std.compact .btn .material-icons { display:none; }
   `],
 })
 export class SaveTheDateComponent {

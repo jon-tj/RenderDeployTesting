@@ -92,6 +92,14 @@ export class HubApi {
     return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/for-event/${eventId}`)));
   }
 
+  createWishlistForEvent(eventId: number): Promise<WishlistView> {
+    return firstValueFrom(this.http.post<WishlistView>(this.api.url(`/api/wishlist/for-event/${eventId}`), {}));
+  }
+
+  deleteWishlistForEvent(eventId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.api.url(`/api/wishlist/for-event/${eventId}`)));
+  }
+
   resolveWishlistForUser(userId: string): Promise<WishlistView> {
     return firstValueFrom(this.http.get<WishlistView>(this.api.url(`/api/wishlist/for-user/${encodeURIComponent(userId)}`)));
   }

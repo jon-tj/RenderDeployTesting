@@ -53,7 +53,7 @@ export type LocalizableEvent = EventDetail | ChildEvent;
 // --- UI string translations ---
 
 type StringKey =
-  | 'saveTheDate' | 'google' | 'outlook'
+  | 'saveTheDate' | 'addToCalendar' | 'google' | 'outlook'
   | 'openInMaps' | 'findingSpot' | 'couldNotPlace'
   | 'togetherWithFamilies' | 'theDay' | 'moments'
   | 'rsvp' | 'replyAppliesToAll' | 'thankYou'
@@ -66,12 +66,14 @@ type StringKey =
   | 'yourRsvp' | 'attending' | 'saveRsvp' | 'saved' | 'responseAppliesToAll'
   | 'invitees' | 'noInvitees' | 'mealLabel' | 'drinkLabel'
   | 'statusPending' | 'statusAccepted' | 'statusDeclined' | 'statusMaybe'
+  | 'youHaveNotReplied' | 'youHaveAccepted' | 'youHaveDeclined' | 'youHaveMaybe'
   | 'diningPlan' | 'printDiningPlan' | 'option' | 'requested' | 'toOrder'
   | 'unspecified' | 'total' | 'noAcceptedInvitees' | 'basedOnAccepted'
   | 'wishlist';
 
 const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   saveTheDate:          { 'en': 'Save the date',           'nb': 'Sett av datoen',           'pt-BR': 'Reserve a data' },
+  addToCalendar:        { 'en': 'Add to your calendar',    'nb': 'Legg til i kalenderen',    'pt-BR': 'Adicionar ao calendário' },
   google:               { 'en': 'Google',                  'nb': 'Google',                   'pt-BR': 'Google' },
   outlook:              { 'en': 'Outlook',                 'nb': 'Outlook',                  'pt-BR': 'Outlook' },
   openInMaps:           { 'en': 'Open in Google Maps ↗',   'nb': 'Åpne i Google Maps ↗',     'pt-BR': 'Abrir no Google Maps ↗' },
@@ -121,6 +123,10 @@ const STRINGS: Record<StringKey, Record<LanguageCode, string>> = {
   statusAccepted:       { 'en': 'Accepted',                'nb': 'Kommer',                   'pt-BR': 'Confirmado' },
   statusDeclined:       { 'en': 'Declined',                'nb': 'Kommer ikke',              'pt-BR': 'Recusado' },
   statusMaybe:          { 'en': 'Maybe',                   'nb': 'Kanskje',                  'pt-BR': 'Talvez' },
+  youHaveNotReplied:    { 'en': 'You have not replied',    'nb': 'Du har ikke svart',        'pt-BR': 'Você ainda não respondeu' },
+  youHaveAccepted:      { 'en': 'You have accepted',       'nb': 'Du har takket ja',         'pt-BR': 'Você confirmou presença' },
+  youHaveDeclined:      { 'en': 'You have declined',       'nb': 'Du har takket nei',        'pt-BR': 'Você recusou' },
+  youHaveMaybe:         { 'en': 'You replied maybe',       'nb': 'Du har svart kanskje',     'pt-BR': 'Você respondeu talvez' },
   diningPlan:           { 'en': 'Dining plan',              'nb': 'Bespisningsplan',          'pt-BR': 'Plano de refeições' },
   printDiningPlan:      { 'en': 'Print dining plan',        'nb': 'Skriv ut bespisningsplan', 'pt-BR': 'Imprimir plano de refeições' },
   option:               { 'en': 'Option',                   'nb': 'Valg',                     'pt-BR': 'Opção' },

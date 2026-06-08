@@ -62,9 +62,36 @@ public class WishlistController(AppDbContext db, UserManager<AppUser> users) : C
     {
         var ev = await db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eventId);
         if (ev is null) return NotFound();
+        var w = await WishlistWithItems().FirstOrDefaultAsync(x => x.EventId == eventId);
+        return w is null ? NotFound() : BuildView(w, ev);
+    }
+
+    [HttpPost("for-event/{eventId:int}"), Authorize]
+    public async Task<ActionResult<WishlistViewDto>> CreateForEvent(int eventId)
+    {
+        var ev = await db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eventId);
+        var uid = Uid;
+        if (uid is null) return Unauthorized();
+        if (ev is null) return NotFound();
+        if (!CanEdit(ev, uid)) return Forbid();
         var w = await WishlistWithItems().FirstOrDefaultAsync(x => x.EventId == eventId)
             ?? await Create(new Wishlist { EventId = eventId });
         return BuildView(w, ev);
+    }
+
+    [HttpDelete("for-event/{eventId:int}"), Authorize]
+    public async Task<IActionResult> DeleteForEvent(int eventId)
+    {
+        var ev = await db.Events.Include(e => e.CoOwners).FirstOrDefaultAsync(e => e.Id == eventId);
+        var uid = Uid;
+        if (uid is null) return Unauthorized();
+        if (ev is null) return NotFound();
+        if (!CanEdit(ev, uid)) return Forbid();
+        var w = await db.Wishlists.FirstOrDefaultAsync(x => x.EventId == eventId);
+        if (w is null) return NoContent();
+        db.Wishlists.Remove(w);
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpGet("for-user/{userId}"), AllowAnonymous]

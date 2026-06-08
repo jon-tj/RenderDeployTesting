@@ -58,9 +58,10 @@ public sealed record EventDetailDto(
     bool AllowGuestAlbumUploads, bool ShowInviteesToGuests, EventVisibility Visibility,
     bool EnableTranslations, Dictionary<string, EventTranslation> Translations,
     List<EventOwnerDto> CoOwners, List<ChildEventDto> Children, List<InviteDto> Invites,
-    List<InviteGroupDto> Groups, InviteDto? MyInvite, List<EventImageDto> Images)
+    List<InviteGroupDto> Groups, InviteDto? MyInvite, List<EventImageDto> Images,
+    bool HasWishlist)
 {
-    public static EventDetailDto From(CalendarEvent e, string uid, IReadOnlyList<InviteGroup>? groups = null)
+    public static EventDetailDto From(CalendarEvent e, string uid, IReadOnlyList<InviteGroup>? groups = null, bool hasWishlist = false)
     {
         var isOwner = e.CreatedById == uid || (e.CoOwners?.Any(o => o.UserId == uid) ?? false);
         var allInvites = e.Invites.Select(i => InviteDto.From(i, i.Invitee)).ToList();
@@ -85,7 +86,8 @@ public sealed record EventDetailDto(
             e.ParentEventId, e.ParentEvent?.Title, e.InheritParentInvites, e.CollectChildRsvps,
             e.AllowGuestAlbumUploads, e.ShowInviteesToGuests, e.Visibility,
             e.EnableTranslations, e.Translations ?? new(),
-            coOwners, children, invites, groupList.Select(InviteGroupDto.From).ToList(), mine, images);
+            coOwners, children, invites, groupList.Select(InviteGroupDto.From).ToList(), mine, images,
+            hasWishlist);
     }
 }
 

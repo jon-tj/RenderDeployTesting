@@ -156,6 +156,7 @@ export interface EventDetail {
   groups: InviteGroup[];
   myInvite: Invite | null;
   images: EventImage[];
+  hasWishlist: boolean;
 }
 
 export interface UserSummary {

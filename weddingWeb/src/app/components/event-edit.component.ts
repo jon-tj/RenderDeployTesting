@@ -399,6 +399,16 @@ import { printDiningPlan } from '../utils/dining-plan';
             </label>
             <p class="muted small">When on, anyone who can see this event can add to the album. Banner and icon are always owner-only.</p>
           }
+          @if (ev.isOwner && ev.type === 'Wedding') {
+            <label class="check">
+              <input type="checkbox" name="enableWishlist"
+                [checked]="ev.hasWishlist" [disabled]="wishlistSaving()"
+                (change)="toggleWishlist($any($event.target).checked)" />
+              Enable wishlist
+            </label>
+            <p class="muted small">When on, guests see a wishlist button on the wedding page. Turning it off deletes the wishlist and all its items.</p>
+            @if (wishlistError()) { <p class="error">{{ wishlistError() }}</p> }
+          }
 
           <div class="upload">
             <label class="block small">Role
@@ -914,6 +924,29 @@ export class EventEditComponent implements OnInit {
       this.apply(await this.api.updateEvent(ev.id, patch as any));
       this.savedAt.set(Date.now());
     } catch { this.error.set(errorMsg); }
+  }
+
+  protected readonly wishlistSaving = signal(false);
+  protected readonly wishlistError = signal('');
+  protected async toggleWishlist(enable: boolean): Promise<void> {
+    const ev = this.event();
+    if (!ev || !ev.isOwner) return;
+    if (!enable && ev.hasWishlist
+      && !confirm('Disabling the wishlist will delete it and all its items. Continue?')) {
+      this.apply({ ...ev });
+      return;
+    }
+    this.wishlistError.set('');
+    this.wishlistSaving.set(true);
+    try {
+      if (enable) await this.api.createWishlistForEvent(ev.id);
+      else await this.api.deleteWishlistForEvent(ev.id);
+      this.apply(await this.api.getEvent(ev.id));
+    } catch {
+      this.wishlistError.set(enable ? 'Could not create wishlist.' : 'Could not delete wishlist.');
+    } finally {
+      this.wishlistSaving.set(false);
+    }
   }
 
 

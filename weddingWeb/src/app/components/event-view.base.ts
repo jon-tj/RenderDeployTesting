@@ -37,6 +37,14 @@ export abstract class EventViewBase {
   locLabel(ev: EventDetail | ChildEvent) { return (ev.locationLabel ?? '').trim() || ev.location; }
   s(key: Parameters<typeof t>[0]) { return t(key, this.lang()); }
 
+  statusMessage(status: InviteStatus): string {
+    const key = status === 'Accepted' ? 'youHaveAccepted'
+      : status === 'Declined' ? 'youHaveDeclined'
+      : status === 'Maybe' ? 'youHaveMaybe'
+      : 'youHaveNotReplied';
+    return t(key, this.lang());
+  }
+
   readonly bannerImage = computed<EventImage | null>(() =>
     this.currentEvent()?.images.find(i => i.role === 'Banner') ?? null);
   readonly albumImages = computed<EventImage[]>(() =>

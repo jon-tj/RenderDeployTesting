@@ -54,7 +54,8 @@ public class EventsController(AppDbContext db, UserManager<AppUser> users, IEmai
         if (ev is null) return NotFound();
         if (!await EventAccess.IsVisibleAsync(db, ev, Uid)) return Forbid();
         var groups = await db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync();
-        return EventDetailDto.From(ev, Uid, groups);
+        var hasWishlist = await db.Wishlists.AnyAsync(w => w.EventId == ev.Id);
+        return EventDetailDto.From(ev, Uid, groups, hasWishlist);
     }
 
     [HttpGet("{id:int}/child-candidates")]
@@ -126,7 +127,8 @@ public class EventsController(AppDbContext db, UserManager<AppUser> users, IEmai
         }
 
         await db.Entry(ev).Reference(e => e.CreatedBy).LoadAsync();
-        return EventDetailDto.From(ev, uid, await db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync());
+        return EventDetailDto.From(ev, uid, await db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync(),
+            await db.Wishlists.AnyAsync(w => w.EventId == ev.Id));
     }
 
     [HttpPut("{id:int}")]
@@ -183,7 +185,8 @@ public class EventsController(AppDbContext db, UserManager<AppUser> users, IEmai
         }
 
         await db.SaveChangesAsync();
-        return EventDetailDto.From(ev, uid, await db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync());
+        return EventDetailDto.From(ev, uid, await db.InviteGroups.Where(g => g.EventId == ev.Id).ToListAsync(),
+            await db.Wishlists.AnyAsync(w => w.EventId == ev.Id));
     }
 
     [HttpDelete("{id:int}")]

@@ -88,19 +88,19 @@ import { EventViewBase } from './event-view.base';
 
           @if (ev.children.length && !ev.collectChildRsvps) {
             @for (c of ev.children; track c.id) {
-              <section class="card" style="border-left:4px solid var(--rule-strong)">
+              <a class="card child-link" style="border-left:4px solid var(--rule-strong);text-decoration:none;color:inherit;display:block" [routerLink]="['/event', c.id]">
                 <header style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                   <span class="chip">{{ typeLabel(c.type) }}</span>
                   <h2 style="margin:0">{{ tr(c) }}</h2>
                 </header>
                 <p><strong>{{ s('start') }}:</strong> {{ formatDate(c.startUtc) }}</p>
-                @if (c.location) { <p><strong>{{ s('location') }}:</strong> <a [href]="mapsUrl(c.location)" target="_blank" rel="noopener">{{ locLabel(c) }}</a></p> }
+                @if (c.location) { <p><strong>{{ s('location') }}:</strong> {{ locLabel(c) }}</p> }
                 @if (c.dressCode) { <p><strong>{{ s('dressCode') }}:</strong> {{ dc(c) }}</p> }
                 @if (dr(c)) { <p class="desc">{{ dr(c) }}</p> }
                 @if (childState(c.id); as st) {
-                  <app-rsvp-form [event]="c" [state]="st" [lang]="lang()" [suffix]="'c' + c.id" (save)="onSaveChildRsvp(c)" />
+                  <p class="muted" style="margin:.5rem 0 0">{{ statusMessage(st.status) }}</p>
                 }
-              </section>
+              </a>
             }
           }
 
@@ -132,6 +132,8 @@ import { EventViewBase } from './event-view.base';
     .album-upload input[type=text] { flex:1; min-width:200px; padding:.4rem .6rem; border:1px solid var(--rule-soft); border-radius:.4rem; font:inherit; }
     .chip { display:inline-block; background:var(--accent-pale); padding:.15rem .55rem; border-radius:999px; font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; }
     .desc { white-space:pre-wrap; color:var(--ink-soft); margin-top:.5rem; }
+    .child-link { transition: background .15s ease; }
+    .child-link:hover { background:var(--accent-pale); }
   `],
 })
 export class EventDetailComponent extends EventViewBase implements OnInit {

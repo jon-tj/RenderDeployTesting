@@ -54,15 +54,23 @@ import { EventViewBase } from './event-view.base';
           </header>
         }
 
+        @if (dr(ev)) { <section class="prose"><p>{{ dr(ev) }}</p></section> }
+
         @if (!perChildRsvp()) {
-          <section class="save">
-            <app-save-the-date [title]="tr(ev)" [startUtc]="ev.startUtc" [endUtc]="ev.endUtc"
-              [location]="ev.location" [description]="dr(ev)" [lang]="lang()" />
+          <section class="rsvp-big">
+            <h2 class="script">{{ s('rsvp') }}</h2>
+            @if (ev.collectChildRsvps && ev.children.length) { <p class="note">{{ s('replyAppliesToAll') }}</p> }
+            <app-rsvp-form [event]="ev" [state]="parentRsvp()" [lang]="lang()" variant="wedding-big" (save)="onSaveRsvp()" />
           </section>
         }
 
-        @if (dr(ev)) { <section class="prose"><p>{{ dr(ev) }}</p></section> }
-        @if (ev.location) { <section class="map"><app-map-view [location]="ev.location" [label]="locLabel(ev)" [lang]="lang()" /></section> }
+        @if (ev.location) {
+          <section class="map">
+            <h2 class="script">{{ s('location') }}</h2>
+            <app-map-view [location]="ev.location" [label]="locLabel(ev)" [lang]="lang()" />
+          </section>
+        }
+
         @if (ev.dressCode) {
           <section class="dress">
             <p class="dress-label">{{ s('dressCode') }}</p>
@@ -75,50 +83,47 @@ import { EventViewBase } from './event-view.base';
             <ol class="timeline">
               @for (c of ev.children; track c.id) {
                 <li class="t-item">
-                  <div class="t-head">
-                    <div class="t-time">
-                      <span class="t-day">{{ formatDay(c.startUtc) }}</span>
-                      <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
+                  <a class="t-link-block" [routerLink]="['/event', c.id]">
+                    <div class="t-head">
+                      <div class="t-time">
+                        <span class="t-day">{{ formatDay(c.startUtc) }}</span>
+                        <span class="t-hour">{{ formatHour(c.startUtc) }}</span>
+                      </div>
+                      <div style="flex:1 1 auto;min-width:0">
+                        <h3 class="t-title">{{ tr(c) }}</h3>
+                        @if (c.location) { <p class="t-where">{{ locLabel(c) }}</p> }
+                      </div>
                     </div>
-                    <div style="flex:1 1 auto;min-width:0">
-                      <h3 class="t-title"><a class="t-link" [routerLink]="['/event', c.id]">{{ tr(c) }}</a></h3>
-                      @if (c.location) { <p class="t-where">{{ locLabel(c) }}</p> }
-                      <app-save-the-date [title]="tr(c)" [startUtc]="c.startUtc" [endUtc]="c.endUtc"
-                        [location]="c.location" [description]="dr(c)" [compact]="true" [lang]="lang()" />
-                    </div>
-                  </div>
-                  @if (perChildRsvp() && childState(c.id); as st) {
-                    <div class="rsvp t-rsvp" style="margin-top:1rem">
-                      <app-rsvp-form [event]="c" [state]="st" [lang]="lang()" [suffix]="'c' + c.id" variant="wedding" (save)="onSaveChildRsvp(c)" />
-                    </div>
-                  }
+                    @if (perChildRsvp() && childState(c.id); as st) {
+                      <p class="muted" style="margin:.5rem 0 0">{{ statusMessage(st.status) }}</p>
+                    }
+                  </a>
                 </li>
               }
             </ol>
           </section>
         }
 
-        @if (!perChildRsvp()) {
-          <section class="rsvp-big">
-            <h2 class="script">{{ s('rsvp') }}</h2>
-            @if (ev.collectChildRsvps && ev.children.length) { <p class="note">{{ s('replyAppliesToAll') }}</p> }
-            <app-rsvp-form [event]="ev" [state]="parentRsvp()" [lang]="lang()" variant="wedding-big" (save)="onSaveRsvp()" />
-          </section>
-        }
-
-        @if (albumImages().length || canUploadAlbum()) {
+        @if (albumImages().length || ev.allowGuestAlbumUploads) {
           <section class="map">
             <h2 class="script">{{ s('moments') }}</h2>
             @if (albumImages().length) {
               <app-image-carousel [eventId]="ev.id" [images]="albumImages()" variant="wedding" (open)="openAlbum($event)" />
             }
-            @if (canUploadAlbum()) {
+            @if (ev.allowGuestAlbumUploads) {
               <div class="album-upload">
                 <input #albumFileInput type="file" accept="image/*" hidden (change)="onAlbumFile($event)" />
                 <button type="button" class="soft" (click)="albumFileInput.click()">{{ s('addToAlbum') }}</button>
               </div>
               @if (albumError()) { <p class="error">{{ albumError() }}</p> }
             }
+          </section>
+        }
+
+        @if (!perChildRsvp()) {
+          <section class="save">
+            <app-save-the-date [title]="tr(ev)" [startUtc]="ev.startUtc" [endUtc]="ev.endUtc"
+              [location]="ev.location" [description]="dr(ev)" [lang]="lang()" />
           </section>
         }
 
@@ -139,11 +144,13 @@ import { EventViewBase } from './event-view.base';
           </div>
         }
 
-        <section style="text-align:center;padding:1.5rem 0 0">
-          <a href="javascript:void(0)" (click)="openWishlist(ev.id)" class="wl-btn">
-            <span class="material-icons">card_giftcard</span>{{ s('wishlist') }}
-          </a>
-        </section>
+        @if (ev.hasWishlist) {
+          <section style="text-align:center;padding:1.5rem 0 0">
+            <a href="javascript:void(0)" (click)="openWishlist(ev.id)" class="wl-btn">
+              <span class="material-icons">card_giftcard</span>{{ s('wishlist') }}
+            </a>
+          </section>
+        }
         <footer style="text-align:center;padding:3rem 0 0">
           <p class="script" style="font-size:1.6rem">{{ s('withLove') }}</p>
         </footer>
@@ -155,8 +162,10 @@ import { EventViewBase } from './event-view.base';
     :host { display:block; background:var(--wedding-bg); color:var(--wedding-ink); min-height:100vh; font-family:'Georgia',serif; }
     .wedding { max-width:780px; margin:0 auto; padding:0 0 4rem; position:relative; z-index:1; background:var(--wedding-bg); }
     .owner-tools { position:fixed; top:1rem; right:1rem; z-index:10; display:flex; gap:.4rem; }
-    .back-link { display:inline-block; margin:.75rem 1rem 0; color:var(--gold); text-decoration:none; font-size:.85rem; letter-spacing:.05em; }
-    .back-link:hover { text-decoration:underline; }
+    .back-link { position:fixed; top:1rem; left:1rem; z-index:10; background:rgba(255,255,255,.85);
+      color:#4a3f2a; padding:.4rem .9rem; border-radius:999px; font-size:.78rem; letter-spacing:.05em;
+      text-decoration:none; border:1px solid var(--gold-pale); }
+    .back-link:hover { background:#faf2dd; }
     .edit-link, .lang-switch { background:rgba(255,255,255,.85); color:#4a3f2a; padding:.4rem .9rem; border-radius:999px;
       font-size:.78rem; text-transform:uppercase; text-decoration:none; border:1px solid var(--gold-pale); font:inherit; }
     .lang-switch { padding:.35rem .55rem; text-transform:none; }
@@ -174,7 +183,7 @@ import { EventViewBase } from './event-view.base';
     .where { font-style:italic; color:#5a4f37; margin:.3rem 0 0; }
 
     .save { display:flex; justify-content:center; margin-top:1.5rem; padding:0 1rem; }
-    .prose { padding:1rem 1.5rem; text-align:center; line-height:1.7; color:#4a402d; }
+    .prose { padding:0 1.5rem; text-align:center; line-height:1.7; color:#4a402d; }
     .map { padding:0 1.5rem; }
     .dress { padding:1.25rem 1.5rem 0; text-align:center; }
     .dress-label { color:#8a7a55; letter-spacing:.18em; text-transform:uppercase; font-size:.78rem; margin:0; }
@@ -188,9 +197,11 @@ import { EventViewBase } from './event-view.base';
     .t-hour { display:block; font-family:var(--script); font-size:1.8rem; color:var(--gold); line-height:1; margin-top:.2rem; }
     .t-title { font-family:var(--script); font-size:1.9rem; color:var(--wedding-ink); margin:0 0 .25rem; }
     .t-link { color:inherit; text-decoration:none; }
+    .t-link-block { display:block; color:inherit; text-decoration:none; cursor:pointer; }
+    .t-link-block:hover .t-title { color:var(--gold); }
     .t-where { font-style:italic; color:#7a6a4a; margin:0 0 .35rem; }
 
-    .rsvp-big { margin:1.5rem 1.5rem 0; padding:1.5rem; align-items:center; text-align:center;
+    .rsvp-big { margin:0 1.5rem; padding:0 1.5rem; align-items:center; text-align:center;
       display:flex; flex-direction:column; gap:.6rem; }
     .rsvp-big ::ng-deep .rsvp-grid { max-width:520px; }
     /* The form component uses .rsvp-grid for its select layout. */
@@ -222,7 +233,7 @@ import { EventViewBase } from './event-view.base';
       .t-head { gap:.75rem; }
       .t-time { flex-basis:5rem; padding-right:.6rem; }
       .t-hour { font-size:1.4rem; }
-      .rsvp-big { margin-left:0; margin-right:0; padding:1.1rem; }
+      .rsvp-big { margin-left:0; margin-right:0; padding:0 1.1rem; }
     }
   `],
 })
@@ -266,7 +277,6 @@ export class WeddingEventComponent extends EventViewBase implements OnChanges {
   protected readonly albumUploading = signal(false);
   protected readonly albumError = signal('');
   protected readonly albumPreview = signal<string>('');
-  protected canUploadAlbum() { const ev = this.event(); return ev.isOwner || ev.allowGuestAlbumUploads; }
   protected onAlbumFile(e: Event) {
     const i = e.target as HTMLInputElement;
     this.albumFile = i.files?.[0] ?? null;

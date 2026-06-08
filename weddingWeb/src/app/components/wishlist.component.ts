@@ -259,7 +259,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
       <button type="button" class="cart-fab" (click)="scrollToCart()">
         <span class="material-icons">shopping_cart</span>
         <span class="fab-count">{{ cartCount() }}</span>
-        <span>Go to cart · {{ formatTotal(cartTotalBrl(), displayCurrency) }}</span>
+        <span class="fab-total">{{ formatTotalCompact(cartTotalBrl(), displayCurrency) }}</span>
       </button>
     }
   `,
@@ -349,9 +349,10 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .small { font-size:.85rem; }
     .muted { color:#6b6450; }
     code { background:#eee; padding:0 .25rem; border-radius:.2rem; }
-    .cart-fab { position:fixed; right:1rem; bottom:1rem; display:inline-flex; align-items:center; gap:.5rem; padding:.7rem 1.1rem; background:#8a6f3a; color:#fff; border:0; border-radius:2rem; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.18); z-index:60; }
+    .cart-fab { position:fixed; right:1rem; bottom:1rem; display:inline-flex; align-items:center; gap:.5rem; padding:.7rem 1.2rem; background:#8a6f3a; color:#fff; border:0; border-radius:2rem; font:inherit; font-weight:600; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.18); z-index:60; white-space:nowrap; }
     .cart-fab:hover { background:#6f5a2f; }
     .fab-count { background:#fff; color:#8a6f3a; min-width:1.3rem; height:1.3rem; padding:0 .35rem; border-radius:1rem; display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; }
+    .fab-total { white-space:nowrap; }
     @media (max-width:600px) {
       .cart-fab { left:50%; right:auto; transform:translateX(-50%); }
     }
@@ -570,6 +571,14 @@ export class WishlistComponent implements OnInit, OnDestroy {
     // rates table maps source->BRL; to convert BRL->target we divide.
     const amount = factor === 0 ? brlAmount : brlAmount / factor;
     return `${amount.toFixed(2)} ${target}`;
+  }
+
+  protected formatTotalCompact(brlAmount: number, target: WishlistCurrency): string {
+    const factor = this.rates[target] ?? 1;
+    const amount = factor === 0 ? brlAmount : brlAmount / factor;
+    const rounded = Math.round(amount);
+    const text = Math.abs(amount - rounded) < 0.005 ? `${rounded}` : amount.toFixed(2);
+    return `${text} ${target}`;
   }
 
   protected canSubmit(): boolean {

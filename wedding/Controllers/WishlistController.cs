@@ -148,6 +148,19 @@ public class WishlistController : ControllerBase
             .ToListAsync();
         var itemsById = items.ToDictionary(i => i.Id);
 
+        // Reject claims targeting wishlists where the owner disabled claiming.
+        foreach (var item in items)
+        {
+            var owner = await LoadOwnerAsync(item.EventId, item.OwnerUserId);
+            var enabled = owner switch
+            {
+                CalendarEvent ev => ev.WishlistEnableClaiming,
+                AppUser u => u.WishlistEnableClaiming,
+                _ => true,
+            };
+            if (!enabled) return BadRequest("Claiming is disabled for this wishlist.");
+        }
+
         var created = new List<WishlistClaim>();
         foreach (var line in dto.Items)
         {
@@ -237,11 +250,12 @@ public class WishlistController : ControllerBase
         return File(item.ImageData, string.IsNullOrEmpty(item.ImageContentType) ? "application/octet-stream" : item.ImageContentType);
     }
 
-    // Wishlist-level payment options. Stored on the owner (event or user)
-    // because the Pix key applies to the wishlist as a whole.
-    [HttpPut("payment")]
+    // Wishlist-level owner options (Pix key, quantities/claiming toggles).
+    // Stored on the owner (event or user) because they apply to the
+    // wishlist as a whole.
+    [HttpPut("options")]
     [Authorize]
-    public async Task<ActionResult<WishlistViewDto>> UpdatePayment([FromBody] WishlistPaymentDto dto)
+    public async Task<ActionResult<WishlistViewDto>> UpdateOptions([FromBody] WishlistOptionsDto dto)
     {
         var uid = _users.GetUserId(User);
         if (uid is null) return Unauthorized();
@@ -250,8 +264,18 @@ public class WishlistController : ControllerBase
         if (!CanEdit(owner, uid)) return Forbid();
 
         var pix = (dto.PixKey ?? string.Empty).Trim();
-        if (owner is CalendarEvent ev) ev.WishlistPixKey = pix;
-        else if (owner is AppUser u) u.WishlistPixKey = pix;
+        if (owner is CalendarEvent ev)
+        {
+            ev.WishlistPixKey = pix;
+            if (dto.ShowQuantities is bool sq) ev.WishlistShowQuantities = sq;
+            if (dto.EnableClaiming is bool ec) ev.WishlistEnableClaiming = ec;
+        }
+        else if (owner is AppUser u)
+        {
+            u.WishlistPixKey = pix;
+            if (dto.ShowQuantities is bool sq) u.WishlistShowQuantities = sq;
+            if (dto.EnableClaiming is bool ec) u.WishlistEnableClaiming = ec;
+        }
         await _db.SaveChangesAsync();
 
         if (dto.EventId is int eid)
@@ -302,12 +326,26 @@ public class WishlistController : ControllerBase
             AppUser u => u.WishlistPixKey,
             _ => string.Empty,
         };
+        var showQty = owner switch
+        {
+            CalendarEvent ev => ev.WishlistShowQuantities,
+            AppUser u => u.WishlistShowQuantities,
+            _ => true,
+        };
+        var enableClaim = owner switch
+        {
+            CalendarEvent ev => ev.WishlistEnableClaiming,
+            AppUser u => u.WishlistEnableClaiming,
+            _ => true,
+        };
         return new WishlistViewDto(
             ownerEventId,
             ownerUserId,
             ownerDisplay,
             canEdit,
             pixKey ?? string.Empty,
+            showQty,
+            enableClaim,
             items.Select(i => WishlistItemDto.From(i, canEdit, currentUid)).ToList());
     }
 
@@ -336,6 +374,8 @@ public sealed record WishlistViewDto(
     string OwnerDisplayName,
     bool CanEdit,
     string PixKey,
+    bool ShowQuantities,
+    bool EnableClaiming,
     List<WishlistItemDto> Items);
 
 public sealed record WishlistItemDto(
@@ -415,11 +455,13 @@ public sealed class WishlistImageUploadDto
     [Required] public IFormFile File { get; set; } = default!;
 }
 
-public sealed class WishlistPaymentDto
+public sealed class WishlistOptionsDto
 {
     public int? EventId { get; set; }
     public string? OwnerUserId { get; set; }
     [MaxLength(200)] public string? PixKey { get; set; }
+    public bool? ShowQuantities { get; set; }
+    public bool? EnableClaiming { get; set; }
 }
 
 public sealed class ClaimCartDto

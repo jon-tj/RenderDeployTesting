@@ -115,6 +115,10 @@ using (var scope = app.Services.CreateScope())
     await EnsureColumnAsync(db, "WishlistItems", "EventId", "INTEGER NULL REFERENCES Events(Id) ON DELETE CASCADE");
     await EnsureColumnAsync(db, "Events", "WishlistPixKey", "TEXT NOT NULL DEFAULT ''");
     await EnsureColumnAsync(db, "AspNetUsers", "WishlistPixKey", "TEXT NOT NULL DEFAULT ''");
+    await EnsureColumnAsync(db, "Events", "WishlistShowQuantities", "INTEGER NOT NULL DEFAULT 1");
+    await EnsureColumnAsync(db, "Events", "WishlistEnableClaiming", "INTEGER NOT NULL DEFAULT 1");
+    await EnsureColumnAsync(db, "AspNetUsers", "WishlistShowQuantities", "INTEGER NOT NULL DEFAULT 1");
+    await EnsureColumnAsync(db, "AspNetUsers", "WishlistEnableClaiming", "INTEGER NOT NULL DEFAULT 1");
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     await SeedAdminAsync(userManager, "piehunter123@gmail.com", "Passw0rd!", "Jon");

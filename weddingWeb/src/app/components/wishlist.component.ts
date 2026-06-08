@@ -31,29 +31,46 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
         <header class="page-head">
           <div class="head-row">
             <h1>{{ headerTitle(v) }}</h1>
-            <button type="button" class="primary icon-btn" (click)="share()" [title]="shareLabel()" [attr.aria-label]="shareLabel()">
-              <span class="material-icons">{{ shareCopied() ? 'done' : 'share' }}</span>
-            </button>
+            <div class="head-actions">
+              @if (v.canEdit) {
+                <button type="button" class="primary icon-btn" (click)="toggleOwnerView()"
+                        [title]="previewingAsGuest() ? 'Back to owner view' : 'Preview as a guest'"
+                        [attr.aria-label]="previewingAsGuest() ? 'Back to owner view' : 'Preview as a guest'">
+                  <span class="material-icons">{{ previewingAsGuest() ? 'edit' : 'visibility' }}</span>
+                </button>
+              }
+              <button type="button" class="primary icon-btn" (click)="share()" [title]="shareLabel()" [attr.aria-label]="shareLabel()">
+                <span class="material-icons">{{ shareCopied() ? 'done' : 'share' }}</span>
+              </button>
+            </div>
           </div>
           <p class="muted small">
             @if (v.eventId) {
               <a [routerLink]="['/event', v.eventId]">← Back to event</a> ·
             }
-            {{ v.canEdit ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you’d like to gift. Add items to your cart, then claim them together.' }}
+            {{ canEdit() ? 'You can edit this wishlist. Claim counts are visible to you, but not who claimed what.' : 'Pick what you’d like to gift. Add items to your cart, then claim them together.' }}
           </p>
         </header>
 
-        @if (v.canEdit) {
+        @if (canEdit()) {
           <section class="card">
-            <h2>Payment options</h2>
-            <p class="muted small">Shown to guests so they can pay you back for what they claim.</p>
-            <form class="add-form" (ngSubmit)="savePixKey()">
+            <h2>Wishlist options</h2>
+            <p class="muted small">Settings for your wishlist as a whole.</p>
+            <form class="add-form" (ngSubmit)="saveOptions()">
               <label class="field span-2">
-                <span class="field-label">Pix key</span>
+                <span class="field-label">Pix key <span class="muted small">(shown to guests so they can pay you back)</span></span>
                 <input type="text" name="pix" placeholder="email, CPF, phone or random key" [(ngModel)]="pixDraft" />
               </label>
+              <label class="check span-2">
+                <input type="checkbox" name="showqty" [(ngModel)]="showQuantitiesDraft" />
+                Show quantities <span class="muted small">(let guests pick how many of each item to claim)</span>
+              </label>
+              <label class="check span-2">
+                <input type="checkbox" name="enableclaim" [(ngModel)]="enableClaimingDraft" />
+                Enable claiming <span class="muted small">(guests can mark items as taken)</span>
+              </label>
               <div class="form-actions span-2">
-                <button type="submit" [disabled]="pixSaving() || pixDraft.trim() === (v.pixKey ?? '').trim()">
+                <button type="submit" [disabled]="pixSaving() || !optionsDirty(v)">
                   {{ pixSaving() ? 'Saving…' : 'Save' }}
                 </button>
               </div>
@@ -62,7 +79,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
           </section>
         }
 
-        @if (v.canEdit) {
+        @if (canEdit()) {
           <section class="card">
             <h2>Add an item</h2>
             <form class="add-form" (ngSubmit)="addItem()">
@@ -112,16 +129,18 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
           </section>
         }
 
-        @if (!v.canEdit && v.items.length) {
+        @if (!canEdit() && v.items.length) {
           <div class="items-toolbar">
-            <label class="muted small">
-              Show totals in
-              <select [(ngModel)]="displayCurrency" name="dispcur">
+            <div class="currency-toggle">
+              <span class="material-icons">payments</span>
+              <span class="currency-value">{{ displayCurrency }}</span>
+              <span class="material-icons chev">expand_more</span>
+              <select [(ngModel)]="displayCurrency" name="dispcur" aria-label="Display currency">
                 @for (c of currencies; track c) {
                   <option [value]="c">{{ c }}</option>
                 }
               </select>
-            </label>
+            </div>
           </div>
         }
         @if (!v.items.length) {
@@ -135,14 +154,14 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                   @if (itemImageSrc(i); as src) {
                     <div class="item-img-wrap">
                       <img class="item-img" [src]="src" alt="" />
-                      @if (v.canEdit) {
+                      @if (canEdit()) {
                         <label class="img-edit" title="Change image">
                           <span class="material-icons">edit</span>
                           <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
                         </label>
                       }
                     </div>
-                  } @else if (v.canEdit) {
+                  } @else if (canEdit()) {
                     <label class="item-img-wrap empty" title="Upload image">
                       <span class="material-icons big-plus">add_a_photo</span>
                       <input type="file" accept="image/*" (change)="onItemImage($event, i)" hidden />
@@ -159,11 +178,13 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                       }
                     </div>
                     <div class="item-meta muted small">
-                      @if (i.priceMinor > 0) { <span>{{ formatPrice(i.priceMinor, i.currency) }}</span> }
-                      <span>{{ i.claimedQuantity }} / {{ i.wishedQuantity }} claimed</span>
+                      @if (i.priceMinor > 0) { <span>{{ formatPriceIn(i.priceMinor, i.currency, displayCurrency) }}</span> }
+                      @if (v.showQuantities) {
+                        <span>{{ i.claimedQuantity }} / {{ i.wishedQuantity }} claimed</span>
+                      }
                     </div>
                     @if (i.description) { <p class="muted small desc">{{ i.description }}</p> }
-                    @if (v.canEdit && i.claims.length) {
+                    @if (canEdit() && i.claims.length) {
                       <ul class="claims">
                         @for (c of i.claims; track c.id) {
                           <li class="muted small claim-row">
@@ -175,22 +196,26 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     }
                   </div>
                   <div class="item-actions">
-                    @if (remaining > 0) {
+                    @if (v.enableClaiming && remaining > 0) {
                       @if (inCart === 0) {
-                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, 1, remaining)" title="Add to cart" aria-label="Add to cart">
+                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, 1, v.showQuantities ? remaining : 1)" title="Add to cart" aria-label="Add to cart">
                           <span class="material-icons">add_shopping_cart</span>
                         </button>
-                      } @else {
+                      } @else if (v.showQuantities) {
                         <div class="cart-controls">
                           <button type="button" class="ghost small" (click)="adjustCart(i.id, -1)">−</button>
                           <span class="qty">{{ inCart }}</span>
                           <button type="button" class="ghost small" (click)="adjustCart(i.id, 1, remaining)" [disabled]="inCart >= remaining">+</button>
                         </div>
+                      } @else {
+                        <button type="button" class="primary-btn" (click)="adjustCart(i.id, -1)" title="Remove from cart" aria-label="Remove from cart">
+                          <span class="material-icons">remove_shopping_cart</span>
+                        </button>
                       }
-                    } @else {
+                    } @else if (v.enableClaiming) {
                       <span class="muted small">Fully claimed</span>
                     }
-                    @if (v.canEdit) {
+                    @if (canEdit()) {
                       <button type="button" class="remove-btn" (click)="deleteItem(i)" title="Remove from wishlist" aria-label="Remove">
                         <span class="material-icons">delete_outline</span>
                       </button>
@@ -201,6 +226,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
             </ul>
         }
 
+        @if (v.enableClaiming) {
         <section #cartSummary class="card cart-summary" [class.empty]="cartCount() === 0">
             <h2>Your cart</h2>
             @if (cartCount() === 0) {
@@ -213,7 +239,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
                     <li>
                       <span class="cart-qty">{{ line.quantity }}×</span>
                       <span class="cart-name">{{ it.name }}</span>
-                      <span class="cart-line-total muted small">{{ formatPrice(it.priceMinor * line.quantity, it.currency) }}</span>
+                      <span class="cart-line-total muted small">{{ formatPriceIn(it.priceMinor * line.quantity, it.currency, displayCurrency) }}</span>
                     </li>
                   }
                 }
@@ -252,10 +278,11 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
               @if (claimError()) { <p class="error small">{{ claimError() }}</p> }
             }
           </section>
+        }
       }
     </main>
 
-    @if (cartCount() > 0 && !cartInView()) {
+    @if (view()?.enableClaiming && cartCount() > 0 && !cartInView()) {
       <button type="button" class="cart-fab" (click)="scrollToCart()">
         <span class="material-icons">shopping_cart</span>
         <span class="fab-count">{{ cartCount() }}</span>
@@ -267,6 +294,7 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     .page { max-width:780px; margin:0 auto; padding:1rem; padding-bottom:5rem; }
     .page-head h1 { margin:0 0 .25rem; }
     .head-row { display:flex; align-items:center; gap:.75rem; justify-content:space-between; flex-wrap:wrap; }
+    .head-actions { display:inline-flex; align-items:center; gap:.4rem; }
     .primary { background:#6f7a5b; color:#faf5ea; border:0; padding:.5rem .9rem; border-radius:.4rem; cursor:pointer; font:inherit; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
     .primary:disabled { opacity:.6; cursor:default; }
     .icon-btn { padding:.35rem; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
@@ -292,6 +320,13 @@ const FALLBACK_TO_BRL: Record<WishlistCurrency, number> = { BRL: 1, NOK: 0.5, US
     }
     ul.items { list-style:none; margin:1rem 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:.6rem; }
     .items-toolbar { display:flex; justify-content:flex-end; margin:1rem 0 .35rem; }
+    .currency-toggle { position:relative; display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .55rem .35rem .65rem; background:#fff; border:1px solid #e3d6b3; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.04); color:#6b5a32; font-size:.85rem; line-height:1; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+    .currency-toggle:hover, .currency-toggle:focus-within { border-color:#c9b87a; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+    .currency-toggle .material-icons { font-size:1rem; color:#8a6f3a; }
+    .currency-toggle .chev { margin-left:-.15rem; }
+    .currency-toggle-label { color:#6b5a32; }
+    .currency-value { color:#3b2f10; font-weight:600; }
+    .currency-toggle select { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; margin:0; font:inherit; }
     .item { display:flex; flex-direction:column; padding:0; background:#fff; border-radius:.5rem; overflow:hidden; border:1px solid #eee3c8; box-shadow:0 1px 2px rgba(0,0,0,.05); position:relative; }
     .item-img-wrap { position:relative; width:100%; aspect-ratio:1/1; background:#eee; display:flex; align-items:center; justify-content:center; cursor:default; }
     .item-img-wrap.empty, .item-img-wrap.placeholder { background:#f1e7cd; }
@@ -378,6 +413,8 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected readonly shareCopied = signal(false);
   protected readonly cartInView = signal(true);
   protected readonly imageVersions = signal<Map<number, number>>(new Map());
+  // null = default to owner status from view; true/false once user toggles.
+  protected readonly ownerViewOverride = signal<boolean | null>(null);
 
   protected readonly cartSummaryRef = viewChild<ElementRef<HTMLElement>>('cartSummary');
 
@@ -387,7 +424,18 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected readonly cartLines = computed<CartLine[]>(() =>
     Array.from(this.cart().entries()).map(([itemId, quantity]) => ({ itemId, quantity })));
 
-  protected readonly canEdit = computed(() => this.view()?.canEdit ?? false);
+  protected readonly canEdit = computed(() => {
+    const isOwner = this.view()?.canEdit ?? false;
+    if (!isOwner) return false;
+    const override = this.ownerViewOverride();
+    return override ?? true;
+  });
+  // Owner viewing as a guest? Used to render the preview toggle.
+  protected readonly previewingAsGuest = computed(() =>
+    (this.view()?.canEdit ?? false) && this.ownerViewOverride() === false);
+  protected toggleOwnerView(): void {
+    this.ownerViewOverride.set(!this.canEdit());
+  }
 
   protected rates: Record<WishlistCurrency, number> = { ...FALLBACK_TO_BRL };
 
@@ -403,6 +451,8 @@ export class WishlistComponent implements OnInit, OnDestroy {
   protected claimantLabel = '';
   protected anonymous = false;
   protected pixDraft = '';
+  protected showQuantitiesDraft = true;
+  protected enableClaimingDraft = true;
 
   private observer: IntersectionObserver | null = null;
   private observed: HTMLElement | null = null;
@@ -441,7 +491,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
         return;
       }
       this.view.set(view);
-      this.pixDraft = view.pixKey ?? '';
+      this.syncOptionDrafts(view);
     } catch {
       this.notFound.set(true);
     } finally {
@@ -495,7 +545,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
     setTimeout(() => { this.shareLabel.set('Share'); this.shareCopied.set(false); }, 2500);
   }
 
-  async savePixKey(): Promise<void> {
+  async saveOptions(): Promise<void> {
     const v = this.view();
     if (!v) return;
     this.pixSaving.set(true);
@@ -505,14 +555,28 @@ export class WishlistComponent implements OnInit, OnDestroy {
         eventId: v.eventId ?? undefined,
         ownerUserId: v.ownerUserId ?? undefined,
         pixKey: this.pixDraft.trim(),
+        showQuantities: this.showQuantitiesDraft,
+        enableClaiming: this.enableClaimingDraft,
       });
       this.view.set(updated);
-      this.pixDraft = updated.pixKey ?? '';
+      this.syncOptionDrafts(updated);
     } catch {
-      this.pixError.set('Could not save payment options.');
+      this.pixError.set('Could not save wishlist options.');
     } finally {
       this.pixSaving.set(false);
     }
+  }
+
+  protected optionsDirty(v: WishlistView): boolean {
+    return this.pixDraft.trim() !== (v.pixKey ?? '').trim()
+      || this.showQuantitiesDraft !== v.showQuantities
+      || this.enableClaimingDraft !== v.enableClaiming;
+  }
+
+  private syncOptionDrafts(v: WishlistView): void {
+    this.pixDraft = v.pixKey ?? '';
+    this.showQuantitiesDraft = v.showQuantities;
+    this.enableClaimingDraft = v.enableClaiming;
   }
 
   async completeClaim(claimId: number): Promise<void> {
@@ -533,7 +597,7 @@ export class WishlistComponent implements OnInit, OnDestroy {
     else if (v.ownerUserId) fresh = await this.api.getUserWishlist(v.ownerUserId);
     if (fresh) {
       this.view.set(fresh);
-      this.pixDraft = fresh.pixKey ?? '';
+      this.syncOptionDrafts(fresh);
     }
   }
 
@@ -553,6 +617,16 @@ export class WishlistComponent implements OnInit, OnDestroy {
 
   protected formatPrice(minor: number, currency: WishlistCurrency): string {
     return `${(minor / 100).toFixed(2)} ${currency}`;
+  }
+
+  protected formatPriceIn(minor: number, source: WishlistCurrency, target: WishlistCurrency): string {
+    const major = minor / 100;
+    if (source === target) return `${major.toFixed(2)} ${target}`;
+    const srcRate = this.rates[source] ?? 1;
+    const tgtRate = this.rates[target] ?? 1;
+    const brl = major * srcRate;
+    const amount = tgtRate === 0 ? brl : brl / tgtRate;
+    return `${amount.toFixed(2)} ${target}`;
   }
 
   protected cartTotalBrl(): number {

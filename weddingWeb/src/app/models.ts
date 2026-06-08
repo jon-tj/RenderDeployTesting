@@ -221,6 +221,8 @@ export interface WishlistView {
   ownerDisplayName: string;
   canEdit: boolean;
   pixKey?: string;
+  showQuantities: boolean;
+  enableClaiming: boolean;
   items: WishlistItem[];
 }
 

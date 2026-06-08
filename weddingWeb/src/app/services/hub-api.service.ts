@@ -119,8 +119,8 @@ export class HubApi {
     return firstValueFrom(this.http.post<void>(this.api.url(`/api/wishlist/claim/${claimId}/complete`), {}));
   }
 
-  updateWishlistPayment(payload: { eventId?: number; ownerUserId?: string; pixKey: string }): Promise<WishlistView> {
-    return firstValueFrom(this.http.put<WishlistView>(this.api.url('/api/wishlist/payment'), payload));
+  updateWishlistPayment(payload: { eventId?: number; ownerUserId?: string; pixKey?: string; showQuantities?: boolean; enableClaiming?: boolean }): Promise<WishlistView> {
+    return firstValueFrom(this.http.put<WishlistView>(this.api.url('/api/wishlist/options'), payload));
   }
 
   getWishlistRates(): Promise<Record<WishlistCurrency, number>> {

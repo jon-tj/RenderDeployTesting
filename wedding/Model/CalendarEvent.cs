@@ -96,6 +96,10 @@ public class CalendarEvent : IAssetOwner
     [MaxLength(200)]
     public string WishlistPixKey { get; set; } = string.Empty;
 
+    // Per-wishlist owner toggles. Defaults preserve previous behavior.
+    public bool WishlistShowQuantities { get; set; } = true;
+    public bool WishlistEnableClaiming { get; set; } = true;
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public List<EventInvite> Invites { get; set; } = new();

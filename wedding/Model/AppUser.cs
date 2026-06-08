@@ -28,6 +28,10 @@ public class AppUser : IdentityUser, IAssetOwner
     [MaxLength(200)]
     public string WishlistPixKey { get; set; } = string.Empty;
 
+    // Per-wishlist owner toggles. Defaults preserve previous behavior.
+    public bool WishlistShowQuantities { get; set; } = true;
+    public bool WishlistEnableClaiming { get; set; } = true;
+
     // IAssetOwner: only the user themselves can edit their own assets.
     public IReadOnlyCollection<string> EditorUserIds => new[] { Id };
 }

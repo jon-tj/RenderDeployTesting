@@ -35,6 +35,16 @@ export class HubApi {
     return firstValueFrom(this.http.delete<void>(this.api.url(`/api/events/${id}`)));
   }
 
+  exportEventBlob(id: number): Promise<Blob> {
+    return firstValueFrom(this.http.get(this.api.url(`/api/events/${id}/export`), { responseType: 'blob' }));
+  }
+
+  importEvent(file: File): Promise<number> {
+    const form = new FormData();
+    form.append('file', file);
+    return firstValueFrom(this.http.post<number>(this.api.url('/api/events/import'), form));
+  }
+
   addInvite(eventId: number, userId: string): Promise<Invite> {
     return firstValueFrom(
       this.http.post<Invite>(this.api.url(`/api/events/${eventId}/invites`), { userId })

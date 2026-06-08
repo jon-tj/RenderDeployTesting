@@ -55,7 +55,7 @@ public sealed record EventDetailDto(
     string DressCode, DateTime StartUtc, DateTime EndUtc, string CreatedById, string CreatedByDisplayName,
     bool IsOwner, List<string> MealOptions, List<string> DrinkOptions,
     int? ParentEventId, string? ParentEventTitle, bool InheritParentInvites, bool CollectChildRsvps,
-    bool AllowGuestAlbumUploads, bool ShowInviteesToGuests, EventVisibility Visibility,
+    AlbumUploadPolicy AlbumUploadPolicy, bool ShowInviteesToGuests, EventVisibility Visibility,
     bool EnableTranslations, Dictionary<string, EventTranslation> Translations,
     List<EventOwnerDto> CoOwners, List<ChildEventDto> Children, List<InviteDto> Invites,
     List<InviteGroupDto> Groups, InviteDto? MyInvite, List<EventImageDto> Images,
@@ -84,7 +84,7 @@ public sealed record EventDetailDto(
             e.StartUtc, e.EndUtc, e.CreatedById, e.CreatedBy?.DisplayName ?? "", isOwner,
             e.MealOptions.ToList(), e.DrinkOptions.ToList(),
             e.ParentEventId, e.ParentEvent?.Title, e.InheritParentInvites, e.CollectChildRsvps,
-            e.AllowGuestAlbumUploads, e.ShowInviteesToGuests, e.Visibility,
+            e.AlbumUploadPolicy, e.ShowInviteesToGuests, e.Visibility,
             e.EnableTranslations, e.Translations ?? new(),
             coOwners, children, invites, groupList.Select(InviteGroupDto.From).ToList(), mine, images,
             hasWishlist);
@@ -116,7 +116,7 @@ public sealed class UpdateEventDto
     public int? ParentEventId { get; set; }
     public bool? InheritParentInvites { get; set; }
     public bool? CollectChildRsvps { get; set; }
-    public bool? AllowGuestAlbumUploads { get; set; }
+    public AlbumUploadPolicy? AlbumUploadPolicy { get; set; }
     public bool? ShowInviteesToGuests { get; set; }
     public EventVisibility? Visibility { get; set; }
     public bool? EnableTranslations { get; set; }

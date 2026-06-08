@@ -8,7 +8,7 @@ import { ChildPickerComponent } from './child-picker.component';
 import { EventImageComponent } from './event-image.component';
 import { HubApi } from '../services/hub-api.service';
 import { AuthService } from '../services/auth.service';
-import { EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, InviteGroup, LANGUAGES, LanguageCode, UserSummary } from '../models';
+import { ALBUM_UPLOAD_POLICIES, AlbumUploadPolicy, EVENT_TYPES, EVENT_VISIBILITIES, ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, EventOwner, EventSummary, EventTranslation, EventType, EventVisibility, IMAGE_ROLES, ImageRole, Invite, InviteGroup, LANGUAGES, LanguageCode, UserSummary } from '../models';
 import { printDiningPlan } from '../utils/dining-plan';
 
 @Component({
@@ -391,13 +391,16 @@ import { printDiningPlan } from '../utils/dining-plan';
         <section class="card">
           <h2>Images</h2>
           @if (ev.isOwner) {
-            <label class="check">
-              <input type="checkbox" name="guestAlbum"
-                [(ngModel)]="allowGuestAlbumUploads"
-                (change)="savePatch({ allowGuestAlbumUploads: this.allowGuestAlbumUploads }, 'Could not update album upload setting.')" />
-              Let invitees upload to the album
+            <label>Album uploads
+              <select name="albumUploadPolicy"
+                [(ngModel)]="albumUploadPolicy"
+                (change)="savePatch({ albumUploadPolicy: this.albumUploadPolicy }, 'Could not update album upload setting.')">
+                @for (p of allAlbumPolicies; track p) {
+                  <option [value]="p">{{ albumPolicyLabel(p) }}</option>
+                }
+              </select>
             </label>
-            <p class="muted small">When on, anyone who can see this event can add to the album. Banner and icon are always owner-only.</p>
+            <p class="muted small">{{ albumPolicyHelp(albumUploadPolicy) }} Banner and icon uploads are always owner-only.</p>
           }
           @if (ev.isOwner && ev.type === 'Wedding') {
             <label class="check">
@@ -564,7 +567,8 @@ export class EventEditComponent implements OnInit {
   protected drinkOptionsText = '';
   protected inheritParentInvites = false;
   protected collectChildRsvps = true;
-  protected allowGuestAlbumUploads = false;
+  protected albumUploadPolicy: AlbumUploadPolicy = 'OwnersOnly';
+  protected readonly allAlbumPolicies = ALBUM_UPLOAD_POLICIES;
   protected showInviteesToGuests = true;
   protected visibility: EventVisibility = 'Closed';
   protected readonly allVisibilities = EVENT_VISIBILITIES;
@@ -638,7 +642,7 @@ export class EventEditComponent implements OnInit {
     this.drinkOptionsText = ev.drinkOptions.join('\n');
     this.inheritParentInvites = ev.inheritParentInvites;
     this.collectChildRsvps = ev.collectChildRsvps;
-    this.allowGuestAlbumUploads = ev.allowGuestAlbumUploads;
+    this.albumUploadPolicy = ev.albumUploadPolicy;
     this.showInviteesToGuests = ev.showInviteesToGuests;
     this.visibility = ev.visibility;
     this.enableTranslations = ev.enableTranslations;
@@ -1047,6 +1051,24 @@ export class EventEditComponent implements OnInit {
 
   protected allowedImageRoles(ev: EventDetail): ImageRole[] {
     return ev.isOwner ? IMAGE_ROLES : ['Album'];
+  }
+
+  protected albumPolicyLabel(p: AlbumUploadPolicy): string {
+    switch (p) {
+      case 'OwnersOnly': return 'Owners only';
+      case 'AlwaysOpen': return 'Always open to guests';
+      case 'OpenAfterEventStarted': return 'Open once the event starts';
+      case 'OpenAfterEventConcluded': return 'Open once the event has concluded';
+    }
+  }
+
+  protected albumPolicyHelp(p: AlbumUploadPolicy): string {
+    switch (p) {
+      case 'OwnersOnly': return 'Only owners can add to the album.';
+      case 'AlwaysOpen': return 'Anyone who can see this event can add to the album right away.';
+      case 'OpenAfterEventStarted': return 'Guests can add to the album from the event start time onward.';
+      case 'OpenAfterEventConcluded': return 'Guests can add to the album once the event has ended.';
+    }
   }
 
   protected onImageFile(e: Event): void {

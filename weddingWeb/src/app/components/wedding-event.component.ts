@@ -11,6 +11,7 @@ import { RsvpFormComponent } from './rsvp-form.component';
 import { HubApi } from '../services/hub-api.service';
 import { ChildEvent, EventDetail, EventImage } from '../models';
 import { localeFor } from '../utils/i18n';
+import { isAlbumUploadOpen } from '../utils/album-uploads';
 import { EventViewBase } from './event-view.base';
 
 @Component({
@@ -104,16 +105,19 @@ import { EventViewBase } from './event-view.base';
           </section>
         }
 
-        @if (albumImages().length || ev.allowGuestAlbumUploads) {
+        @if (albumImages().length || albumUploadOpen() || albumUploadPending()) {
           <section class="map">
             <p class="section-label">{{ s('moments') }}</p>
             @if (albumImages().length) {
               <app-image-carousel [eventId]="ev.id" [images]="albumImages()" variant="wedding" (open)="openAlbum($event)" />
             }
-            @if (ev.allowGuestAlbumUploads) {
+            @if (albumUploadOpen() || albumUploadPending()) {
               <div class="album-upload">
                 <input #albumFileInput type="file" accept="image/*" hidden (change)="onAlbumFile($event)" />
-                <button type="button" class="soft" (click)="albumFileInput.click()">{{ s('addToAlbum') }}</button>
+                <button type="button" class="soft" (click)="albumFileInput.click()" [disabled]="!albumUploadOpen()">{{ s('addToAlbum') }}</button>
+                @if (albumUploadPending() && albumUnlocksAtUtc(); as unlocks) {
+                  <span class="muted album-lock">({{ s('lockedUntil').replace('{0}', formatDayTime(unlocks)) }})</span>
+                }
               </div>
               @if (albumError()) { <p class="error">{{ albumError() }}</p> }
             }
@@ -223,7 +227,8 @@ import { EventViewBase } from './event-view.base';
 
     .note { font-style:italic; color:#7a6a4a; margin:0; }
 
-    .album-upload { display:flex; justify-content:center; padding-top:.75rem; margin-top:.5rem; border-top:1px dashed var(--rule-soft); }
+    .album-upload { display:flex; align-items:center; justify-content:center; gap:.5rem; flex-wrap:wrap; padding-top:.75rem; margin-top:.5rem; border-top:1px dashed var(--rule-soft); }
+    .album-upload .album-lock { font-size:.85rem; }
 
     .album-modal-veil { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:100; padding:1rem; }
     .album-modal { background:var(--wedding-bg); color:var(--wedding-ink); border:1px solid var(--gold-pale); border-radius:.6rem; padding:1.25rem; max-width:420px; width:100%; display:flex; flex-direction:column; gap:.75rem; }
@@ -286,6 +291,9 @@ export class WeddingEventComponent extends EventViewBase implements OnChanges {
   }
   protected formatHour(iso: string) {
     return new Date(iso).toLocaleTimeString(localeFor(this.lang()), { hour: '2-digit', minute: '2-digit' });
+  }
+  protected formatDayTime(iso: string) {
+    return new Date(iso).toLocaleString(localeFor(this.lang()), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   protected async onSaveRsvp(): Promise<void> {

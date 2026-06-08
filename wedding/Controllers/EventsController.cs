@@ -156,7 +156,7 @@ public class EventsController(AppDbContext db, UserManager<AppUser> users, IEmai
         if (dto.DrinkOptions is not null) ev.DrinkOptions = NormalizeOptions(dto.DrinkOptions);
         if (dto.InheritParentInvites is { } a) ev.InheritParentInvites = a;
         if (dto.CollectChildRsvps is { } b) ev.CollectChildRsvps = b;
-        if (dto.AllowGuestAlbumUploads is { } c) ev.AllowGuestAlbumUploads = c;
+        if (dto.AlbumUploadPolicy is { } c) ev.AlbumUploadPolicy = c;
         if (dto.ShowInviteesToGuests is { } d) ev.ShowInviteesToGuests = d;
         if (dto.Visibility is { } v) ev.Visibility = v;
         if (dto.EnableTranslations is { } et) ev.EnableTranslations = et;
@@ -474,8 +474,9 @@ public class EventsController(AppDbContext db, UserManager<AppUser> users, IEmai
         var uid = Uid;
         if (!await EventAccess.IsVisibleAsync(db, ev, uid)) return Forbid();
         var isOwner = EventAccess.IsOwner(ev, uid);
-        // Non-owners may only contribute to the guest album, and only when enabled.
-        if (!isOwner && (dto.Role != ImageRole.Album || !ev.AllowGuestAlbumUploads)) return Forbid();
+        // Non-owners may only contribute to the guest album, and only when the
+        // album-upload window is open (depending on the event's policy).
+        if (!isOwner && (dto.Role != ImageRole.Album || !AlbumUploads.IsOpen(ev))) return Forbid();
         if (dto.File is null || dto.File.Length == 0) return BadRequest("File is required.");
         if (!dto.File.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             return BadRequest("File must be an image.");

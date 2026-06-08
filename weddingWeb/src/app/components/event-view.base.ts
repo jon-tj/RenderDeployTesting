@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { HubApi } from '../services/hub-api.service';
 import { ChildEvent, DEFAULT_LANGUAGE, EventDetail, EventImage, InviteStatus, LANGUAGES, LanguageCode } from '../models';
 import { localizedDescription, localizedDressCode, localizedTitle, t } from '../utils/i18n';
+import { isAlbumUploadOpen } from '../utils/album-uploads';
 
 export const RSVP_STATUSES: InviteStatus[] = ['Pending', 'Accepted', 'Declined', 'Maybe'];
 
@@ -49,6 +50,25 @@ export abstract class EventViewBase {
     this.currentEvent()?.images.find(i => i.role === 'Banner') ?? null);
   readonly albumImages = computed<EventImage[]>(() =>
     this.currentEvent()?.images.filter(i => i.role === 'Album') ?? []);
+  readonly albumUploadOpen = computed<boolean>(() => {
+    const ev = this.currentEvent();
+    return !!ev && isAlbumUploadOpen(ev.albumUploadPolicy, ev.startUtc, ev.endUtc);
+  });
+  // True when the policy will eventually open uploads but hasn't yet.
+  readonly albumUploadPending = computed<boolean>(() => {
+    const ev = this.currentEvent();
+    if (!ev) return false;
+    if (this.albumUploadOpen()) return false;
+    return ev.albumUploadPolicy === 'OpenAfterEventStarted'
+        || ev.albumUploadPolicy === 'OpenAfterEventConcluded';
+  });
+  readonly albumUnlocksAtUtc = computed<string | null>(() => {
+    const ev = this.currentEvent();
+    if (!ev) return null;
+    if (ev.albumUploadPolicy === 'OpenAfterEventStarted') return ev.startUtc;
+    if (ev.albumUploadPolicy === 'OpenAfterEventConcluded') return ev.endUtc;
+    return null;
+  });
 
   readonly parentRsvp = signal<ChildRsvpState>(emptyRsvp());
   protected readonly childStates = signal(new Map<number, ChildRsvpState>());

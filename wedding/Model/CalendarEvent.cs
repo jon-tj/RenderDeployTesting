@@ -79,9 +79,9 @@ public class CalendarEvent : IAssetOwner, ISearchable
     // Only meaningful when the event has children.
     public bool CollectChildRsvps { get; set; } = true;
 
-    // When true, any user who can see this event can also upload Album
-    // images. Banner and Icon uploads remain owner-only regardless.
-    public bool AllowGuestAlbumUploads { get; set; }
+    // Controls when non-owners may contribute Album images. Banner and Icon
+    // uploads remain owner-only regardless. See AlbumUploadPolicy.
+    public AlbumUploadPolicy AlbumUploadPolicy { get; set; } = AlbumUploadPolicy.OwnersOnly;
 
     // When true, non-owner participants can see the full invitee list. When
     // false, only the event owner sees it. Default is true to preserve the

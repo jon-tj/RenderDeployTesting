@@ -45,6 +45,9 @@ export interface EventTranslation {
 export type ImageRole = 'Banner' | 'Album' | 'Icon' | 'MarginLeft' | 'MarginRight' | 'MarginBottom' | 'Tile';
 export const IMAGE_ROLES: ImageRole[] = ['Banner', 'Album', 'Icon', 'MarginLeft', 'MarginRight', 'MarginBottom', 'Tile'];
 
+export type AlbumUploadPolicy = 'OwnersOnly' | 'AlwaysOpen' | 'OpenAfterEventStarted' | 'OpenAfterEventConcluded';
+export const ALBUM_UPLOAD_POLICIES: AlbumUploadPolicy[] = ['OwnersOnly', 'AlwaysOpen', 'OpenAfterEventStarted', 'OpenAfterEventConcluded'];
+
 export interface EventImage {
   id: number;
   role: ImageRole;
@@ -145,7 +148,7 @@ export interface EventDetail {
   parentEventTitle: string | null;
   inheritParentInvites: boolean;
   collectChildRsvps: boolean;
-  allowGuestAlbumUploads: boolean;
+  albumUploadPolicy: AlbumUploadPolicy;
   showInviteesToGuests: boolean;
   visibility: EventVisibility;
   enableTranslations: boolean;

@@ -348,7 +348,7 @@ public sealed class EventNode
     public List<string> DrinkOptions { get; set; } = new();
     public bool InheritParentInvites { get; set; }
     public bool CollectChildRsvps { get; set; } = true;
-    public bool AllowGuestAlbumUploads { get; set; }
+    public AlbumUploadPolicy AlbumUploadPolicy { get; set; } = AlbumUploadPolicy.OwnersOnly;
     public bool ShowInviteesToGuests { get; set; } = true;
     public EventVisibility Visibility { get; set; }
     public bool EnableTranslations { get; set; }
@@ -363,7 +363,7 @@ public sealed class EventNode
         Location = e.Location, LocationLabel = e.LocationLabel, StartUtc = e.StartUtc, EndUtc = e.EndUtc,
         MealOptions = e.MealOptions.ToList(), DrinkOptions = e.DrinkOptions.ToList(),
         InheritParentInvites = e.InheritParentInvites, CollectChildRsvps = e.CollectChildRsvps,
-        AllowGuestAlbumUploads = e.AllowGuestAlbumUploads, ShowInviteesToGuests = e.ShowInviteesToGuests,
+        AlbumUploadPolicy = e.AlbumUploadPolicy, ShowInviteesToGuests = e.ShowInviteesToGuests,
         Visibility = e.Visibility, EnableTranslations = e.EnableTranslations,
         Translations = e.Translations ?? new(),
         CoOwners = (e.CoOwners ?? new()).Select(c => new UserRef(c.UserId, c.User?.Email ?? "", c.User?.DisplayName ?? "")).ToList(),
@@ -377,7 +377,7 @@ public sealed class EventNode
         Location = Location, LocationLabel = LocationLabel, StartUtc = StartUtc, EndUtc = EndUtc,
         MealOptions = MealOptions.ToList(), DrinkOptions = DrinkOptions.ToList(),
         InheritParentInvites = InheritParentInvites, CollectChildRsvps = CollectChildRsvps,
-        AllowGuestAlbumUploads = AllowGuestAlbumUploads, ShowInviteesToGuests = ShowInviteesToGuests,
+        AlbumUploadPolicy = AlbumUploadPolicy, ShowInviteesToGuests = ShowInviteesToGuests,
         Visibility = Visibility, EnableTranslations = EnableTranslations,
         Translations = Translations ?? new(),
         CreatedById = creatorId,

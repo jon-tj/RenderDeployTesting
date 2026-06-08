@@ -10,6 +10,7 @@ import { WeddingEventComponent } from './wedding-event.component';
 import { RsvpFormComponent } from './rsvp-form.component';
 import { ChildEvent, EventDetail } from '../models';
 import { localeFor } from '../utils/i18n';
+import { isAlbumUploadOpen } from '../utils/album-uploads';
 import { EventViewBase } from './event-view.base';
 
 @Component({
@@ -191,7 +192,9 @@ export class EventDetailComponent extends EventViewBase implements OnInit {
     if (updated) this.event.set(updated);
   }
 
-  protected canUploadAlbum(ev: EventDetail) { return ev.isOwner || ev.allowGuestAlbumUploads; }
+  protected canUploadAlbum(ev: EventDetail) {
+    return ev.isOwner || isAlbumUploadOpen(ev.albumUploadPolicy, ev.startUtc, ev.endUtc);
+  }
   protected openAlbum(img: { id: number }) { const ev = this.event(); if (ev) this.router.navigate(['/event', ev.id, 'album', img.id]); }
   protected onAlbumFile(e: Event) { const i = e.target as HTMLInputElement; this.albumFile = i.files?.[0] ?? null; }
 

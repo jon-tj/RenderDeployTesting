@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FamilyHub.Data;
 using FamilyHub.Model;
 using FamilyHub.Services;
@@ -26,6 +27,7 @@ public class EventBackupController(AppDbContext db, UserManager<AppUser> users) 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
+        Converters = { new UtcDateTimeConverter() },
     };
 
     string Uid => users.GetUserId(User)!;
@@ -344,6 +346,25 @@ public class EventBackupController(AppDbContext db, UserManager<AppUser> users) 
 }
 
 // ---- Backup DTOs ----------------------------------------------------------
+
+// PostgreSQL timestamptz columns require DateTimeKind.Utc; System.Text.Json
+// deserializes DateTime as Kind=Unspecified by default.
+sealed class UtcDateTimeConverter : JsonConverter<DateTime>
+{
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var v = reader.GetDateTime();
+        return v.Kind switch
+        {
+            DateTimeKind.Utc => v,
+            DateTimeKind.Local => v.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(v, DateTimeKind.Utc),
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+        => writer.WriteStringValue(value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime());
+}
 
 public sealed class EventBackup
 {

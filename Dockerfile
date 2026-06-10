@@ -22,6 +22,12 @@ RUN dotnet publish wedding/wedding.csproj -c Release -o /app/publish /p:UseAppHo
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# libgssapi-krb5-2 is probed by Npgsql at startup; installing it silences the
+# "Cannot load library libgssapi_krb5.so.2" warning. Auth still uses SCRAM.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=api-build /app/publish ./
 # Angular build output goes into wwwroot so UseStaticFiles() / fallback can serve it.
 COPY --from=web-build /src/weddingWeb/dist/weddingWeb/browser ./wwwroot

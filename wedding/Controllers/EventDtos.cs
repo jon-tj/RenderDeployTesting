@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using FamilyHub.Model;
+using FamilyHub.Services;
 
 namespace FamilyHub.Controllers;
 
@@ -68,12 +69,23 @@ public sealed record EventDetailDto(
         var mine = allInvites.FirstOrDefault(i => i.InviteeId == uid);
         var invites = isOwner || e.ShowInviteesToGuests ? allInvites : new();
         var groupList = (groups ?? new List<InviteGroup>()).ToList();
-        // Non-owners only see children whose ids appear in their group's whitelist.
-        var visibleChildIds = isOwner ? null : new HashSet<int>(
-            (mine?.InviteGroupId is int gid ? groupList.FirstOrDefault(g => g.Id == gid) : null)
-                ?.VisibleChildEventIds ?? new());
+        // Non-owners with an invite group that declares a non-empty whitelist
+        // only see the children listed there. Otherwise fall back to the
+        // child's own visibility (which honours InheritParentInvites).
+        HashSet<int>? whitelistedChildIds = null;
+        if (!isOwner && mine?.InviteGroupId is int gid)
+        {
+            var group = groupList.FirstOrDefault(g => g.Id == gid);
+            if (group is { VisibleChildEventIds.Count: > 0 })
+                whitelistedChildIds = new HashSet<int>(group.VisibleChildEventIds);
+        }
+        var childById = new Dictionary<int, CalendarEvent> { [e.Id] = e };
+        foreach (var c in e.Children) childById[c.Id] = c;
         var children = e.Children
-            .Where(c => visibleChildIds is null || visibleChildIds.Contains(c.Id))
+            .Where(c => isOwner
+                || (whitelistedChildIds is null
+                    ? EventAccess.IsVisibleTo(c, uid, childById)
+                    : whitelistedChildIds.Contains(c.Id)))
             .OrderBy(c => c.StartUtc)
             .Select(c => ChildEventDto.From(c, uid)).ToList();
         var images = (e.Images ?? new()).OrderBy(i => i.Role).ThenBy(i => i.UploadedAtUtc)

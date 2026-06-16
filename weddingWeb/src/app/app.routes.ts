@@ -36,6 +36,16 @@ export const routes: Routes = [
     loadComponent: () => import('./components/wishlist.component').then(m => m.WishlistComponent),
   },
   {
+    path: 'games',
+    canActivate: [authGuard],
+    loadComponent: () => import('./games/games-catalog.component').then(m => m.GamesCatalogComponent),
+  },
+  {
+    path: 'game/:gameId/play',
+    canActivate: [authGuard],
+    loadComponent: () => import('./games/game-play.component').then(m => m.GamePlayComponent),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () => import('./components/home.component').then(m => m.HomeComponent),

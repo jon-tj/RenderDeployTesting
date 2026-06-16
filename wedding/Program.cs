@@ -36,10 +36,32 @@ builder.Services
     })
     .AddEntityFrameworkStores<AppDbContext>();
 
+// Browsers can't attach Authorization headers to the WebSocket upgrade, so
+// SignalR clients pass the bearer token via ?access_token=. Surface it to
+// the Identity bearer handler so /hubs/* requests authenticate.
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.BearerToken.BearerTokenOptions>(
+    IdentityConstants.BearerScheme, o =>
+    {
+        var existing = o.Events.OnMessageReceived;
+        o.Events.OnMessageReceived = async ctx =>
+        {
+            if (existing is not null) await existing(ctx);
+            if (string.IsNullOrEmpty(ctx.Token) &&
+                ctx.Request.Path.StartsWithSegments("/hubs") &&
+                ctx.Request.Query.TryGetValue("access_token", out var t))
+            {
+                ctx.Token = t!;
+            }
+        };
+    });
+
 builder.Services.AddAuthorization();
 builder.Services.AddControllers().AddJsonOptions(o =>
     o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR().AddJsonProtocol(o =>
+    o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddSingleton<FamilyHub.Services.Games.GameRoomManager>();
 
 builder.Services.AddCors(o => o.AddPolicy("SpaDev", p => p
     .WithOrigins("http://localhost:4200", "https://localhost:4200")
@@ -76,6 +98,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapGroup("/api/auth").MapIdentityApi<AppUser>();
 app.MapControllers();
+app.MapHub<FamilyHub.Hubs.GamesHub>("/hubs/games");
 app.MapFallbackToFile("index.html");
 app.Run();
 

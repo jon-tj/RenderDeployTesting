@@ -11,6 +11,8 @@ import { SearchHit } from '../models';
   template: `
     <nav class="navbar">
       <a class="brand" routerLink="/" aria-label="Home" title="Home"><span class="material-icons">home</span></a>
+      <a class="nav-link" routerLink="/" title="Resources"><span class="material-icons">menu_book</span><span class="nav-label">Resources</span></a>
+      <a class="nav-link" routerLink="/games" title="Games"><span class="material-icons">videogame_asset</span><span class="nav-label">Games</span></a>
       <div class="spacer"></div>
       <div class="search" (click)="$event.stopPropagation()">
         <span class="material-icons search-icon">search</span>
@@ -53,6 +55,10 @@ import { SearchHit } from '../models';
     .navbar { display:flex; align-items:center; gap:1rem; padding:.75rem 1.25rem; background:var(--bg-card); border-bottom:1px solid var(--rule); }
     .brand { font-weight:600; font-size:1.1rem; text-decoration:none; color:var(--ink); white-space:nowrap; display:inline-flex; align-items:center; }
     .brand .material-icons { font-size:1.6rem; }
+    .nav-link { display:inline-flex; align-items:center; gap:.35rem; padding:.4rem .7rem; border-radius:var(--r); color:var(--ink-soft); text-decoration:none; font-size:.95rem; }
+    .nav-link:hover { background:#f5efe1; color:var(--ink); }
+    .nav-link .material-icons { font-size:1.2rem; }
+    @media (max-width: 720px) { .nav-label { display:none; } }
     .search { flex:0 1 480px; width:100%; position:relative; }
     .spacer { flex:1 1 0; min-width:0; }
     .search-icon { position:absolute; left:.5rem; top:50%; transform:translateY(-50%); color:var(--muted); font-size:1.1rem; pointer-events:none; }

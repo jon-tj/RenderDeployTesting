@@ -18,6 +18,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<Wishlist> Wishlists => Set<Wishlist>();
     public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
     public DbSet<WishlistClaim> WishlistClaims => Set<WishlistClaim>();
+    public DbSet<Team> Teams => Set<Team>();
+    public DbSet<TeamMember> TeamMembers => Set<TeamMember>();
+    public DbSet<TeamScore> TeamScores => Set<TeamScore>();
 
     // List<T> persisted as a `sep`-joined string. Used for option lists, allergens, ids.
     static (ValueConverter<List<T>, string>, ValueComparer<List<T>>) ListConverter<T>(char sep, Func<T, string> toStr, Func<string, T> fromStr) =>
@@ -94,5 +97,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             .HasForeignKey(c => c.ItemId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<WishlistClaim>().HasOne(c => c.Claimant).WithMany()
             .HasForeignKey(c => c.ClaimantUserId).OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<TeamMember>().HasKey(m => new { m.TeamId, m.UserId });
+        b.Entity<TeamMember>().HasOne(m => m.Team).WithMany(t => t.Members)
+            .HasForeignKey(m => m.TeamId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<TeamMember>().HasOne(m => m.User).WithMany()
+            .HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<TeamScore>().HasOne(s => s.Team).WithMany()
+            .HasForeignKey(s => s.TeamId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<TeamScore>().HasIndex(s => s.GameId);
+        b.Entity<TeamScore>().HasIndex(s => new { s.GameId, s.GameConfigsId });
     }
 }

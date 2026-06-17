@@ -142,6 +142,7 @@ export interface BuracoView {
   teamMelds: BuracoTeam[];
   mortos: { team: number; count: number }[];
   discardTop: BuracoCard[] | null;
+  discard: BuracoCard[];
   discardCount: number;
   stockCount: number;
   phase: 'Draw' | 'MeldDiscard';

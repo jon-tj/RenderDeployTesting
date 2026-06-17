@@ -1,17 +1,21 @@
-import { Component, EventEmitter, Input, Output, computed, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output, ViewChild, computed, signal } from '@angular/core';
 import { AuthService } from '../services/auth.service';
-import { GameView, UnoCard, UnoColor, UnoView } from './game-models';
+import { GameView, RoomPlayer, UnoCard, UnoColor, UnoView } from './game-models';
 
 @Component({
   selector: 'app-uno-game',
   imports: [],
   template: `
     @if (state(); as v) {
-      <section class="board uno">
+      <section #board class="board uno" [class.fullscreen]="isFullscreen()">
+        <button type="button" class="fs-btn" (click)="toggleFullscreen()"
+          [title]="isFullscreen() ? 'Exit fullscreen' : 'Fullscreen'">
+          <span class="material-icons">{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</span>
+        </button>
         <div class="players">
           @for (p of v.players; track p.userId; let i = $index) {
             <div class="seat" [class.active]="p.isTurn" [class.me]="i === v.you?.index">
-              <div class="name">{{ nameFor(p.userId) }}</div>
+              <div class="name">{{ nameFor(p.userId) }}@if (i === v.you?.index) { <span class="you">(You)</span> }</div>
               <div class="count">{{ p.cards }} cards</div>
             </div>
           }
@@ -58,12 +62,19 @@ import { GameView, UnoCard, UnoColor, UnoView } from './game-models';
     }
   `,
   styles: [`
-    .board.uno { background:#0c5e2a; border-radius:var(--r); padding:1rem; color:#fff; margin-top:1rem; }
+    .board.uno { position:relative; background:#0c5e2a; border-radius:var(--r); padding:1rem; color:#fff; margin-top:1rem; }
+    .board.uno.fullscreen { border-radius:0; margin:0; overflow:auto; padding:1.5rem; }
+    .fs-btn { position:absolute; top:.5rem; right:.5rem; background:rgba(0,0,0,.35); color:#fff; border:0; border-radius:50%; width:2.1rem; height:2.1rem; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; z-index:2; }
+    .fs-btn:hover { background:rgba(0,0,0,.55); }
+    .fs-btn .material-icons { font-size:1.25rem; }
     .players { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
     .seat { background:rgba(255,255,255,.1); padding:.4rem .7rem; border-radius:var(--r); min-width:7rem; }
-    .seat.active { background:#fff; color:#222; box-shadow:0 0 0 2px #ffd700; }
-    .seat.me { outline:2px dashed #ffd700; }
+    .seat.active { background:#fff8d6; color:#222; }
+    .seat.active .name { color:#222; }
+    .seat.me { background:rgba(255,255,255,.22); }
+    .seat.me.active { background:#fff8d6; }
     .seat .name { font-weight:600; font-size:.9rem; }
+    .seat .name .you { margin-left:.3rem; font-weight:500; opacity:.75; font-size:.78rem; }
     .seat .count { font-size:.8rem; opacity:.85; }
     .middle { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
     .draw { background:#fff; color:#222; border:0; padding:.5rem .9rem; border-radius:var(--r); cursor:pointer; display:inline-flex; align-items:center; gap:.35rem; }
@@ -82,13 +93,34 @@ import { GameView, UnoCard, UnoColor, UnoView } from './game-models';
     .c-green { background:#2e8b3d; } .c-blue { background:#2562c6; }
     .c-wild { background: conic-gradient(#d3322e, #d4a017, #2e8b3d, #2562c6, #d3322e); color:#fff; text-shadow:0 1px 2px #000; }
     .discard { padding:.3rem; border-radius:.6rem; background:rgba(0,0,0,.25); }
+    .board.uno.fullscreen .card { min-width:3.6rem; min-height:5.4rem; font-size:1.4rem; padding:.55rem .75rem; }
+    .board.uno.fullscreen .card.big { min-width:5rem; min-height:7rem; font-size:1.9rem; }
+    .board.uno.fullscreen .hand { min-height:7.5rem; gap:.55rem; }
     .muted { color:rgba(255,255,255,.7); }
   `],
 })
 export class UnoGameComponent {
   @Input() view: GameView | null = null;
+  @Input() players: RoomPlayer[] = [];
   @Input({ required: true }) auth!: AuthService;
   @Output() action = new EventEmitter<unknown>();
+  @ViewChild('board') private boardRef?: ElementRef<HTMLElement>;
+
+  protected readonly isFullscreen = signal(false);
+
+  @HostListener('document:fullscreenchange')
+  protected onFsChange(): void {
+    this.isFullscreen.set(document.fullscreenElement === this.boardRef?.nativeElement);
+  }
+
+  protected async toggleFullscreen(): Promise<void> {
+    const el = this.boardRef?.nativeElement;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await el.requestFullscreen();
+    } catch { /* user-gesture or unsupported — ignore */ }
+  }
 
   protected readonly colors: UnoColor[] = ['red', 'yellow', 'green', 'blue'];
   protected readonly pickingCard = signal<UnoCard | null>(null);
@@ -117,7 +149,9 @@ export class UnoGameComponent {
 
   protected nameFor(userId: string): string {
     const me = this.auth.me();
-    return me?.id === userId ? (me.displayName || 'You') : userId.slice(0, 6);
+    if (me?.id === userId) return me.displayName || 'You';
+    const p = this.players.find(x => x.userId === userId);
+    return p?.displayName || '?';
   }
 
   protected tryPlay(c: UnoCard): void {

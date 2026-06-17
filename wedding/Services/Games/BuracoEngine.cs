@@ -59,10 +59,13 @@ public sealed class BuracoEngine : IGameEngine
         public bool IsRun;       // sequence in suit; otherwise same-rank set
         public Suit RunSuit;     // when IsRun
         public List<Card> Cards = new();
-        public bool HasWild => Cards.Any(c => c.IsWild);
+        public int WildSlots;    // count of 2s used as wild substitutes (jokers no longer in deck)
+        public bool HasWild => WildSlots > 0;
         public bool IsCanastra => Cards.Count >= 7;
         public int BaseValue => Cards.Sum(c => c.Points);
-        public int Bonus => IsCanastra ? (HasWild ? 50 : 100) : 0;
+        // Brazilian Buraco scoring: limpa (clean, no wild) 200; suja (dirty,
+        // contains a 2 acting as wild) 100.
+        public int Bonus => IsCanastra ? (HasWild ? 100 : 200) : 0;
     }
 
     readonly List<Card> _stock = new();
@@ -112,10 +115,12 @@ public sealed class BuracoEngine : IGameEngine
 
     void BuildDeck()
     {
+        // Two standard 52-card decks. No jokers — the only wild card in this
+        // ruleset is the 2, which players may meld either at its natural rank
+        // or as a wild substitute (decided at meld time).
         for (int d = 0; d < 2; d++)
             foreach (var s in new[] { Suit.Clubs, Suit.Diamonds, Suit.Hearts, Suit.Spades })
                 for (int r = 1; r <= 13; r++) _stock.Add(new(s, r, d));
-        for (int i = 0; i < 4; i++) _stock.Add(new(Suit.Joker, 0, i));
     }
 
     void Shuffle(List<Card> cards)
@@ -129,6 +134,21 @@ public sealed class BuracoEngine : IGameEngine
 
     Card Pop() { var c = _stock[^1]; _stock.RemoveAt(_stock.Count - 1); return c; }
     List<Card> Take(int n) { var l = new List<Card>(); for (int i = 0; i < n; i++) l.Add(Pop()); return l; }
+
+    // When the stock runs dry, fold the still-unclaimed Team 1 morto (or the
+    // remaining one if T1's is gone) into the stock so play can continue.
+    void RefillStockFromMorto()
+    {
+        for (int t = 0; t < _mortos.Count; t++)
+        {
+            if (_teamUsedMorto[t]) continue;
+            if (_mortos[t].Count == 0) continue;
+            _stock.AddRange(_mortos[t]);
+            _mortos[t].Clear();
+            _teamUsedMorto[t] = true;
+            return;
+        }
+    }
 
     int TeamOf(int playerIdx) => _playerTeam[playerIdx];
 
@@ -145,6 +165,7 @@ public sealed class BuracoEngine : IGameEngine
         {
             case "drawStock":
                 if (_phase != Phase.Draw) return "Already drew";
+                if (_stock.Count == 0) RefillStockFromMorto();
                 if (_stock.Count == 0) return "Stock is empty";
                 _hands[idx].Add(Pop());
                 _phase = Phase.MeldDiscard;
@@ -261,41 +282,77 @@ public sealed class BuracoEngine : IGameEngine
     Meld? ValidateNewMeld(List<Card> cards)
     {
         if (cards.Count < 3) return null;
-        int wilds = cards.Count(c => c.IsWild);
-        if (wilds > 1) return null; // simplification: at most one wild
-        var nonWild = cards.Where(c => !c.IsWild).ToList();
-        // Try set
+        // A 2 may be played either at its natural rank or as a wild substitute.
+        // Try every assignment of 2s to wild/natural and accept the first that
+        // forms a legal meld. Joker count is fixed; combined wilds (jokers +
+        // 2s-as-wild) capped at 1 to match the existing simplification.
+        var twos = cards.Where(c => !c.IsWild && c.Rank == 2).ToList();
+        for (int mask = 0; mask < (1 << twos.Count); mask++)
+        {
+            var wildSet = new HashSet<Card>(cards.Where(c => c.IsWild));
+            for (int i = 0; i < twos.Count; i++)
+                if ((mask & (1 << i)) != 0) wildSet.Add(twos[i]);
+            if (wildSet.Count > 1) continue;
+            var built = TryBuild(cards, wildSet);
+            if (built is not null) return built;
+        }
+        return null;
+    }
+
+    Meld? TryBuild(List<Card> cards, HashSet<Card> wildSet)
+    {
+        var nonWild = cards.Where(c => !wildSet.Contains(c)).ToList();
+        if (nonWild.Count == 0) return null;
+        // Try set first (all same rank).
         if (nonWild.Select(c => c.Rank).Distinct().Count() == 1)
         {
             var rank = nonWild[0].Rank;
-            if (rank != 0) return new Meld { IsRun = false, Cards = cards.ToList() };
+            if (rank != 0)
+            {
+                var ordered = nonWild.OrderBy(c => (int)c.Suit).ThenBy(c => c.DeckId).ToList();
+                ordered.AddRange(wildSet); // wilds at the end
+                return new Meld { IsRun = false, Cards = ordered, WildSlots = wildSet.Count };
+            }
         }
-        // Try run
+        // Run: same suit, consecutive with up to one wild filling a gap or extending.
         if (nonWild.Select(c => c.Suit).Distinct().Count() == 1)
         {
             var suit = nonWild[0].Suit;
-            var ranks = nonWild.Select(c => c.Rank).OrderBy(x => x).ToList();
-            // Build a length-13 run frame; place non-wilds, then attempt to fit wild in one gap.
-            var slots = new bool[15]; // 1..13 + buffer
-            foreach (var r in ranks)
+            // Aces can sit either low (rank 1) or high (rank 14, above K).
+            // Try every assignment and keep the first that yields a legal run.
+            var aces = nonWild.Where(c => c.Rank == 1).ToList();
+            for (int aceMask = 0; aceMask < (1 << aces.Count); aceMask++)
             {
-                if (r == 0) return null;
-                if (r < 1 || r > 13) return null;
-                if (slots[r]) return null; // duplicate suit+rank in run not allowed
-                slots[r] = true;
+                var highAces = new HashSet<Card>();
+                for (int i = 0; i < aces.Count; i++)
+                    if ((aceMask & (1 << i)) != 0) highAces.Add(aces[i]);
+                int RankOf(Card c) => highAces.Contains(c) ? 14 : c.Rank;
+                var ranks = nonWild.Select(RankOf).ToList();
+                if (ranks.Distinct().Count() != ranks.Count) continue;
+                int min = ranks.Min(), max = ranks.Max();
+                int needed = max - min + 1;
+                int gaps = needed - nonWild.Count;
+                if (gaps < 0) continue;
+                int wildCount = wildSet.Count;
+                if (gaps > wildCount) continue;
+                int extension = cards.Count - needed;
+                if (extension < 0) continue;
+                if (extension > wildCount - gaps) continue;
+                if (max + extension > 14) continue;
+
+                var byRank = nonWild.ToDictionary(RankOf);
+                var wildsRemaining = new Queue<Card>(wildSet);
+                var ordered = new List<Card>(cards.Count);
+                bool ok = true;
+                for (int r = min; r <= max + extension; r++)
+                {
+                    if (byRank.TryGetValue(r, out var c)) ordered.Add(c);
+                    else if (wildsRemaining.Count > 0) ordered.Add(wildsRemaining.Dequeue());
+                    else { ok = false; break; }
+                }
+                if (!ok || ordered.Count != cards.Count) continue;
+                return new Meld { IsRun = true, RunSuit = suit, Cards = ordered, WildSlots = wildSet.Count };
             }
-            // Find min/max of placed cards
-            int min = ranks.Min(), max = ranks.Max();
-            int needed = max - min + 1; // slots between extremes
-            int gaps = needed - nonWild.Count;
-            if (gaps < 0) return null;
-            if (gaps > wilds) return null;
-            int extension = cards.Count - needed; // wild may extend past max (not below A)
-            if (extension < 0) return null;
-            if (extension > wilds - gaps) return null;
-            // Wild can't push past K (rank 13)
-            if (max + extension > 13) return null;
-            return new Meld { IsRun = true, RunSuit = suit, Cards = cards.ToList() };
         }
         return null;
     }
@@ -304,18 +361,15 @@ public sealed class BuracoEngine : IGameEngine
     {
         var combined = m.Cards.Concat(add).ToList();
         // Reuse new-meld validation, preserving meld kind.
-        if (m.IsRun)
-        {
-            if (!combined.Where(c => !c.IsWild).All(c => c.Suit == m.RunSuit)) return false;
-        }
-        else
-        {
-            int rank = m.Cards.First(c => !c.IsWild).Rank;
-            if (!combined.Where(c => !c.IsWild).All(c => c.Rank == rank)) return false;
-        }
+        // Defer to ValidateNewMeld for wild/2-substitution handling. Then
+        // require the resulting meld be the same kind (run vs set) as the
+        // existing one — can't morph a set into a run via layoff.
         var trial = ValidateNewMeld(combined);
         if (trial is null) return false;
-        m.Cards.Clear(); m.Cards.AddRange(combined);
+        if (trial.IsRun != m.IsRun) return false;
+        if (trial.IsRun && trial.RunSuit != m.RunSuit) return false;
+        m.Cards.Clear(); m.Cards.AddRange(trial.Cards);
+        m.WildSlots = trial.WildSlots;
         return true;
     }
 
@@ -353,6 +407,7 @@ public sealed class BuracoEngine : IGameEngine
             }).ToList(),
             mortos = _mortos.Select((m, t) => new { team = t, count = m.Count }).ToList(),
             discardTop = _discard.Count == 0 ? null : new[] { new { code = _discard[^1].Code, suit = _discard[^1].Suit.ToString().ToLowerInvariant(), rank = _discard[^1].Rank, isWild = _discard[^1].IsWild } },
+            discard = _discard.Select(c => new { code = c.Code, suit = c.Suit.ToString().ToLowerInvariant(), rank = c.Rank, isWild = c.IsWild }).ToList(),
             discardCount = _discard.Count,
             stockCount = _stock.Count,
             phase = _phase.ToString(),

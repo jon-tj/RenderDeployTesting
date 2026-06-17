@@ -77,9 +77,9 @@ import { BuracoGameComponent } from './buraco-game.component';
 
           @if (room()!.status === 'Playing' || room()!.status === 'Ended') {
             @if (catalog()!.id === 'uno') {
-              <app-uno-game [view]="hub.view()" [auth]="auth" (action)="onAction($event)" />
+              <app-uno-game [view]="hub.view()" [players]="room()!.players" [auth]="auth" (action)="onAction($event)" />
             } @else if (catalog()!.id === 'buraco') {
-              <app-buraco-game [view]="hub.view()" [auth]="auth" (action)="onAction($event)" />
+              <app-buraco-game [view]="hub.view()" [players]="room()!.players" [auth]="auth" (action)="onAction($event)" />
             }
           }
 
